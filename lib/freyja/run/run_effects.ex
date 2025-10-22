@@ -3,23 +3,12 @@ defmodule Freyja.Run.RunEffects do
   blessed effect signature describing how a scoped computation
   result is to be handled in the parent computation
   """
-  defmodule ScopedReturn do
+  defmodule ScopedOk do
     @moduledoc """
     computation: the effect describing how the scoped
       computation is to be handled
     run_outcome: the scoped computation result
     """
-    use Freyja.Sig.Sendable, sig: Freyja.Run.RunEffects
-
-    defstruct computation: nil, run_outcome: nil
-
-    @type t :: %__MODULE__{
-            computation: Freyja.Freer.freer(),
-            run_outcome: Freyja.RunOutcome.t()
-          }
-  end
-
-  defmodule ScopedSuspend do
     use Freyja.Sig.Sendable, sig: Freyja.Run.RunEffects
 
     defstruct value: nil, run_outcome: nil
@@ -57,14 +46,8 @@ defmodule Freyja.Run.RunEffects do
   * run_outcome - the outcome of the scoped computation, including
       the result, the effect states and the effect outputs
   """
-  def scoped_return(computation, run_outcome),
-    do: %ScopedReturn{
-      computation: computation,
-      run_outcome: run_outcome
-    }
-
-  def scoped_suspend(value, run_outcome),
-    do: %ScopedSuspend{
+  def scoped_return(value, run_outcome),
+    do: %ScopedOk{
       value: value,
       run_outcome: run_outcome
     }

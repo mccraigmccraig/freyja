@@ -101,16 +101,18 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   end
 
   @impl Freyja.EffectHandler
-  def scoped_return(
+  def scoped_ok(
         _result,
-        _computation,
+        _value,
         handler_key,
-        state,
+        %Log{} = state,
         _scoped_state,
-        %RunOutcome{} = run_outcome
+        %RunOutcome{} = scoped_run_outcome
       ) do
-    scoped_log = Map.get(run_outcome.outputs, handler_key)
-    Log.set_scoped_log(state, scoped_log)
+    scoped_log = Map.get(scoped_run_outcome.outputs, handler_key)
+    updated_log = Log.set_scoped_log(state, scoped_log)
+    # Logger.error("#{__MODULE__}.scoped_ok #{inspect(updated_log, pretty: true)}")
+    updated_log
   end
 
   @impl Freyja.EffectHandler
@@ -120,10 +122,10 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         log,
         %RunState{} = _run_state
       ) do
-    # finalized_log = Log.prepare_for_retrace(log)
+    finalized_log = Log.prepare_for_retrace(log)
 
     # Logger.error("#{__MODULE__}.finalize #{inspect(finalized_log, pretty: true)}")
-    {computation, log}
+    {computation, finalized_log}
   end
 
   def log_or_resume(%Impure{sig: sig, data: u, q: q} = computation, %Log{} = log) do

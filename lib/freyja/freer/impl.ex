@@ -66,7 +66,7 @@ defmodule Freyja.Freer.Impl do
     case mx do
       %Pure{val: y} -> q_apply(k, y)
       %Impure{sig: sig, data: u, q: q} -> %Impure{sig: sig, data: u, q: q_concat(q, k)}
-      sendable -> bindp(ISendable.send(sendable), k)
+      sendable -> ISendable.send(sendable) |> bindp(k)
     end
   end
 

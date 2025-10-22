@@ -5,8 +5,6 @@ defmodule Freyja.Run do
 
   EffectHandlers are structs implementing the EffectHandler behaviour
   """
-  alias Freyja.Effects.Coroutine
-  alias Freyja.Effects.Error
   alias Freyja.ErrorResult
   alias Freyja.Freer
   alias Freyja.Freer.Impl
@@ -15,11 +13,9 @@ defmodule Freyja.Run do
   alias Freyja.Freer.Pure
   alias Freyja.Protocols.Result
   alias Freyja.Sig.ISendable
-  alias Freyja.SuspendResult
   alias Freyja.Run.RunEffects
   alias Freyja.Run.RunEffects.ScopedError
-  alias Freyja.Run.RunEffects.ScopedReturn
-  alias Freyja.Run.RunEffects.ScopedSuspend
+  alias Freyja.Run.RunEffects.ScopedOk
   alias Freyja.Run.RunState
   alias Freyja.RunOutcome
 
@@ -94,6 +90,8 @@ defmodule Freyja.Run do
         %Pure{} = computation,
         %RunState{} = run_state
       ) do
+    # Logger.error("#{__MODULE__}.do_run finalizing!")
+
     # should all effects get a shot at the result ? maybe not
     {%Pure{val: final_val}, final_run_state} = finalize(computation, run_state)
 
@@ -115,21 +113,8 @@ defmodule Freyja.Run do
     do_run(new_computation, updated_run_state)
   end
 
-  def do_run(
-        sendable,
-        %RunState{} = run_state
-      ) do
-    computation = ISendable.send(sendable)
-
-    if computation == sendable do
-      raise ArgumentError,
-        message:
-          "#{__MODULE__}.run - not Sendable: #{inspect(sendable, pretty: true)} - " <>
-            " do you need to return() ?"
-    end
-
-    do_run(computation, run_state)
-  end
+  # ISendable lets us treat plain structs as Freer values
+  def do_run(sendable, run_state), do: ISendable.send(sendable) |> do_run(run_state)
 
   # initialize output value and states - gives each Effect chance to initialize
   # its state and the result value
@@ -179,15 +164,15 @@ defmodule Freyja.Run do
     end)
   end
 
-  # use the EffectHandler.scoped_return function to update each of the
+  # use the EffectHandler.scoped_ok function to update each of the
   # effect states after a scoped handler returns
   #
   # returns: an updated Map of effect states
-  @spec scoped_return_effect_states(RunState.t(), ScopedReturn.t()) :: map
-  defp scoped_return_effect_states(
+  @spec scoped_ok_effect_states(RunState.t(), ScopedOk.t()) :: map
+  defp scoped_ok_effect_states(
          %RunState{handlers: handlers, states: effect_states},
-         %ScopedReturn{
-           computation: computation,
+         %ScopedOk{
+           value: value,
            run_outcome:
              %RunOutcome{
                result: scoped_effect_result,
@@ -197,11 +182,11 @@ defmodule Freyja.Run do
        ) do
     handlers
     |> Enum.reduce(effect_states, fn {key, mod}, effect_states ->
-      if function_exported?(mod, :scoped_return, 6) do
+      if function_exported?(mod, :scoped_ok, 6) do
         updated_effect_state =
-          mod.scoped_return(
+          mod.scoped_ok(
             scoped_effect_result,
-            computation,
+            value,
             key,
             Map.get(effect_states, key),
             Map.get(scoped_effect_states, key),
@@ -210,15 +195,45 @@ defmodule Freyja.Run do
 
         Map.put(effect_states, key, updated_effect_state)
       else
-        case scoped_effect_result do
-          %Freyja.OkResult{} ->
-            # accept the scoped state
-            Map.put(effect_states, key, Map.get(scoped_effect_states, key))
+        # default - accept the scoped state
+        Map.put(effect_states, key, Map.get(scoped_effect_states, key))
+      end
+    end)
+  end
 
-          _ ->
-            # ignore the scoped state
-            effect_states
-        end
+  # use the EffectHandler.scoped_error function to update each of the
+  # effect states after a scoped handler returns
+  #
+  # returns: an updated Map of effect states
+  @spec scoped_error_effect_states(RunState.t(), ScopedError.t()) :: map
+  defp scoped_error_effect_states(
+         %RunState{handlers: handlers, states: effect_states},
+         %ScopedError{
+           error: err,
+           run_outcome:
+             %RunOutcome{
+               result: scoped_effect_result,
+               run_state: %RunState{states: scoped_effect_states}
+             } = scoped_run_outcome
+         }
+       ) do
+    handlers
+    |> Enum.reduce(effect_states, fn {key, mod}, effect_states ->
+      if function_exported?(mod, :scoped_error, 6) do
+        updated_effect_state =
+          mod.scoped_error(
+            scoped_effect_result,
+            err,
+            key,
+            Map.get(effect_states, key),
+            Map.get(scoped_effect_states, key),
+            scoped_run_outcome
+          )
+
+        Map.put(effect_states, key, updated_effect_state)
+      else
+        # default - ignore the scoped state
+        effect_states
       end
     end)
   end
@@ -264,7 +279,7 @@ defmodule Freyja.Run do
     {computation, run_state}
   end
 
-  # blessed handler for ScopedReturns - it must be handled here, because
+  # blessed handler for ScopedOks - it must be handled here, because
   # the EffectHandler behaviour does not support effects which can
   # change other effect's state - instead, the optional
   # EffectHandler.scoped_return funciton is offered, which allows
@@ -275,81 +290,45 @@ defmodule Freyja.Run do
         %Impure{
           sig: RunEffects,
           data:
-            %ScopedReturn{
-              computation: computation,
+            %ScopedOk{
+              value: val,
               run_outcome: %RunOutcome{result: _scoped_result}
             } = scoped_return,
           q: q
         },
         %RunState{} = run_state
       ) do
-    updated_effect_states = scoped_return_effect_states(run_state, scoped_return)
+    # Logger.error(
+    #   "#{__MODULE__} ScopedOk\n" <>
+    #     "run_state: #{inspect(run_state, pretty: true)}\n" <>
+    #     "scoped_run_outcome: #{inspect(scoped_return.run_outcome, pretty: true)}"
+    # )
+
+    updated_effect_states = scoped_ok_effect_states(run_state, scoped_return)
 
     {
-      Impl.bindp(computation, q),
+      Impl.q_apply(q, val),
       %{run_state | states: updated_effect_states}
     }
   end
 
-  # a ScopedSuspend proxies the resume value back to the
-  # scoped computation, repeeatedly until we get to
-  # an OkResult or an ErrorResult from the , at which point we continue
-  # with the q (or not)
   def interpret_one(
         %Impure{
           sig: RunEffects,
-          data: %ScopedSuspend{
-            value: value,
-            run_outcome: scoped_run_outcome
-          },
-          q: q
+          data:
+            %ScopedError{
+              error: err,
+              run_outcome: %RunOutcome{result: _scoped_result}
+            } = scoped_return,
+          q: _q
         },
         %RunState{} = run_state
       ) do
-    resume_scoped_computation = fn resumed_value ->
-      Logger.error("#{__MODULE__}.resume_scoped_computation")
-
-      resumed_scoped_run_outcome = resume(scoped_run_outcome, resumed_value)
-
-      Logger.error(
-        "#{__MODULE__}.resume_scoped_run_outcome #{inspect(resumed_scoped_run_outcome, pretty: true)}"
-      )
-
-      case resumed_scoped_run_outcome do
-        %RunOutcome{result: %SuspendResult{value: new_scoped_suspend_value}} ->
-          # suspend again
-          %Impure{
-            sig: RunEffects,
-            data: %ScopedSuspend{
-              value: new_scoped_suspend_value,
-              run_outcome: resumed_scoped_run_outcome
-            },
-            q: q
-          }
-
-        %RunOutcome{result: %ErrorResult{error: err}} ->
-          # end of the line
-          %Impure{
-            sig: RunEffects,
-            data: %ScopedError{
-              error: Error.throw_fx(err),
-              run_outcome: resumed_scoped_run_outcome
-            },
-            q: q
-          }
-
-        %RunOutcome{result: %OkResult{value: value}} ->
-          # also end of the line, but better
-          Logger.error("#{__MODULE__}.tOK")
-          Impl.bindp(Freer.return(value), q)
-      end
-    end
-
-    updated_q = Impl.q_prepend(q, resume_scoped_computation)
+    updated_effect_states = scoped_error_effect_states(run_state, scoped_return)
 
     {
-      Impl.bindp(Coroutine.yield(value), updated_q),
-      run_state
+      ErrorResult.error(err) |> Freer.return(),
+      %{run_state | states: updated_effect_states}
     }
   end
 

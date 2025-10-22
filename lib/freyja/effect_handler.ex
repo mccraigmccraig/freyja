@@ -58,18 +58,34 @@ defmodule Freyja.EffectHandler do
 
   @doc """
   determines what to do with state from a scoped effect when
-  that effect returns. If not provided then the default behaviour is
-  to
-  - keep scoped state on a successful return
-  - discard scoped state on an error return
-  - not sure yet on a suspend return - suspending from within a scoped effect
-    seems like it might require some extra thought - perhaps wrapping the
-    scoped suspend in an outer suspend - not sure how that works with
-    logging at all
+  that effect returns having completed successfully. If not provided
+  then the default behaviour is to keep scoped state
+
+  suspend returns from a scoped effect will not cause any change to the
+  parent computation state - the scoped effect will be repeatedly resumed
+  until a success or error return is reached
   """
-  @callback scoped_return(
+  @callback scoped_ok(
               result :: Freyja.Result.result(),
-              computation :: Freyja.Freer.freer(),
+              value :: any,
+              handler_key :: atom,
+              state :: any,
+              scoped_state :: any,
+              run_outcome :: RunOutcome.t()
+            ) :: any
+
+  @doc """
+  determines what to do with state from a scoped effect when
+  that effect returns an error. If not provided then the default behaviour is
+  to discard scoped state
+
+  suspend returns from a scoped effect will not cause any change to the
+  parent computation state - the scoped effect will be repeatedly resumed
+  until a success or error return is reached
+  """
+  @callback scoped_error(
+              result :: Freyja.Result.result(),
+              error :: any,
               handler_key :: atom,
               state :: any,
               scoped_state :: any,
@@ -83,5 +99,5 @@ defmodule Freyja.EffectHandler do
               run_state :: RunState.t()
             ) :: {Freer.Pure.t(), any}
 
-  @optional_callbacks initialize: 4, scoped_return: 6, finalize: 4
+  @optional_callbacks initialize: 4, scoped_ok: 6, scoped_error: 6, finalize: 4
 end

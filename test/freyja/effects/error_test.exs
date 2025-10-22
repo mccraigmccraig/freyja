@@ -123,7 +123,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome = Run.run(fv, runner)
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.ErrorResult{error: :bad},
+               result: %Freyja.ErrorResult{error: :also_bad},
                outputs: %{w: [:from_outer_1]}
              } = outcome
     end
@@ -215,7 +215,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome = Run.run(fv, runner)
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.ErrorResult{error: :bad},
+               result: %Freyja.ErrorResult{error: :also_bad},
                outputs: %{s: 5}
              } = outcome
     end
@@ -225,7 +225,7 @@ defmodule Freyja.Effects.ErrorTest do
         con [Error, State] do
           put(5)
 
-          _res <-
+          res <-
             catch_fx(
               con [Error, State] do
                 a <- get()
@@ -240,7 +240,7 @@ defmodule Freyja.Effects.ErrorTest do
           c <- return(b + 5)
           put(c)
 
-          return(c)
+          return(res)
         end
 
       runner =
@@ -252,12 +252,12 @@ defmodule Freyja.Effects.ErrorTest do
 
       outcome = Run.run(fv, runner)
 
-      # assert %Freyja.RunOutcome{
-      #          result: %Freyja.OkResult{value: {:recovered, :bad}},
-      #          outputs: %{s: 15}
-      #        } = outcome
+      assert %Freyja.RunOutcome{
+               result: %Freyja.OkResult{value: {:recovered, :bad}},
+               outputs: %{s: 15}
+             } = outcome
 
-      Logger.error("#{__MODULE__}.outcome\n" <> inspect(outcome, pretty: true))
+      # Logger.error("#{__MODULE__}.outcome #{inspect(outcome, pretty: true)}")
     end
   end
 end

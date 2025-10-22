@@ -22,7 +22,6 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
   from the queue)
   """
   alias Freyja.Effects.EffectLogger.EffectLogEntry
-  alias Freyja.Effects.EffectLogger.Log
 
   defstruct effects_stack: [], effects_queue: [], completed?: false, value: nil
 
@@ -234,23 +233,5 @@ defmodule Freyja.Effects.EffectLogger.Log do
         queue:
           (Enum.reverse(log.stack) ++ log.queue) |> Enum.map(&StepLogEntry.prepare_for_retrace/1)
     }
-  end
-end
-
-defmodule Freyja.Effects.EffectLogger.LoggedComputation do
-  @moduledoc """
-  Log and result of a computation
-  """
-  defstruct result: nil, log: nil
-
-  alias Freyja.Effects.EffectLogger.Log
-
-  @type t :: %__MODULE__{
-          result: any,
-          log: Log.t()
-        }
-
-  def new(result, %Log{} = log) do
-    %__MODULE__{result: result, log: Log.prepare_for_retrace(log)}
   end
 end

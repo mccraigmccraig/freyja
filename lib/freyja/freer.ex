@@ -33,7 +33,9 @@ defmodule Freyja.Freer do
           }
   end
 
-  @type freer() :: %Pure{} | %Impure{}
+  # this is terrible - but there's no way of specifying
+  # the ISendable Protocol constraint in typespecs afaics
+  @type freer() :: %Pure{} | %Impure{} | any
 
   def freer?(%Pure{}), do: true
   def freer?(%Impure{}), do: true
@@ -73,7 +75,7 @@ defmodule Freyja.Freer do
 
   # this allows plain Sendable structs to behave just like Freer values
   # which have been sent with `etaf` / `send_effect`
-  def bind(sendable, k), do: bind(ISendable.send(sendable), k)
+  def bind(sendable, k), do: ISendable.send(sendable) |> bind(k)
 end
 
 defimpl Freyja.Sig.ISendable, for: Freyja.Freer.Pure do
@@ -88,7 +90,7 @@ defimpl Freyja.Sig.ISendable, for: Any do
   def send(eff) do
     raise ArgumentError,
       message:
-        "#{__MODULE__}.bind - not Sendable: #{inspect(eff, pretty: true)} - " <>
+        "#{__MODULE__}.send - not Sendable: #{inspect(eff, pretty: true)} - " <>
           "do you need to return() ?"
   end
 end

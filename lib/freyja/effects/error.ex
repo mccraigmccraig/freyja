@@ -16,21 +16,21 @@ defmodule Freyja.Effects.Error.Handler do
 
   alias Freyja.ErrorResult
   alias Freyja.Freer
+  alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
+  alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Error
   alias Freyja.Effects.Error.Throw
   alias Freyja.Effects.Error.Catch
   alias Freyja.Run
   alias Freyja.Run.RunEffects
   alias Freyja.Run.RunEffects.ScopedError
-  alias Freyja.Run.RunEffects.ScopedReturn
-  alias Freyja.Run.RunEffects.ScopedSuspend
+  alias Freyja.Run.RunEffects.ScopedOk
   alias Freyja.Run.RunState
   alias Freyja.RunOutcome
   alias Freyja.ErrorResult
   alias Freyja.OkResult
   alias Freyja.SuspendResult
-  alias Freyja.Protocols.Result
 
   @behaviour Freyja.EffectHandler
 
@@ -55,60 +55,67 @@ defmodule Freyja.Effects.Error.Handler do
 
       %Catch{computation: inner, handler: handler} ->
         # {%Pure{val: result}, updated_run_state}
-        %RunOutcome{
-          result: result
-        } = inner_outcome = Run.run(inner, run_state)
+        inner_outcome = Run.run(inner, run_state)
 
-        case result do
-          %ErrorResult{error: err} ->
-            handler.(err)
-            |> Run.run(inner_outcome.run_state)
-            |> case do
-              %RunOutcome{result: %ErrorResult{}} = unrecovered_outcome ->
-                # handling failed - rethrow original error, preserve queue
-                # for handling later
-                {%Impure{
-                   sig: RunEffects,
-                   data: %ScopedError{
-                     error: err,
-                     run_outcome: unrecovered_outcome
-                   },
-                   q: q
-                 }, nil}
+        {
+          handle_inner_outcome(inner_outcome, handler, q),
+          nil
+        }
+    end
+  end
 
-              %RunOutcome{result: result} = recovered_outcome ->
-                val = Result.value(result)
+  defp handle_inner_outcome(
+         %RunOutcome{result: result} = inner_outcome,
+         handler,
+         q
+       ) do
+    # Logger.error("#{__MODULE__}.catch #{inspect(inner_outcome, pretty: true)}")
 
-                {%Impure{
-                   sig: RunEffects,
-                   data: %ScopedReturn{
-                     computation: Freer.return(val),
-                     run_outcome: recovered_outcome
-                   },
-                   q: q
-                 }, nil}
-            end
-
-          %SuspendResult{value: value, continuation: _scoped_continuation} ->
-            {%Impure{
-               sig: RunEffects,
-               data: %ScopedSuspend{
-                 value: value,
-                 run_outcome: inner_outcome
-               },
-               q: q
-             }, nil}
-
-          %OkResult{value: val} ->
-            {%Impure{
-               sig: RunEffects,
-               data: %ScopedReturn{
-                 computation: Freer.return(val),
-                 run_outcome: inner_outcome
-               },
-               q: q
-             }, nil}
+    case result do
+      %ErrorResult{error: err} ->
+        if !is_nil(handler) do
+          # pass nil to next handle_inner_outcome
+          handler.(err)
+          # do_run doesn't re-initialize
+          |> Run.do_run(inner_outcome.run_state)
+          |> handle_inner_outcome(nil, q)
+        else
+          %Impure{
+            sig: RunEffects,
+            data: %ScopedError{
+              error: err,
+              run_outcome: inner_outcome
+            },
+            q: q
+          }
         end
+
+      %SuspendResult{value: value, continuation: _scoped_continuation} ->
+        # this is a bit tricky - we need to immediately return to the
+        # outer computation, resume with the scoping
+        # still active, and be careful not to double call the continuations
+        # in q
+        resume_catch_k = fn resumed_value ->
+          updated_outcome = Run.resume(inner_outcome, resumed_value)
+
+          # supply an empty queue here, because we prepend this
+          # handler to the q in the next step
+          handle_inner_outcome(updated_outcome, handler, [])
+        end
+
+        updated_q = Impl.q_prepend(q, resume_catch_k)
+
+        Impl.bindp(Coroutine.yield(value), updated_q)
+
+      %OkResult{value: val} ->
+        %Impure{
+          sig: RunEffects,
+          data: %ScopedOk{
+            value: val,
+            run_outcome: inner_outcome
+          },
+          q: q
+        }
     end
   end
 end

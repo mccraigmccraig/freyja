@@ -5,35 +5,57 @@ defmodule Freyja.Effects.ScopedTest do
 
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Error
+  alias Freyja.Effects.Writer
+  alias Freyja.ErrorResult
   alias Freyja.Run
 
   defmodule ScopedFx do
     import Freyja.Con
 
-    defcon suspend_twice(a, b), [Coroutine, Error] do
+    defcon suspend_twice(a, b), [Coroutine, Error, Writer] do
       first <- yield(a)
+      tell(first)
 
-      if first == "boo" do
-        throw_fx(:boo)
-      else
-        return(:ok)
-      end
+      if first == "boo", do: throw_fx(:boo), else: return(:ok)
 
       second <- yield(b)
+      tell(second)
 
-      return(%{a: a, b: b, first: first, secomd: second})
+      if second == "hoo", do: throw_fx(:hoo), else: return(:ok)
+
+      result <- return(%{a: a, b: b, first: first, second: second})
+      tell(result)
+      return(result)
     end
 
-    defcon safe_suspend_twice(a, b), [Error] do
-      suspend_twice(a, b)
+    # catch establishes a scope - the contained computation is
+    # run inside the scope
+    defcon catch_suspend_twice(a, b), [Error, Writer] do
+      r <- suspend_twice(a, b)
+      tell(:completed)
+      return(Map.put(r, :extra, "extra!"))
     catch
-      _ -> return(:oops)
+      :boo ->
+        tell(:caught)
+        return(:oops)
+    end
+
+    defcon safe_suspend_twice(a, b), [Error, Writer] do
+      tell(:before)
+      r <- catch_suspend_twice(a, b)
+      tell(:after)
+      return(r)
     end
   end
 
   describe "suspending a scoped effect" do
     test "it suspends" do
-      runner = Run.with_handlers(e: Error.Handler, c: Coroutine.Handler)
+      runner =
+        Run.with_handlers(
+          e: Error.Handler,
+          c: Coroutine.Handler,
+          w: Writer.Handler
+        )
 
       outcome_one = ScopedFx.safe_suspend_twice(10, 20) |> Run.run(runner)
       outcome_two = outcome_one |> Run.resume("one")
@@ -43,33 +65,57 @@ defmodule Freyja.Effects.ScopedTest do
                a: 10,
                b: 20,
                first: "one",
-               secomd: "two"
+               second: "two",
+               extra: "extra!"
              } == outcome_three.result.value
 
-      Logger.error("#{__MODULE__}.outcome_one: #{inspect(outcome_one, pretty: true)}")
-      Logger.error("#{__MODULE__}.outcome_two: #{inspect(outcome_two, pretty: true)}")
-      Logger.error("#{__MODULE__}.outcome_three: #{inspect(outcome_three, pretty: true)}")
+      assert [
+               :before,
+               "one",
+               "two",
+               %{a: 10, b: 20, first: "one", second: "two"},
+               :completed,
+               :after
+             ] =
+               outcome_three.outputs.w
     end
 
-    test "it errors" do
-      runner = Run.with_handlers(e: Error.Handler, c: Coroutine.Handler)
+    test "the scope is still in effect after resume" do
+      runner =
+        Run.with_handlers(
+          e: Error.Handler,
+          c: Coroutine.Handler,
+          w: Writer.Handler
+        )
 
       outcome_one = ScopedFx.safe_suspend_twice(10, 20) |> Run.run(runner)
 
-      Logger.error("#{__MODULE__}.outcome_one: #{inspect(outcome_one, pretty: true)}")
+      # Logger.error("#{__MODULE__}.outcome_one: #{inspect(outcome_one, pretty: true)}")
 
       outcome_two = outcome_one |> Run.resume("boo")
 
-      Logger.error("#{__MODULE__}.outcome_two: #{inspect(outcome_one, pretty: true)}")
+      assert :oops == outcome_two.result.value
 
-      outcome_three = outcome_two |> Run.resume("two")
+      # after a recovery, the state changes from the scoped effect are preserved
+      assert [:before, "boo", :caught, :after] = outcome_two.outputs.w
+    end
 
-      assert %{
-               a: 10,
-               b: 20,
-               first: "one",
-               secomd: "two"
-             } == outcome_three.result.value
+    test "uncaught errors propagate out" do
+      runner =
+        Run.with_handlers(
+          e: Error.Handler,
+          c: Coroutine.Handler,
+          w: Writer.Handler
+        )
+
+      outcome_one = ScopedFx.safe_suspend_twice(10, 20) |> Run.run(runner)
+      outcome_two = outcome_one |> Run.resume("one")
+      outcome_three = outcome_two |> Run.resume("hoo")
+
+      assert %ErrorResult{error: :hoo} == outcome_three.result
+
+      # after an error, state changes from the scoped effect are discarded
+      assert [:before] = outcome_two.outputs.w
     end
   end
 end

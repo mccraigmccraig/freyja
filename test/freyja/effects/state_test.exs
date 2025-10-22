@@ -49,7 +49,7 @@ defmodule Freyja.Effects.StateTest do
       assert outcome.outputs.s == 350
       assert outcome.outputs.w == [22]
 
-      Logger.error("#{__MODULE__}.outcome\n" <> inspect(outcome, pretty: true))
+      # Logger.error("#{__MODULE__}.outcome\n" <> inspect(outcome, pretty: true))
     end
   end
 end

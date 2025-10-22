@@ -10,11 +10,7 @@ defmodule Freyja.LoggerTest do
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Ops
-  alias Freyja.Freer.Pure
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.EffectLogger.StepLogEntry
-  alias Freyja.Effects.Reader
-  alias Freyja.Effects.Writer
   alias Freyja.Effects.State
   alias Freyja.Run
   alias Freyja.Run.RunState
@@ -39,14 +35,6 @@ defmodule Freyja.LoggerTest do
     use Ops, constructors: NumbersGrammar
   end
 
-  # interpret the Numbers langauge with ret + handle functions
-  #
-  # ret and handle must return Freer structs
-  #
-  # - ret : wrap a plain value in a Freer<Numbers>
-  # - handle : interpret a Numbers statement, either
-  #  passing a plain value on to the continuation, or
-  #  short-circuit returning a Freer<Numbers>
   defmodule Numbers.Handler do
     alias Freyja.LoggerTest.Numbers
 
@@ -94,20 +82,10 @@ defmodule Freyja.LoggerTest do
 
       {next, nil}
     end
-
-    @impl Freyja.EffectHandler
-    def finalize(
-          %Pure{} = computation,
-          _handler_key,
-          state,
-          %RunState{} = _run_state
-        ) do
-      {computation, state}
-    end
   end
 
   describe "logger handler" do
-    test "it can mix numbers with the state interpretation of Reader+Writer" do
+    test "it can mix numbers with state" do
       fv =
         con [Numbers, State] do
           {:foo, a} <- get()
@@ -130,31 +108,93 @@ defmodule Freyja.LoggerTest do
 
       result = fv |> Run.run(runner)
 
-      Logger.error("#{__MODULE__}.logger-handler\n#{inspect(result, pretty: true)}")
-
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{value: final_val},
+               result: %Freyja.OkResult{value: _final_val},
                outputs: %{
                  s: {:bar, 34},
-                 l: %Freyja.Effects.EffectLogger.LoggedComputation{
-                   result: lc_val,
-                   log: %Freyja.Effects.EffectLogger.Log{stack: lc_stack, queue: lc_queue}
+                 l: %Freyja.Effects.EffectLogger.Log{
+                   stack: [],
+                   queue: log_queue
                  }
                }
              } = result
 
-      # the logged computation result should match the final value
-      assert lc_val == final_val
       # stack is empty after preparing for resume
-      assert lc_stack == []
+      #
       # log entries are fully deterministic
-      assert lc_queue == [
-               %StepLogEntry{sig: Reader, data: :get, value: {:foo, 12}},
-               %StepLogEntry{sig: Numbers, data: {:number, 10}, value: 10},
-               %StepLogEntry{sig: Writer, data: {:put, {:bar, 34}}, value: nil},
-               %StepLogEntry{sig: Numbers, data: {:multiply, 12, 10}, value: 120},
-               %StepLogEntry{sig: Reader, data: :get, value: {:bar, 34}},
-               %StepLogEntry{sig: Numbers, data: {:subtract, 34, 120}, value: -86}
+      assert log_queue == [
+               %Freyja.Effects.EffectLogger.StepLogEntry{
+                 value: {:foo, 12},
+                 completed?: true,
+                 effects_stack: [],
+                 effects_queue: [
+                   %Freyja.Effects.EffectLogger.EffectLogEntry{
+                     sig: Freyja.Effects.State,
+                     data: %Freyja.Effects.State.Get{},
+                     scoped_log: nil
+                   }
+                 ]
+               },
+               %Freyja.Effects.EffectLogger.StepLogEntry{
+                 value: 10,
+                 completed?: true,
+                 effects_stack: [],
+                 effects_queue: [
+                   %Freyja.Effects.EffectLogger.EffectLogEntry{
+                     sig: Freyja.LoggerTest.Numbers,
+                     data: {:number, 10},
+                     scoped_log: nil
+                   }
+                 ]
+               },
+               %Freyja.Effects.EffectLogger.StepLogEntry{
+                 value: {:foo, 12},
+                 completed?: true,
+                 effects_stack: [],
+                 effects_queue: [
+                   %Freyja.Effects.EffectLogger.EffectLogEntry{
+                     sig: Freyja.Effects.State,
+                     data: %Freyja.Effects.State.Put{val: {:bar, 34}},
+                     scoped_log: nil
+                   }
+                 ]
+               },
+               %Freyja.Effects.EffectLogger.StepLogEntry{
+                 value: 120,
+                 completed?: true,
+                 effects_stack: [],
+                 effects_queue: [
+                   %Freyja.Effects.EffectLogger.EffectLogEntry{
+                     sig: Freyja.LoggerTest.Numbers,
+                     data: {:multiply, 12, 10},
+                     scoped_log: nil
+                   }
+                 ]
+               },
+               %Freyja.Effects.EffectLogger.StepLogEntry{
+                 value: {:bar, 34},
+                 completed?: true,
+                 effects_stack: [],
+                 effects_queue: [
+                   %Freyja.Effects.EffectLogger.EffectLogEntry{
+                     sig: Freyja.Effects.State,
+                     data: %Freyja.Effects.State.Get{},
+                     scoped_log: nil
+                   }
+                 ]
+               },
+               %Freyja.Effects.EffectLogger.StepLogEntry{
+                 value: -86,
+                 completed?: true,
+                 effects_stack: [],
+                 effects_queue: [
+                   %Freyja.Effects.EffectLogger.EffectLogEntry{
+                     sig: Freyja.LoggerTest.Numbers,
+                     data: {:subtract, 34, 120},
+                     scoped_log: nil
+                   }
+                 ]
+               }
              ]
     end
   end

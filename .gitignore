@@ -35,3 +35,5 @@ freyja-*.tar
 /archive
 
 .DS_Store
+/CLAUDE.md
+/AGENTS.md

@@ -295,21 +295,29 @@ defmodule Freyja.Run do
               run_outcome: %RunOutcome{result: _scoped_result}
             } = scoped_return,
           q: q
-        },
+        } = _computation,
         %RunState{} = run_state
       ) do
     # Logger.error(
     #   "#{__MODULE__} ScopedOk\n" <>
-    #     "run_state: #{inspect(run_state, pretty: true)}\n" <>
-    #     "scoped_run_outcome: #{inspect(scoped_return.run_outcome, pretty: true)}"
+    #     "effect: #{inspect(computation, pretty: true)}" <>
+    #     "run_state: #{inspect(run_state, pretty: true)}\n"
     # )
 
     updated_effect_states = scoped_ok_effect_states(run_state, scoped_return)
 
-    {
+    interpreted = {
       Impl.q_apply(q, val),
       %{run_state | states: updated_effect_states}
     }
+
+    # Logger.error(
+    #   "#{__MODULE__} ScopedOk OUT\n" <>
+    #     "effect: #{inspect(elem(interpreted, 0), pretty: true)}" <>
+    #     "run_state: #{inspect(elem(interpreted, 1), pretty: true)}\n"
+    # )
+
+    interpreted
   end
 
   def interpret_one(
@@ -321,15 +329,29 @@ defmodule Freyja.Run do
               run_outcome: %RunOutcome{result: _scoped_result}
             } = scoped_return,
           q: _q
-        },
+        } = _computation,
         %RunState{} = run_state
       ) do
+    # Logger.error(
+    #   "#{__MODULE__} ScopedError\n" <>
+    #     "effect: #{inspect(computation, pretty: true)}" <>
+    #     "run_state: #{inspect(run_state, pretty: true)}\n"
+    # )
+
     updated_effect_states = scoped_error_effect_states(run_state, scoped_return)
 
-    {
+    interpreted = {
       ErrorResult.error(err) |> Freer.return(),
       %{run_state | states: updated_effect_states}
     }
+
+    # Logger.error(
+    #   "#{__MODULE__} ScopedError OUT\n" <>
+    #     "effect: #{inspect(elem(interpreted, 0), pretty: true)}" <>
+    #     "run_state: #{inspect(elem(interpreted, 1), pretty: true)}\n"
+    # )
+
+    interpreted
   end
 
   def interpret_one(
@@ -375,7 +397,15 @@ defmodule Freyja.Run do
             "#{inspect(run_state, pretty: true)}"
     end
 
-    {new_effect, updated_run_state}
+    interpreted = {new_effect, updated_run_state}
+
+    # Logger.error(
+    #   "#{__MODULE__}.interpret_one OUT\n" <>
+    #     "effect: #{inspect(elem(interpreted, 0), pretty: true)}" <>
+    #     "run_state: #{inspect(elem(interpreted, 1), pretty: true)}\n"
+    # )
+
+    interpreted
   end
 
   # is effect b different from effect a

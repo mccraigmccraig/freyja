@@ -25,6 +25,7 @@ defmodule Freyja.Effects.ListTest do
     test "it maps a list" do
       runner =
         Run.with_handlers(
+          logger: Freyja.Effects.EffectLogger.Handler,
           l: List.Handler,
           c: Coroutine.Handler
         )
@@ -52,7 +53,9 @@ defmodule Freyja.Effects.ListTest do
                ]
              }
 
-      # Logger.error("#{__MODULE__}.outcome\n" <> inspect(final_outcome, pretty: true))
+      Logger.error(
+        "#{__MODULE__}.outcome\n" <> inspect(final_outcome.outputs.logger, pretty: true)
+      )
     end
   end
 end

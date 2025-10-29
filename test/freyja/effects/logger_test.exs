@@ -131,7 +131,7 @@ defmodule Freyja.LoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
                      data: %Freyja.Effects.State.Get{},
-                     scoped_log: nil
+                     scoped_logs: nil
                    }
                  ]
                },
@@ -143,7 +143,7 @@ defmodule Freyja.LoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.LoggerTest.Numbers,
                      data: {:number, 10},
-                     scoped_log: nil
+                     scoped_logs: nil
                    }
                  ]
                },
@@ -155,7 +155,7 @@ defmodule Freyja.LoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
                      data: %Freyja.Effects.State.Put{val: {:bar, 34}},
-                     scoped_log: nil
+                     scoped_logs: nil
                    }
                  ]
                },
@@ -167,7 +167,7 @@ defmodule Freyja.LoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.LoggerTest.Numbers,
                      data: {:multiply, 12, 10},
-                     scoped_log: nil
+                     scoped_logs: nil
                    }
                  ]
                },
@@ -179,7 +179,7 @@ defmodule Freyja.LoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
                      data: %Freyja.Effects.State.Get{},
-                     scoped_log: nil
+                     scoped_logs: nil
                    }
                  ]
                },
@@ -191,7 +191,7 @@ defmodule Freyja.LoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.LoggerTest.Numbers,
                      data: {:subtract, 34, 120},
-                     scoped_log: nil
+                     scoped_logs: nil
                    }
                  ]
                }

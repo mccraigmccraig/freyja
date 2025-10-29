@@ -6,8 +6,10 @@ defmodule Freyja.Effects.Coroutine do
   import Freyja.Sig.DefEffectStruct
 
   def_effect_struct(Yield, value: nil)
+  def_effect_struct(ScopedYield, value: nil)
 
   def yield(value), do: %Yield{value: value}
+  def scoped_yield(value), do: %ScopedYield{value: value}
 end
 
 defmodule Freyja.Effects.Coroutine.Handler do
@@ -24,6 +26,7 @@ defmodule Freyja.Effects.Coroutine.Handler do
   alias Freyja.Freer.Impure
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Coroutine.Yield
+  alias Freyja.Effects.Coroutine.ScopedYield
   alias Freyja.Run.RunState
   alias Freyja.SuspendResult
 
@@ -47,6 +50,12 @@ defmodule Freyja.Effects.Coroutine.Handler do
     case u do
       # shoft-circuit - discard queue - it lives on in k
       %Yield{value: val} ->
+        k = fn v -> Impl.q_apply(q, v) end
+        {SuspendResult.yield(val, k) |> Freer.return(), nil}
+
+      # identical behaviour to Yield, but it marks the effect
+      # as resulting from a scoped execution
+      %ScopedYield{value: val} ->
         k = fn v -> Impl.q_apply(q, v) end
         {SuspendResult.yield(val, k) |> Freer.return(), nil}
     end

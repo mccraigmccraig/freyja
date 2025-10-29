@@ -22,6 +22,7 @@ defmodule Freyja.Effects.List.Handler do
   @moduledoc """
   A handler for the List effect
   """
+  require Logger
 
   alias Freyja.Freer
   alias Freyja.Freer.Impl
@@ -84,6 +85,8 @@ defmodule Freyja.Effects.List.Handler do
   defp map_list(inner_outcome, results, remaining = [_first | rest], f, q) do
     case inner_outcome do
       %RunOutcome{result: %OkResult{value: value}} ->
+        # Logger.error("#{__MODULE__}.map_list OkResult... q: #{inspect(q, pretty: true)}")
+
         if Enum.empty?(rest) do
           %Impure{
             sig: RunEffects,
@@ -98,6 +101,8 @@ defmodule Freyja.Effects.List.Handler do
         end
 
       %RunOutcome{result: %ErrorResult{error: err}} ->
+        # Logger.error("#{__MODULE__}.map_list ErrorResult... q: #{inspect(q, pretty: true)}")
+
         %Impure{
           sig: RunEffects,
           data: %RunEffects.ScopedError{
@@ -113,9 +118,13 @@ defmodule Freyja.Effects.List.Handler do
           map_list(next_outcome, results, remaining, f, q)
         end
 
-        updated_q = Impl.q_prepend(q, resume_map_k)
-
-        Impl.bindp(Coroutine.yield(yield_value), updated_q)
+        # this is tricky - we _don't_ prepend the suspend
+        # continuation to the q, because that leads to the q getting
+        # duplicated by however many suspends there are... by
+        # Impl.apply... so we just return the resume continuation,
+        # and return the original q when we terminate with an
+        # ScopedOk, or ScopedError
+        Impl.bindp(Coroutine.scoped_yield(yield_value), [resume_map_k])
     end
   end
 end

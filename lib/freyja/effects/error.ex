@@ -98,14 +98,14 @@ defmodule Freyja.Effects.Error.Handler do
         resume_catch_k = fn resumed_value ->
           updated_outcome = Run.resume(inner_outcome, resumed_value)
 
-          # supply an empty queue here, because we prepend this
-          # handler to the q in the next step
-          handle_inner_outcome(updated_outcome, handler, [])
+          handle_inner_outcome(updated_outcome, handler, q)
         end
 
-        updated_q = Impl.q_prepend(q, resume_catch_k)
-
-        Impl.bindp(Coroutine.yield(value), updated_q)
+        # tricky - don't prepend the suspend continuation to the q,
+        # rather,just return the resume continuatino, and once we've
+        # resumed we'll get the rest of the queue back from the
+        # closure
+        Impl.bindp(Coroutine.yield(value), [resume_catch_k])
 
       %OkResult{value: val} ->
         %Impure{

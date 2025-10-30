@@ -64,8 +64,11 @@ defmodule Freyja.Effects.List.Handler do
           nil
         }
 
-        # %FxReduceList{list: l, init: init, f: f} ->
-        #   {Impl.q_apply(q, state), state}
+      %FxReduceList{list: l, init: init, f: f} ->
+        {
+          run_reduce_list(init, l, f, q, run_state),
+          nil
+        }
     end
   end
 
@@ -125,6 +128,63 @@ defmodule Freyja.Effects.List.Handler do
         # and return the original q when we terminate with an
         # ScopedOk, or ScopedError
         Impl.bindp(Coroutine.scoped_yield(yield_value), [resume_map_k])
+    end
+  end
+
+  defp run_reduce_list(acc, remaining = [first | _rest], f, q, run_state) do
+    f.(first, acc)
+    |> Run.run(run_state)
+    |> reduce_list(remaining, f, q)
+  end
+
+  # Tail-recursive reduce operation, supporting yield
+  # Threads accumulator through effectful reducer function
+  # Terminates on error or list exhaustion, yields when reducer requests
+  #
+  # Each invocation of the reducer function establishes a new scope
+  # under the FxReduceList effect
+  defp reduce_list(inner_outcome, remaining = [_first | rest], f, q) do
+    case inner_outcome do
+      %RunOutcome{result: %OkResult{value: new_acc}} ->
+        # Logger.error("#{__MODULE__}.reduce_list OkResult...")
+
+        if Enum.empty?(rest) do
+          # Done - return final accumulator
+          %Impure{
+            sig: RunEffects,
+            data: %RunEffects.ScopedOk{
+              value: new_acc,
+              run_outcome: inner_outcome
+            },
+            q: q
+          }
+        else
+          # Continue with next element and updated accumulator
+          run_reduce_list(new_acc, rest, f, q, inner_outcome.run_state)
+        end
+
+      %RunOutcome{result: %ErrorResult{error: err}} ->
+        # Logger.error("#{__MODULE__}.reduce_list ErrorResult...")
+
+        # Error - short circuit
+        %Impure{
+          sig: RunEffects,
+          data: %RunEffects.ScopedError{
+            error: err,
+            run_outcome: inner_outcome
+          },
+          q: q
+        }
+
+      %RunOutcome{result: %SuspendResult{value: yield_value}} ->
+        # Suspend - create resume continuation
+        resume_reduce_k = fn resumed_value ->
+          next_outcome = Run.resume(inner_outcome, resumed_value)
+          reduce_list(next_outcome, remaining, f, q)
+        end
+
+        # Same trick as map_list - don't prepend to q to avoid duplication
+        Impl.bindp(Coroutine.scoped_yield(yield_value), [resume_reduce_k])
     end
   end
 end

@@ -19,6 +19,29 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
   end
 end
 
+defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.EffectLogEntry do
+  def encode(value, opts) do
+    # Try to encode data if it's serializable, otherwise omit it
+    data_value =
+      try do
+        # Test if data can be encoded
+        _ = Jason.encode!(value.data)
+        value.data
+      rescue
+        _ -> nil
+      end
+
+    Jason.Encode.map(
+      %{
+        sig: value.sig,
+        data: data_value,
+        scoped_logs: value.scoped_logs
+      },
+      opts
+    )
+  end
+end
+
 defmodule Freyja.Effects.EffectLogger.StepLogEntry do
   @moduledoc """
   logs the progress to interpret a value, which may comprise
@@ -118,6 +141,20 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
       | effects_stack: [],
         effects_queue: Enum.reverse(log_entry.effects_stack) ++ log_entry.effects_queue
     }
+  end
+end
+
+defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.StepLogEntry do
+  def encode(value, opts) do
+    Jason.Encode.map(
+      %{
+        effects_stack: value.effects_stack,
+        effects_queue: value.effects_queue,
+        completed?: value.completed?,
+        value: value.value
+      },
+      opts
+    )
   end
 end
 
@@ -244,6 +281,18 @@ defmodule Freyja.Effects.EffectLogger.Log do
   end
 end
 
+defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.Log do
+  def encode(value, opts) do
+    Jason.Encode.map(
+      %{
+        stack: value.stack,
+        queue: value.queue
+      },
+      opts
+    )
+  end
+end
+
 defmodule Freyja.Effects.EffectLogger.ScopedLogs do
   @moduledoc """
   Holds multiple sibling scoped logs (e.g., from List.fx_map iterations)
@@ -292,6 +341,18 @@ defmodule Freyja.Effects.EffectLogger.ScopedLogs do
         scoped_log_queue:
           Enum.reverse(scoped_logs.scoped_log_stack) ++ scoped_logs.scoped_log_queue
     }
+  end
+end
+
+defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.ScopedLogs do
+  def encode(value, opts) do
+    Jason.Encode.map(
+      %{
+        scoped_log_queue: value.scoped_log_queue,
+        scoped_log_stack: value.scoped_log_stack
+      },
+      opts
+    )
   end
 end
 

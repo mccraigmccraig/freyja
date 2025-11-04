@@ -70,12 +70,12 @@ defmodule Freyja.Effects.ScopedTest do
              } == outcome_three.result.value
 
       assert [
-               :before,
-               "one",
-               "two",
-               %{a: 10, b: 20, first: "one", second: "two"},
+               :after,
                :completed,
-               :after
+               %{a: 10, b: 20, first: "one", second: "two"},
+               "two",
+               "one",
+               :before
              ] =
                outcome_three.outputs.w
     end
@@ -97,7 +97,7 @@ defmodule Freyja.Effects.ScopedTest do
       assert :oops == outcome_two.result.value
 
       # after a recovery, the state changes from the scoped effect are preserved
-      assert [:before, "boo", :caught, :after] = outcome_two.outputs.w
+      assert [:after, :caught, "boo", :before] = outcome_two.outputs.w
     end
 
     test "uncaught errors propagate out" do

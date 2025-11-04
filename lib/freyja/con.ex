@@ -163,6 +163,14 @@ defmodule Freyja.Con do
       last
     end
 
+    def rewrite_exprs([{:=, meta, [lhs, rhs]} | rest]) do
+      # Pure variable binding - preserve as regular assignment
+      quote do
+        unquote({:=, meta, [lhs, rhs]})
+        unquote(rewrite_exprs(rest))
+      end
+    end
+
     def rewrite_exprs([{:<-, _m, [lhs, rhs]} | rest]) do
       binder(lhs, rhs, rewrite_exprs(rest))
     end

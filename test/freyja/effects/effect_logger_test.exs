@@ -1,4 +1,4 @@
-defmodule Freyja.LoggerTest do
+defmodule Freyja.EffectLoggerTest do
   use ExUnit.Case
 
   require Logger
@@ -36,12 +36,12 @@ defmodule Freyja.LoggerTest do
   end
 
   defmodule Numbers.Handler do
-    alias Freyja.LoggerTest.Numbers
+    alias Freyja.EffectLoggerTest.Numbers
 
     @behaviour Freyja.EffectHandler
 
     @impl Freyja.EffectHandler
-    def handles?(%Impure{sig: sig, data: _data, q: _q}) do
+    def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
       sig == Numbers
     end
 
@@ -141,7 +141,7 @@ defmodule Freyja.LoggerTest do
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
-                     sig: Freyja.LoggerTest.Numbers,
+                     sig: Freyja.EffectLoggerTest.Numbers,
                      data: {:number, 10},
                      scoped_logs: nil
                    }
@@ -165,7 +165,7 @@ defmodule Freyja.LoggerTest do
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
-                     sig: Freyja.LoggerTest.Numbers,
+                     sig: Freyja.EffectLoggerTest.Numbers,
                      data: {:multiply, 12, 10},
                      scoped_logs: nil
                    }
@@ -189,7 +189,7 @@ defmodule Freyja.LoggerTest do
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
-                     sig: Freyja.LoggerTest.Numbers,
+                     sig: Freyja.EffectLoggerTest.Numbers,
                      data: {:subtract, 34, 120},
                      scoped_logs: nil
                    }

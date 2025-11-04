@@ -17,6 +17,36 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
   def set_scoped_logs(self, scoped_logs) do
     Map.put(self, :scoped_logs, scoped_logs)
   end
+
+  @doc """
+  Reconstruct EffectLogEntry from decoded JSON map.
+  Note: data field may be nil if it was not serializable.
+  """
+  def from_json(map) when is_map(map) do
+    %__MODULE__{
+      sig: map["sig"] && String.to_existing_atom(map["sig"]),
+      data: reconstruct_data(map["data"]),
+      scoped_logs: map["scoped_logs"] && Freyja.Effects.EffectLogger.ScopedLogs.from_json(map["scoped_logs"])
+    }
+  end
+
+  # Reconstruct effect data structs from JSON maps
+  defp reconstruct_data(nil), do: nil
+  defp reconstruct_data(%{"__struct__" => struct_name} = data) when is_binary(struct_name) do
+    # Convert the struct name string to a module
+    module = String.to_existing_atom(struct_name)
+    # Convert the map to the struct
+    struct(module, atomize_keys(data))
+  end
+  defp reconstruct_data(data), do: data
+
+  # Convert string keys to atoms (excluding __struct__ which is handled separately)
+  defp atomize_keys(map) when is_map(map) do
+    map
+    |> Map.delete("__struct__")
+    |> Enum.map(fn {k, v} -> {String.to_existing_atom(k), v} end)
+    |> Enum.into(%{})
+  end
 end
 
 defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.EffectLogEntry do
@@ -140,6 +170,18 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
       log_entry
       | effects_stack: [],
         effects_queue: Enum.reverse(log_entry.effects_stack) ++ log_entry.effects_queue
+    }
+  end
+
+  @doc """
+  Reconstruct StepLogEntry from decoded JSON map.
+  """
+  def from_json(map) when is_map(map) do
+    %__MODULE__{
+      effects_stack: Enum.map(map["effects_stack"] || [], &EffectLogEntry.from_json/1),
+      effects_queue: Enum.map(map["effects_queue"] || [], &EffectLogEntry.from_json/1),
+      completed?: map["completed?"],
+      value: map["value"]
     }
   end
 end
@@ -279,6 +321,16 @@ defmodule Freyja.Effects.EffectLogger.Log do
           (Enum.reverse(log.stack) ++ log.queue) |> Enum.map(&StepLogEntry.prepare_for_retrace/1)
     }
   end
+
+  @doc """
+  Reconstruct Log from decoded JSON map.
+  """
+  def from_json(map) when is_map(map) do
+    %__MODULE__{
+      stack: Enum.map(map["stack"] || [], &StepLogEntry.from_json/1),
+      queue: Enum.map(map["queue"] || [], &StepLogEntry.from_json/1)
+    }
+  end
 end
 
 defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.Log do
@@ -340,6 +392,16 @@ defmodule Freyja.Effects.EffectLogger.ScopedLogs do
       | scoped_log_stack: [],
         scoped_log_queue:
           Enum.reverse(scoped_logs.scoped_log_stack) ++ scoped_logs.scoped_log_queue
+    }
+  end
+
+  @doc """
+  Reconstruct ScopedLogs from decoded JSON map.
+  """
+  def from_json(map) when is_map(map) do
+    %__MODULE__{
+      scoped_log_queue: Enum.map(map["scoped_log_queue"] || [], &Log.from_json/1),
+      scoped_log_stack: Enum.map(map["scoped_log_stack"] || [], &Log.from_json/1)
     }
   end
 end

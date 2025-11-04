@@ -12,6 +12,16 @@ defmodule Freyja.Sig.DefEffectStruct do
         use Freyja.Sig.Sendable, sig: unquote(sig)
         defstruct unquote(struct_args)
       end
+
+      defimpl Jason.Encoder, for: unquote(mod) do
+        def encode(value, opts) do
+          # Include __struct__ field for proper deserialization
+          value
+          |> Map.from_struct()
+          |> Map.put(:__struct__, unquote(mod))
+          |> Jason.Encode.map(opts)
+        end
+      end
     end
   end
 end

@@ -35,7 +35,7 @@ defmodule Freyja.Effects.Error.Handler do
   @behaviour Freyja.EffectHandler
 
   @impl Freyja.EffectHandler
-  def handles?(%Impure{sig: sig, data: _data, q: _q}) do
+  def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == Error
   end
 
@@ -108,6 +108,11 @@ defmodule Freyja.Effects.Error.Handler do
         Impl.bindp(Coroutine.yield(value), [resume_catch_k])
 
       %OkResult{value: val} ->
+        # Logger.error(
+        #   "#{__MODULE__}.OkResult\n" <>
+        #     "inner_outcome: #{inspect(inner_outcome, pretty: true)}"
+        # )
+
         %Impure{
           sig: RunEffects,
           data: %ScopedOk{

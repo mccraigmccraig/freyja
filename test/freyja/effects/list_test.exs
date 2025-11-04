@@ -54,9 +54,9 @@ defmodule Freyja.Effects.ListTest do
                ]
              }
 
-      Logger.error(
-        "#{__MODULE__}.outcome\n" <> inspect(final_outcome.outputs.logger, pretty: true)
-      )
+      # Logger.error(
+      #   "#{__MODULE__}.outcome\n" <> inspect(final_outcome.outputs.logger, pretty: true)
+      # )
     end
   end
 
@@ -100,9 +100,9 @@ defmodule Freyja.Effects.ListTest do
       # Expected: 0 + 10 + 20 + 30 = 60
       assert final_outcome.result == %Freyja.OkResult{value: 60}
 
-      Logger.error(
-        "#{__MODULE__}.reduce_outcome\n" <> inspect(final_outcome.outputs.logger, pretty: true)
-      )
+      # Logger.error(
+      #   "#{__MODULE__}.reduce_outcome\n" <> inspect(final_outcome.outputs.logger, pretty: true)
+      # )
     end
   end
 
@@ -153,10 +153,10 @@ defmodule Freyja.Effects.ListTest do
       # Sum: 20 + 60 + 120 = 200
       assert final_outcome.outputs.s == 200
 
-      Logger.error(
-        "#{__MODULE__}.map_with_state_outcome\n" <>
-          inspect(final_outcome.outputs.logger, pretty: true)
-      )
+      # Logger.error(
+      #   "#{__MODULE__}.map_with_state_outcome\n" <>
+      #     inspect(final_outcome.outputs.logger, pretty: true)
+      # )
     end
   end
 end

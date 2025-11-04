@@ -95,7 +95,7 @@ defmodule Freyja.Effects.ErrorTest do
                result: %Freyja.OkResult{
                  value: 42
                },
-               outputs: %{w: [:from_outer_1, :from_inner, :from_outer_2]}
+               outputs: %{w: [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
 
@@ -153,7 +153,7 @@ defmodule Freyja.Effects.ErrorTest do
 
       assert %Freyja.RunOutcome{
                result: %Freyja.OkResult{value: {:recovered, :bad}},
-               outputs: %{w: [:from_outer_1, :from_inner, :from_outer_2]}
+               outputs: %{w: [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
 

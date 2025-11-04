@@ -59,7 +59,7 @@ defmodule Freyja.DefconTest do
 
     assert %Freyja.RunOutcome{
              result: %Freyja.OkResult{value: 9},
-             outputs: %{w: [4, 5]}
+             outputs: %{w: [5, 4]}
            } =
              out
   end

@@ -68,7 +68,8 @@ defmodule Freyja.ConElseErrorTest do
 
       assert Freyja.Protocols.Result.type(res) == Freyja.OkResult
       assert Freyja.Protocols.Result.value(res) == :ok
-      assert out.w == [:before, {:handled, :bad}]
+      # Writer output is in reverse order (most recent first)
+      assert out.w == [{:handled, :bad}, :before]
     end
 
     test "user-supplied default else clause handles all and prevents rethrow" do

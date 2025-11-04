@@ -74,11 +74,30 @@ defmodule Freyja.Run do
     do_run(k.(input), run_state)
   end
 
+  @doc """
+  Rerun a computation using the outputs from a previous run as the initial states.
+  This is useful for replay/resume scenarios where you want to use logged states.
+  """
+  def rerun(computation, %RunOutcome{outputs: outputs, run_state: previous_run_state}) do
+    # Create new run state using outputs from previous run as initial states
+    new_run_state = %{
+      previous_run_state
+      | states: outputs
+    }
+
+    do_run(computation, new_run_state)
+  end
+
   @spec run(Freer.freer(), RunState.t()) :: RunOutcome.t()
-  def run(computation, %RunState{} = run_state) do
+  def run(computation, %RunState{} = run_state)
+      when is_struct(computation, Pure) or is_struct(computation, Impure) do
     initialized_run_state = initialize(computation, run_state)
 
     do_run(computation, initialized_run_state)
+  end
+
+  def run(computation, %RunState{} = run_state) do
+    ISendable.send(computation) |> run(run_state)
   end
 
   @doc """
@@ -369,11 +388,13 @@ defmodule Freyja.Run do
       |> Enum.reduce_while({effect, run_state}, fn {key, mod}, {effect, run_state} = acc ->
         # Logger.error("#{__MODULE__}.interpret reduce\n#{inspect(effect, pretty: true)}")
 
-        if handler_type = mod.handles?(effect) do
+        handler_state = Map.get(run_state.states, key)
+
+        if handler_type = mod.handles?(effect, handler_state) do
           reduce_action = if handler_type == :observer, do: :cont, else: :halt
 
           {new_effect, updated_state} =
-            mod.interpret(effect, key, Map.get(run_state.states, key), run_state)
+            mod.interpret(effect, key, handler_state, run_state)
 
           {reduce_action,
            {new_effect,

@@ -19,8 +19,12 @@ defmodule Freyja.EffectHandler do
   - in which case the `updated_state` and `outputs` of the handler
   will be recorded, but the effect will continue to be offered to
   further EffectHandlers until one handles it and changes it
+
+  The state parameter allows handlers to make stateful decisions about
+  whether they will handle an effect (e.g., EffectLogger can check if
+  it has a logged value to replay).
   """
-  @callback handles?(computation :: Freer.Impure.t()) :: boolean | :observer
+  @callback handles?(computation :: Freyja.Freer.Impure.t(), state :: any) :: boolean | :observer
 
   @doc """
   called before a new computation (or nested computation) is run

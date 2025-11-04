@@ -1,13 +1,10 @@
-defmodule Freyja.Effects.Reader.Constructors do
-  @moduledoc "Constructors for the Reader effect"
-
-  @doc "Get the current environment value"
-  def ask(), do: :ask
-end
-
 defmodule Freyja.Effects.Reader do
   @moduledoc "Operations (Ops) for the Reader effect"
-  use Freyja.Freer.Ops, constructors: Freyja.Effects.Reader.Constructors
+  import Freyja.Sig.DefEffectStruct
+
+  def_effect_struct(Ask)
+
+  def ask, do: %Ask{}
 end
 
 defmodule Freyja.Effects.Reader.Handler do
@@ -21,7 +18,7 @@ defmodule Freyja.Effects.Reader.Handler do
   @behaviour Freyja.EffectHandler
 
   @impl Freyja.EffectHandler
-  def handles?(%Impure{sig: sig, data: _data, q: _q}) do
+  def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == Reader
   end
 
@@ -33,7 +30,7 @@ defmodule Freyja.Effects.Reader.Handler do
         %RunState{} = _run_state
       ) do
     case u do
-      :ask ->
+      %Reader.Ask{} ->
         {Impl.q_apply(q, state), state}
     end
   end

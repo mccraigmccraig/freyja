@@ -1,4 +1,4 @@
-defmodule Freyja.Effects.EffectLoggerSerializationTest do
+defmodule Freyja.Effects.EffectLogger.SerializationTest do
   use ExUnit.Case
   alias Freyja.Effects.EffectLogger.{Log, ScopedLogs}
   alias Freyja.Freer.Impure
@@ -90,6 +90,67 @@ defmodule Freyja.Effects.EffectLoggerSerializationTest do
       [effect] = step["effects_stack"]
       assert effect["sig"] == "state_get"
       assert effect["data"] == %{"key" => "user_id"}
+    end
+
+    test "from_json reconstructs proper structs" do
+      original_log =
+        Log.new()
+        |> Log.log_effect(%Impure{sig: :test_sig, data: %{foo: "bar"}})
+        |> Log.log_interpreted_effect_value(42)
+
+      json = Jason.encode!(original_log)
+      decoded_map = Jason.decode!(json)
+      reconstructed_log = Log.from_json(decoded_map)
+
+      # Verify it's a proper Log struct
+      assert %Log{} = reconstructed_log
+      assert [step] = reconstructed_log.stack
+      assert %Freyja.Effects.EffectLogger.StepLogEntry{} = step
+      assert step.completed? == true
+      assert step.value == 42
+
+      # Verify nested structs
+      [effect] = step.effects_stack
+      assert %Freyja.Effects.EffectLogger.EffectLogEntry{} = effect
+      assert effect.sig == :test_sig
+      assert effect.data == %{"foo" => "bar"}
+    end
+
+    test "from_json handles ScopedLogs" do
+      log1 = Log.new()
+        |> Log.log_effect(%Impure{sig: :test1, data: "data1"})
+        |> Log.log_interpreted_effect_value(:result1)
+
+      scoped_logs = %ScopedLogs{
+        scoped_log_queue: [log1],
+        scoped_log_stack: []
+      }
+
+      json = Jason.encode!(scoped_logs)
+      decoded_map = Jason.decode!(json)
+      reconstructed = ScopedLogs.from_json(decoded_map)
+
+      # Verify proper struct types
+      assert %ScopedLogs{} = reconstructed
+      assert [log] = reconstructed.scoped_log_queue
+      assert %Log{} = log
+      assert reconstructed.scoped_log_stack == []
+    end
+
+    test "from_json handles nil scoped_logs" do
+      log =
+        Log.new()
+        |> Log.log_effect(%Impure{sig: :simple, data: "test"})
+        |> Log.log_interpreted_effect_value(99)
+
+      json = Jason.encode!(log)
+      decoded_map = Jason.decode!(json)
+      reconstructed = Log.from_json(decoded_map)
+
+      [step] = reconstructed.stack
+      [effect] = step.effects_stack
+      # scoped_logs should be nil
+      assert effect.scoped_logs == nil
     end
   end
 end

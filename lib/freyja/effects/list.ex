@@ -46,7 +46,7 @@ defmodule Freyja.Effects.List.Handler do
   @behaviour Freyja.EffectHandler
 
   @impl Freyja.EffectHandler
-  def handles?(%Impure{sig: sig, data: _data, q: _q}) do
+  def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == List
   end
 

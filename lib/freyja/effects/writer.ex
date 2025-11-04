@@ -1,13 +1,10 @@
-defmodule Freyja.Effects.Writer.Constructors do
-  @moduledoc "Constructors for the Writer effect"
-
-  @doc "Output a value to the writer's log"
-  def tell(o), do: {:tell, o}
-end
-
 defmodule Freyja.Effects.Writer do
   @moduledoc "Operations (Ops) for the Writer effect"
-  use Freyja.Freer.Ops, constructors: Freyja.Effects.Writer.Constructors
+  import Freyja.Sig.DefEffectStruct
+
+  def_effect_struct(Tell, val: nil)
+
+  def tell(v), do: %Tell{val: v}
 end
 
 defmodule Freyja.Effects.Writer.Handler do
@@ -21,7 +18,7 @@ defmodule Freyja.Effects.Writer.Handler do
   @behaviour Freyja.EffectHandler
 
   @impl Freyja.EffectHandler
-  def handles?(%Impure{sig: sig, data: _data, q: _q}) do
+  def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == Writer
   end
 
@@ -33,7 +30,7 @@ defmodule Freyja.Effects.Writer.Handler do
         %RunState{} = _run_state
       ) do
     case u do
-      {:tell, o} ->
+      %Writer.Tell{val: o} ->
         updated_state = [o | state || []]
         {Impl.q_apply(q, updated_state), updated_state}
     end
@@ -46,6 +43,8 @@ defmodule Freyja.Effects.Writer.Handler do
         state,
         %RunState{} = _run_state
       ) do
-    {computation, Enum.reverse(state || [])}
+    # Don't reverse - keep state = output for replay compatibility
+    # Output will be in reverse chronological order (most recent first)
+    {computation, state || []}
   end
 end

@@ -393,8 +393,7 @@ defmodule Freyja.Run do
         if handler_type = mod.handles?(effect, handler_state) do
           reduce_action = if handler_type == :observer, do: :cont, else: :halt
 
-          {new_effect, updated_state} =
-            mod.interpret(effect, key, handler_state, run_state)
+          {new_effect, updated_state} = mod.interpret(effect, key, handler_state, run_state)
 
           {reduce_action,
            {new_effect,

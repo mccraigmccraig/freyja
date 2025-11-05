@@ -43,20 +43,46 @@ defmodule Freyja.Freer.Impl do
 
   Applies a value through the list of continuations until it gets an %Impure{},
   then adds any remaining continuations from `q` to that %Impure{}'s queue.
+
+  If an exception occurs during continuation application, it will be caught
+  and converted to an Error effect (if Error handler is available in the current
+  context).
   """
   @spec q_apply([(any -> Freer.freer())], any) :: Freer.freer()
   def q_apply(q, x) do
     case q do
       [k] ->
-        neff = k.(x)
-        # Logger.info("#{__MODULE__}.q_apply: #{inspect(neff, pretty: true)}")
-        neff
+        try do
+          neff = k.(x)
+          # Logger.info("#{__MODULE__}.q_apply: #{inspect(neff, pretty: true)}")
+          neff
+        rescue
+          exception ->
+            handle_continuation_exception(exception, __STACKTRACE__)
+        end
 
       [k | t] ->
-        neff = k.(x)
-        # Logger.info("#{__MODULE__}.q_apply: #{inspect(neff, pretty: true)}")
-        bindp(neff, t)
+        try do
+          neff = k.(x)
+          # Logger.info("#{__MODULE__}.q_apply: #{inspect(neff, pretty: true)}")
+          bindp(neff, t)
+        rescue
+          exception ->
+            handle_continuation_exception(exception, __STACKTRACE__)
+        end
     end
+  end
+
+  # Handle exceptions from user code in continuations
+  # Always converts to Error effect - let Error handler decide what to do
+  # If no Error handler is present, the effect will cause an unhandled effect error
+  defp handle_continuation_exception(exception, stacktrace) do
+    # Convert exception to serializable error
+    error_data = Freyja.Exception.to_serializable(exception, stacktrace)
+
+    # Create and return Error effect
+    Freyja.Effects.Error.throw_fx(error_data)
+    |> ISendable.send()
   end
 
   # bind continuation queue `k` to Freer value `mx`, returning a new `Freer` value

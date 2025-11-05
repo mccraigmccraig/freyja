@@ -72,6 +72,25 @@ defmodule Freyja.Effects.List.Handler do
     end
   end
 
+  # Handle empty list - return empty list immediately
+  defp run_map_list(_results, [], _f, q, run_state) do
+    # Create a minimal RunOutcome with empty result
+    outcome = %RunOutcome{
+      result: %OkResult{value: []},
+      outputs: run_state.states,
+      run_state: run_state
+    }
+
+    %Impure{
+      sig: RunEffects,
+      data: %RunEffects.ScopedOk{
+        value: [],
+        run_outcome: outcome
+      },
+      q: q
+    }
+  end
+
   defp run_map_list(results, remaining = [first | _rest], f, q, run_state) do
     f.(first)
     |> Run.run(run_state)
@@ -129,6 +148,25 @@ defmodule Freyja.Effects.List.Handler do
         # ScopedOk, or ScopedError
         Impl.bindp(Coroutine.scoped_yield(yield_value), [resume_map_k])
     end
+  end
+
+  # Handle empty list - return initial accumulator immediately
+  defp run_reduce_list(acc, [], _f, q, run_state) do
+    # Create a minimal RunOutcome with accumulator as result
+    outcome = %RunOutcome{
+      result: %OkResult{value: acc},
+      outputs: run_state.states,
+      run_state: run_state
+    }
+
+    %Impure{
+      sig: RunEffects,
+      data: %RunEffects.ScopedOk{
+        value: acc,
+        run_outcome: outcome
+      },
+      q: q
+    }
   end
 
   defp run_reduce_list(acc, remaining = [first | _rest], f, q, run_state) do

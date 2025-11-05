@@ -159,4 +159,99 @@ defmodule Freyja.Effects.ListTest do
       # )
     end
   end
+
+  describe "empty list edge cases" do
+    test "fx_map with empty list returns empty list" do
+      runner =
+        Run.with_handlers(
+          l: List.Handler
+        )
+
+      # Map function that would fail if called
+      failing_mapper = fn _x -> raise "should not be called" end
+
+      computation =
+        con [List] do
+          result <- fx_map([], failing_mapper)
+          return(result)
+        end
+
+      outcome = Run.run(computation, runner)
+
+      assert outcome.result == %Freyja.OkResult{value: []}
+    end
+
+    test "fx_reduce with empty list returns initial accumulator" do
+      runner =
+        Run.with_handlers(
+          l: List.Handler
+        )
+
+      # Reducer function that would fail if called
+      failing_reducer = fn _elem, _acc -> raise "should not be called" end
+
+      computation =
+        con [List] do
+          result <- fx_reduce([], 42, failing_reducer)
+          return(result)
+        end
+
+      outcome = Run.run(computation, runner)
+
+      assert outcome.result == %Freyja.OkResult{value: 42}
+    end
+
+    test "fx_map empty list with effectful mapper" do
+      runner =
+        Run.with_handlers(
+          l: List.Handler,
+          s: {State.Handler, 0}
+        )
+
+      # Mapper that would modify state if called
+      state_mapper = fn x ->
+        con [State] do
+          current <- get()
+          put(current + x)
+          return(x * 2)
+        end
+      end
+
+      computation =
+        con [List] do
+          result <- fx_map([], state_mapper)
+          return(result)
+        end
+
+      outcome = Run.run(computation, runner)
+
+      # Should return empty list
+      assert outcome.result == %Freyja.OkResult{value: []}
+      # State should remain unchanged (mapper never called)
+      assert outcome.outputs.s == 0
+    end
+
+    test "fx_reduce empty list with different initial values" do
+      runner = Run.with_handlers(l: List.Handler)
+
+      test_cases = [
+        {0, 0},
+        {[], []},
+        {"init", "init"},
+        {%{a: 1}, %{a: 1}},
+        {:ok, :ok}
+      ]
+
+      for {initial, expected} <- test_cases do
+        computation =
+          con [List] do
+            result <- fx_reduce([], initial, fn _, _ -> return(:unused) end)
+            return(result)
+          end
+
+        outcome = Run.run(computation, runner)
+        assert outcome.result == %Freyja.OkResult{value: expected}
+      end
+    end
+  end
 end

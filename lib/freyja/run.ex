@@ -284,6 +284,9 @@ defmodule Freyja.Run do
     interpret(new_computation, updated_run_state)
   end
 
+  def interpret(computation, %RunState{} = run_state),
+    do: interpret(computation |> ISendable.send(), run_state)
+
   @doc """
   Interpret a single effects
   """

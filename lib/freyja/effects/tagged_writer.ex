@@ -44,6 +44,7 @@ defmodule Freyja.Effects.TaggedWriter do
 
   def_effect_struct(TellTagged, tag: nil, val: nil)
   def_effect_struct(PeekTagged, tag: nil)
+  def_effect_struct(ListenTagged, tag: nil, computation: nil)
 
   @doc """
   Write a value to the log stream associated with the given tag.
@@ -59,6 +60,39 @@ defmodule Freyja.Effects.TaggedWriter do
   Returns an empty list if the tag has no logged values yet.
   """
   def peek(tag), do: %PeekTagged{tag: tag}
+
+  @doc """
+  Execute a computation and capture the log entries written to the given tag
+  during that computation.
+
+  Returns a tuple `{result, captured_logs}` where:
+  - `result` is the return value of the computation
+  - `captured_logs` are the logs written to `tag` during the computation only
+    (in reverse chronological order)
+
+  This is a scoped operation - logs written inside the computation are captured
+  separately from the outer accumulated logs. The captured logs are also added
+  to the outer log accumulation.
+
+  ## Example
+
+      con [TaggedWriter] do
+        tell(:audit, "before listen")
+
+        {result, inner_logs} <- listen(:audit, fn ->
+          tell(:audit, "step 1")
+          tell(:audit, "step 2")
+          return(42)
+        end)
+
+        # result = 42
+        # inner_logs = ["step 2", "step 1"]
+        # Total audit log now = ["step 2", "step 1", "before listen"]
+
+        return({result, inner_logs})
+      end
+  """
+  def listen(tag, computation), do: %ListenTagged{tag: tag, computation: computation}
 end
 
 defmodule Freyja.Effects.TaggedWriter.Handler do
@@ -93,7 +127,12 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.TaggedWriter.TellTagged
   alias Freyja.Effects.TaggedWriter.PeekTagged
+  alias Freyja.Effects.TaggedWriter.ListenTagged
+  alias Freyja.Run
+  alias Freyja.Run.RunEffects
+  alias Freyja.Run.RunEffects.ScopedOk
   alias Freyja.Run.RunState
+  alias Freyja.OkResult
 
   @behaviour Freyja.EffectHandler
 
@@ -107,7 +146,7 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
         %Freer.Impure{sig: TaggedWriter, data: operation, q: q} = _computation,
         _handler_key,
         state,
-        %RunState{} = _run_state
+        %RunState{} = run_state
       ) do
     unless is_map(state) do
       raise ArgumentError,
@@ -128,6 +167,39 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
         # Return current log for this tag without modifying state
         current_log = Map.get(state, tag, [])
         {Impl.q_apply(q, current_log), state}
+
+      %ListenTagged{tag: tag, computation: inner} ->
+        # Scoped operation: capture logs written to this tag during inner computation
+        # Run the inner computation with current run_state
+        inner_outcome = Run.run(inner, run_state)
+
+        # Calculate what was written to this tag during the inner computation
+        # by comparing inner output to current state
+        current_tag_log = Map.get(state, tag, [])
+        inner_tag_log = Map.get(inner_outcome.outputs.tw, tag, [])
+
+        # The captured logs are: inner_tag_log - current_tag_log
+        # Since logs are prepended, inner logs are at the front
+        captured_logs = Enum.take(inner_tag_log, length(inner_tag_log) - length(current_tag_log))
+
+        case inner_outcome.result do
+          %OkResult{value: val} ->
+            # Return {result, captured_logs} tuple
+            result_tuple = {val, captured_logs}
+
+            {
+              %Impure{
+                sig: RunEffects,
+                data: %ScopedOk{
+                  value: result_tuple,
+                  run_outcome: inner_outcome
+                },
+                q: q
+              },
+              # State is updated by the scoped_ok handling
+              state
+            }
+        end
     end
   end
 

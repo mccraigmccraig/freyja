@@ -231,6 +231,88 @@ defmodule Freyja.Effects.TaggedWriterTest do
     return(:ok)
   end
 
+  # Listen operations
+  defcon simple_listen, [TaggedWriter] do
+    listen(:audit, con [TaggedWriter] do
+      tell(:audit, "inner1")
+      tell(:audit, "inner2")
+      return(42)
+    end)
+  end
+
+  defcon listen_with_outer_logs, [TaggedWriter] do
+    tell(:audit, "before")
+
+    {result, inner_logs} <- listen(:audit, con [TaggedWriter] do
+      tell(:audit, "inner1")
+      tell(:audit, "inner2")
+      return(100)
+    end)
+
+    tell(:audit, "after")
+
+    return({result, inner_logs})
+  end
+
+  defcon nested_listen, [TaggedWriter] do
+    tell(:log, "outer start")
+
+    {r1, logs1} <- listen(:log, con [TaggedWriter] do
+      tell(:log, "level1 start")
+
+      {r2, logs2} <- listen(:log, con [TaggedWriter] do
+        tell(:log, "level2")
+        return(2)
+      end)
+
+      tell(:log, "level1 end")
+      return({r2, logs2})
+    end)
+
+    tell(:log, "outer end")
+
+    return({r1, logs1})
+  end
+
+  defcon listen_multiple_tags, [TaggedWriter] do
+    {audit_result, audit_logs} <- listen(:audit, con [TaggedWriter] do
+      tell(:audit, "a1")
+      tell(:debug, "d1")
+      tell(:audit, "a2")
+      return(:audit_done)
+    end)
+
+    {debug_result, debug_logs} <- listen(:debug, con [TaggedWriter] do
+      tell(:debug, "d2")
+      tell(:audit, "a3")
+      tell(:debug, "d3")
+      return(:debug_done)
+    end)
+
+    return(%{
+      audit: {audit_result, audit_logs},
+      debug: {debug_result, debug_logs}
+    })
+  end
+
+  defcon listen_with_state, [TaggedWriter, State] do
+    State.put(0)
+
+    {result, logs} <- listen(:counter, con [TaggedWriter, State] do
+      count1 <- State.get()
+      State.put(count1 + 1)
+      tell(:counter, {:count, count1})
+
+      count2 <- State.get()
+      State.put(count2 + 1)
+      tell(:counter, {:count, count2})
+
+      State.get()
+    end)
+
+    return({result, logs})
+  end
+
   # Peek operations
   defcon peek_empty_tag, [TaggedWriter] do
     peek(:nonexistent)
@@ -595,6 +677,125 @@ defmodule Freyja.Effects.TaggedWriterTest do
       assert_raise ArgumentError, ~r/TaggedWriter.Handler state must be a map/, fn ->
         Run.run(trigger_error(), runner)
       end
+    end
+  end
+
+  describe "listen operation" do
+    test "simple listen captures inner logs" do
+      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+      outcome = Run.run(simple_listen(), runner)
+
+      {result, captured_logs} = outcome.result.value
+
+      assert result == 42
+      assert captured_logs == ["inner2", "inner1"]
+      # Inner logs should also be added to final output
+      assert outcome.outputs.tw == %{audit: ["inner2", "inner1"]}
+    end
+
+    test "listen separates inner and outer logs" do
+      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+      outcome = Run.run(listen_with_outer_logs(), runner)
+
+      {result, inner_logs} = outcome.result.value
+
+      assert result == 100
+      # Inner logs are captured separately
+      assert inner_logs == ["inner2", "inner1"]
+      # Final output has all logs in order
+      assert outcome.outputs.tw == %{audit: ["after", "inner2", "inner1", "before"]}
+    end
+
+    test "nested listen operations" do
+      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+      outcome = Run.run(nested_listen(), runner)
+
+      {{level2_result, level2_logs}, level1_logs} = outcome.result.value
+
+      assert level2_result == 2
+      assert level2_logs == ["level2"]
+      assert level1_logs == ["level1 end", "level2", "level1 start"]
+
+      # Final output has everything
+      assert outcome.outputs.tw == %{
+        log: ["outer end", "level1 end", "level2", "level1 start", "outer start"]
+      }
+    end
+
+    test "listen on different tags independently" do
+      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+      outcome = Run.run(listen_multiple_tags(), runner)
+
+      result = outcome.result.value
+
+      assert result.audit == {:audit_done, ["a2", "a1"]}
+      assert result.debug == {:debug_done, ["d3", "d2"]}
+
+      # Final outputs have all logs
+      assert outcome.outputs.tw.audit == ["a3", "a2", "a1"]
+      assert outcome.outputs.tw.debug == ["d3", "d2", "d1"]
+    end
+
+    test "listen with State effect" do
+      runner = Run.with_handlers(
+        tw: {TaggedWriter.Handler, %{}},
+        s: {State.Handler, 0}
+      )
+
+      outcome = Run.run(listen_with_state(), runner)
+
+      {result, logs} = outcome.result.value
+
+      assert result == 2
+      assert logs == [{:count, 1}, {:count, 0}]
+      assert outcome.outputs.s == 2
+    end
+
+    test "listen with empty inner computation" do
+      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+
+      computation = con [TaggedWriter] do
+        listen(:log, return(:empty))
+      end
+
+      outcome = Run.run(computation, runner)
+
+      {result, logs} = outcome.result.value
+
+      assert result == :empty
+      assert logs == []
+      assert outcome.outputs.tw == %{}
+    end
+
+    test "listen doesn't capture logs from other tags" do
+      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+
+      computation = con [TaggedWriter] do
+        {result, audit_logs} <- listen(:audit, con [TaggedWriter] do
+          tell(:audit, "audit1")
+          tell(:debug, "debug1")
+          tell(:audit, "audit2")
+          tell(:metrics, "metric1")
+          return(:done)
+        end)
+
+        return({result, audit_logs})
+      end
+
+      outcome = Run.run(computation, runner)
+
+      {result, captured_logs} = outcome.result.value
+
+      assert result == :done
+      # Only audit logs captured
+      assert captured_logs == ["audit2", "audit1"]
+
+      # But all logs present in final output
+      assert outcome.outputs.tw == %{
+        audit: ["audit2", "audit1"],
+        debug: ["debug1"],
+        metrics: ["metric1"]
+      }
     end
   end
 

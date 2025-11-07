@@ -139,8 +139,7 @@ defmodule Freyja.Examples.ChangeCapture do
     Storage.change(user, updated_user)
 
     # Increment processed count
-    count <- State.get()
-    State.put(count + 1)
+    State.update(&(&1 + 1))
 
     return(updated_user)
   end
@@ -192,8 +191,7 @@ defmodule Freyja.Examples.ChangeCapture do
       end
 
     # Increment processed count
-    count <- State.get()
-    State.put(count + 1)
+    State.update(&(&1 + 1))
 
     return(updated_user)
   end
@@ -235,8 +233,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
     Storage.change(user, anonymized)
 
-    count <- State.get()
-    State.put(count + 1)
+    State.update(&(&1 + 1))
 
     return(anonymized)
   end
@@ -245,8 +242,7 @@ defmodule Freyja.Examples.ChangeCapture do
     # Log audit trail
     tell(:audit, %{action: :reviewed, user_id: user.id, timestamp: System.system_time()})
 
-    count <- State.get()
-    State.put(count + 1)
+    State.update(&(&1 + 1))
 
     return(user)
   end

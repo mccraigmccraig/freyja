@@ -173,14 +173,11 @@ defmodule Freyja.Examples.ChangeCapture do
     # Get final count of processed records
     processed_count <- State.get()
 
-    # Apply all changes in bulk
-    update_count <- Storage.update_all(captured_changes)
-
     return(%{
       updated_users: updated_users,
       captured_changes: captured_changes,
       processed_count: processed_count,
-      update_count: update_count
+      update_count: Enum.count(captured_changes)
     })
   end
 
@@ -225,12 +222,9 @@ defmodule Freyja.Examples.ChangeCapture do
     # Get processed count
     processed_count <- State.get()
 
-    # Apply captured changes in bulk
-    update_count <- Storage.update_all(captured_changes)
-
     return(%{
       updated_users: updated_users,
-      changes_applied: update_count,
+      changes_applied: Enum.count(captured_changes),
       processed_count: processed_count,
       validations: validation_results
     })
@@ -270,9 +264,6 @@ defmodule Freyja.Examples.ChangeCapture do
 
     anonymize_changes = stage1_logs[:changes] || []
     tell(:stages, {:anonymization_complete, length(anonymize_changes)})
-
-    # Apply anonymization changes
-    _anon_updates <- Storage.update_all(anonymize_changes)
 
     # Stage 2: Audit trail
     {_audited_users, stage2_logs} <-

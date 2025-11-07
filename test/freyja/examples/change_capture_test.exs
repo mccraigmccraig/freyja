@@ -11,7 +11,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
   alias Freyja.Run
 
   # Test helper computations
-  defcon test_scoped_capture, [Storage, List, TaggedWriter, State] do
+  defcon test_scoped_capture, [List, TaggedWriter] do
     user_list <- Storage.query([1])
     first_user = Elixir.List.first(user_list)
 
@@ -21,7 +21,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
     # Listen scope - should only capture changes inside
     {result, all_logs} <-
       listen(
-        con [List] do
+        con do
           users <- Storage.query([1])
           fx_map(users, &ChangeCapture.remove_email_from_user/1)
         end
@@ -41,7 +41,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
     })
   end
 
-  defcon check_conflicts_and_update, [Storage, TaggedWriter, State, List] do
+  defcon check_conflicts_and_update, [TaggedWriter, List] do
     users <- Storage.query([1])
 
     {_results, all_logs} <-
@@ -62,7 +62,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
         Storage.update_all(changes)
       else
         # Conflicts detected, log and skip
-        con [TaggedWriter] do
+        con do
           tell(:conflicts, changes)
           return(0)
         end

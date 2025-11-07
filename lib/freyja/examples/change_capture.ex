@@ -131,7 +131,7 @@ defmodule Freyja.Examples.ChangeCapture do
   end
 
   # Example: Remove email from users with change tracking
-  defcon remove_email_from_user(user), [Storage, State] do
+  defcon remove_email_from_user(user) do
     # Create new user without email
     updated_user = Map.delete(user, :email)
 
@@ -144,7 +144,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(updated_user)
   end
 
-  defcon process_users(user_ids), [Storage, List, TaggedWriter, State] do
+  defcon process_users(user_ids), [List, TaggedWriter] do
     # Query users from storage
     users <- Storage.query(user_ids)
 
@@ -171,20 +171,20 @@ defmodule Freyja.Examples.ChangeCapture do
   end
 
   # More complex example: Conditional updates with validation
-  defcon validate_and_update_user(user), [Storage, State, TaggedWriter] do
+  defcon validate_and_update_user(user), [TaggedWriter] do
     # Only remove email if it's a test email
     is_test_email = String.ends_with?(user.email || "", "@test.com")
 
     updated_user <-
       if is_test_email do
-        con [Storage, TaggedWriter] do
+        con do
           new_user = Map.put(user, :email, nil)
           Storage.change(user, new_user)
           tell(:validations, {:removed_test_email, user.id})
           return(new_user)
         end
       else
-        con [TaggedWriter] do
+        con do
           tell(:validations, {:kept_email, user.id})
           return(user)
         end
@@ -196,7 +196,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(updated_user)
   end
 
-  defcon process_users_with_validation(user_ids), [Storage, List, TaggedWriter, State] do
+  defcon process_users_with_validation(user_ids), [List, TaggedWriter] do
     # Query users
     users <- Storage.query(user_ids)
 
@@ -223,7 +223,7 @@ defmodule Freyja.Examples.ChangeCapture do
   end
 
   # Example: Multi-stage processing with multiple listen scopes
-  defcon anonymize_user(user), [Storage, State] do
+  defcon anonymize_user(user) do
     # Remove PII fields
     anonymized = %{
       id: user.id,
@@ -238,7 +238,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(anonymized)
   end
 
-  defcon audit_user(user), [Storage, State, TaggedWriter] do
+  defcon audit_user(user), [TaggedWriter] do
     # Log audit trail
     tell(:audit, %{action: :reviewed, user_id: user.id, timestamp: System.system_time()})
 
@@ -247,7 +247,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(user)
   end
 
-  defcon multi_stage_process(user_ids), [Storage, List, TaggedWriter, State] do
+  defcon multi_stage_process(user_ids), [List, TaggedWriter] do
     users <- Storage.query(user_ids)
 
     # Stage 1: Anonymization with change capture

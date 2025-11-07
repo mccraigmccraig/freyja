@@ -133,7 +133,7 @@ defmodule Freyja.Examples.ChangeCapture do
   # Example: Remove email from users with change tracking
   defcon remove_email_from_user(user), [Storage, State] do
     # Create new user without email
-    updated_user <- return(Map.delete(user, :email))
+    updated_user = Map.delete(user, :email)
 
     # Record the change
     Storage.change(user, updated_user)
@@ -155,7 +155,7 @@ defmodule Freyja.Examples.ChangeCapture do
       listen(fx_map(users, &remove_email_from_user/1))
 
     # Extract the changes we care about
-    captured_changes <- return(all_logs[:changes] || [])
+    captured_changes = all_logs[:changes] || []
 
     # Get final count of processed records
     processed_count <- State.get()
@@ -174,12 +174,12 @@ defmodule Freyja.Examples.ChangeCapture do
   # More complex example: Conditional updates with validation
   defcon validate_and_update_user(user), [Storage, State, TaggedWriter] do
     # Only remove email if it's a test email
-    is_test_email <- return(String.ends_with?(user.email || "", "@test.com"))
+    is_test_email = String.ends_with?(user.email || "", "@test.com")
 
     updated_user <-
       if is_test_email do
         con [Storage, TaggedWriter] do
-          new_user <- return(Map.put(user, :email, nil))
+          new_user = Map.put(user, :email, nil)
           Storage.change(user, new_user)
           tell(:validations, {:removed_test_email, user.id})
           return(new_user)
@@ -207,8 +207,8 @@ defmodule Freyja.Examples.ChangeCapture do
       listen(fx_map(users, &validate_and_update_user/1))
 
     # Extract the specific logs we care about
-    captured_changes <- return(all_logs[:changes] || [])
-    validation_results <- return(all_logs[:validations] || [])
+    captured_changes = all_logs[:changes] || []
+    validation_results = all_logs[:validations] || []
 
     # Get processed count
     processed_count <- State.get()
@@ -227,12 +227,11 @@ defmodule Freyja.Examples.ChangeCapture do
   # Example: Multi-stage processing with multiple listen scopes
   defcon anonymize_user(user), [Storage, State] do
     # Remove PII fields
-    anonymized <-
-      return(%{
-        id: user.id,
-        created_at: user.created_at
-        # email, name removed
-      })
+    anonymized = %{
+      id: user.id,
+      created_at: user.created_at
+      # email, name removed
+    }
 
     Storage.change(user, anonymized)
 
@@ -259,7 +258,7 @@ defmodule Freyja.Examples.ChangeCapture do
     {anonymized_users, stage1_logs} <-
       listen(fx_map(users, &anonymize_user/1))
 
-    anonymize_changes <- return(stage1_logs[:changes] || [])
+    anonymize_changes = stage1_logs[:changes] || []
     tell(:stages, {:anonymization_complete, length(anonymize_changes)})
 
     # Apply anonymization changes
@@ -269,7 +268,7 @@ defmodule Freyja.Examples.ChangeCapture do
     {_audited_users, stage2_logs} <-
       listen(fx_map(anonymized_users, &audit_user/1))
 
-    audit_logs <- return(stage2_logs[:audit] || [])
+    audit_logs = stage2_logs[:audit] || []
     tell(:stages, {:audit_complete, length(audit_logs)})
 
     # Get final counts

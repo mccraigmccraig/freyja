@@ -151,8 +151,11 @@ defmodule Freyja.Examples.ChangeCapture do
 
     # Process users with change tracking
     # Use listen to capture all changes made during the map
-    {updated_users, captured_changes} <-
-      listen(:changes, fx_map(users, &remove_email_from_user/1))
+    {updated_users, all_logs} <-
+      listen(fx_map(users, &remove_email_from_user/1))
+
+    # Extract the changes we care about
+    captured_changes <- return(all_logs[:changes] || [])
 
     # Get final count of processed records
     processed_count <- State.get()
@@ -200,11 +203,12 @@ defmodule Freyja.Examples.ChangeCapture do
     users <- Storage.query(user_ids)
 
     # Process with both change and validation tracking
-    {updated_users, captured_changes} <-
-      listen(:changes, fx_map(users, &validate_and_update_user/1))
+    {updated_users, all_logs} <-
+      listen(fx_map(users, &validate_and_update_user/1))
 
-    # Get validation results
-    validation_results <- peek(:validations)
+    # Extract the specific logs we care about
+    captured_changes <- return(all_logs[:changes] || [])
+    validation_results <- return(all_logs[:validations] || [])
 
     # Get processed count
     processed_count <- State.get()
@@ -252,19 +256,20 @@ defmodule Freyja.Examples.ChangeCapture do
     users <- Storage.query(user_ids)
 
     # Stage 1: Anonymization with change capture
-    {anonymized_users, anonymize_changes} <-
-      listen(:changes, fx_map(users, &anonymize_user/1))
+    {anonymized_users, stage1_logs} <-
+      listen(fx_map(users, &anonymize_user/1))
 
-    anonymize_count <- peek(:changes)
-    tell(:stages, {:anonymization_complete, length(anonymize_count)})
+    anonymize_changes <- return(stage1_logs[:changes] || [])
+    tell(:stages, {:anonymization_complete, length(anonymize_changes)})
 
     # Apply anonymization changes
     _anon_updates <- Storage.update_all(anonymize_changes)
 
     # Stage 2: Audit trail
-    {_audited_users, audit_logs} <-
-      listen(:audit, fx_map(anonymized_users, &audit_user/1))
+    {_audited_users, stage2_logs} <-
+      listen(fx_map(anonymized_users, &audit_user/1))
 
+    audit_logs <- return(stage2_logs[:audit] || [])
     tell(:stages, {:audit_complete, length(audit_logs)})
 
     # Get final counts

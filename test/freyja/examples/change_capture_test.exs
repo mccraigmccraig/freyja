@@ -19,10 +19,12 @@ defmodule Freyja.Examples.ChangeCaptureTest do
     Storage.change(first_user, %{first_user | name: "Alicia"})
 
     # Listen scope - should only capture changes inside
-    {result, captured} <- listen(:changes, con [Storage, List, State] do
+    {result, all_logs} <- listen(con [Storage, List, State] do
       users <- Storage.query([1])
       fx_map(users, &ChangeCapture.remove_email_from_user/1)
     end)
+
+    captured <- return(all_logs[:changes] || [])
 
     # Change after listen
     Storage.change(first_user, %{first_user | name: "Ali"})
@@ -39,9 +41,11 @@ defmodule Freyja.Examples.ChangeCaptureTest do
   defcon check_conflicts_and_update, [Storage, TaggedWriter, State, List] do
     users <- Storage.query([1])
 
-    {_results, changes} <- listen(:changes, con [Storage, State, List] do
+    {_results, all_logs} <- listen(con [Storage, State, List] do
       fx_map(users, &ChangeCapture.remove_email_from_user/1)
     end)
+
+    changes <- return(all_logs[:changes] || [])
 
     # Inspect changes for conflicts
     has_conflicts <- return(Enum.any?(changes, fn {old, _new} ->

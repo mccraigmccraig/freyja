@@ -1,4 +1,4 @@
-defmodule Freyja.Effects.ListTest do
+defmodule Freyja.Effects.FxListTest do
   use ExUnit.Case
 
   require Logger
@@ -6,7 +6,7 @@ defmodule Freyja.Effects.ListTest do
   import Freyja.Con
 
   alias Freyja.Effects.Coroutine
-  alias Freyja.Effects.List
+  alias Freyja.Effects.FxList
   alias Freyja.Effects.State
   alias Freyja.Run
 
@@ -15,7 +15,7 @@ defmodule Freyja.Effects.ListTest do
     return({a, r})
   end
 
-  defcon make_pairs(l), [List] do
+  defcon make_pairs(l), [FxList] do
     # fx_map is like Enum.map, but allows effects
     # including Coroutine.yield in the mapper function
     r <- fx_map(l, &yield_to_pair/1)
@@ -27,7 +27,7 @@ defmodule Freyja.Effects.ListTest do
       runner =
         Run.with_handlers(
           logger: Freyja.Effects.EffectLogger.Handler,
-          l: List.Handler,
+          l: FxList.Handler,
           c: Coroutine.Handler
         )
 
@@ -65,7 +65,7 @@ defmodule Freyja.Effects.ListTest do
     return(acc + r)
   end
 
-  defcon sum_with_yield(l), [List] do
+  defcon sum_with_yield(l), [FxList] do
     # fx_reduce is like Enum.reduce, but allows effects
     # including Coroutine.yield in the reducer function
     r <- fx_reduce(l, 0, &yield_sum/2)
@@ -77,7 +77,7 @@ defmodule Freyja.Effects.ListTest do
       runner =
         Run.with_handlers(
           logger: Freyja.Effects.EffectLogger.Handler,
-          l: List.Handler,
+          l: FxList.Handler,
           c: Coroutine.Handler
         )
 
@@ -114,7 +114,7 @@ defmodule Freyja.Effects.ListTest do
     return(product)
   end
 
-  defcon process_list_with_state(l), [List] do
+  defcon process_list_with_state(l), [FxList] do
     products <- fx_map(l, &multiply_and_sum/1)
     return(products)
   end
@@ -124,7 +124,7 @@ defmodule Freyja.Effects.ListTest do
       runner =
         Run.with_handlers(
           logger: Freyja.Effects.EffectLogger.Handler,
-          l: List.Handler,
+          l: FxList.Handler,
           c: Coroutine.Handler,
           s: {State.Handler, 0}
         )
@@ -164,14 +164,14 @@ defmodule Freyja.Effects.ListTest do
     test "fx_map with empty list returns empty list" do
       runner =
         Run.with_handlers(
-          l: List.Handler
+          l: FxList.Handler
         )
 
       # Map function that would fail if called
       failing_mapper = fn _x -> raise "should not be called" end
 
       computation =
-        con [List] do
+        con [FxList] do
           result <- fx_map([], failing_mapper)
           return(result)
         end
@@ -184,14 +184,14 @@ defmodule Freyja.Effects.ListTest do
     test "fx_reduce with empty list returns initial accumulator" do
       runner =
         Run.with_handlers(
-          l: List.Handler
+          l: FxList.Handler
         )
 
       # Reducer function that would fail if called
       failing_reducer = fn _elem, _acc -> raise "should not be called" end
 
       computation =
-        con [List] do
+        con [FxList] do
           result <- fx_reduce([], 42, failing_reducer)
           return(result)
         end
@@ -204,7 +204,7 @@ defmodule Freyja.Effects.ListTest do
     test "fx_map empty list with effectful mapper" do
       runner =
         Run.with_handlers(
-          l: List.Handler,
+          l: FxList.Handler,
           s: {State.Handler, 0}
         )
 
@@ -218,7 +218,7 @@ defmodule Freyja.Effects.ListTest do
       end
 
       computation =
-        con [List] do
+        con [FxList] do
           result <- fx_map([], state_mapper)
           return(result)
         end
@@ -232,7 +232,7 @@ defmodule Freyja.Effects.ListTest do
     end
 
     test "fx_reduce empty list with different initial values" do
-      runner = Run.with_handlers(l: List.Handler)
+      runner = Run.with_handlers(l: FxList.Handler)
 
       test_cases = [
         {0, 0},
@@ -244,7 +244,7 @@ defmodule Freyja.Effects.ListTest do
 
       for {initial, expected} <- test_cases do
         computation =
-          con [List] do
+          con [FxList] do
             result <- fx_reduce([], initial, fn _, _ -> return(:unused) end)
             return(result)
           end

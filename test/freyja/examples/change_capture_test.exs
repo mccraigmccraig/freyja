@@ -5,13 +5,13 @@ defmodule Freyja.Examples.ChangeCaptureTest do
 
   alias Freyja.Examples.ChangeCapture
   alias Freyja.Examples.ChangeCapture.Storage
-  alias Freyja.Effects.List
+  alias Freyja.Effects.FxList
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.State
   alias Freyja.Run
 
   # Test helper computations
-  defcon test_scoped_capture, [List, TaggedWriter] do
+  defcon test_scoped_capture, [FxList, TaggedWriter] do
     user_list <- Storage.query([1])
     first_user = Elixir.List.first(user_list)
 
@@ -41,7 +41,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
     })
   end
 
-  defcon check_conflicts_and_update, [TaggedWriter, List] do
+  defcon check_conflicts_and_update, [TaggedWriter, FxList] do
     users <- Storage.query([1])
 
     {_results, all_logs} <-
@@ -83,7 +83,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -123,7 +123,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -147,7 +147,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -176,7 +176,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -223,7 +223,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -268,7 +268,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -295,7 +295,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       runner =
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
-          list: List.Handler,
+          list: FxList.Handler,
           tw: {TaggedWriter.Handler, %{}},
           s: {State.Handler, 0}
         )
@@ -327,7 +327,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
         Run.with_handlers(
           storage: {Storage.Handler, initial_users},
           tw: {TaggedWriter.Handler, %{}},
-          list: List.Handler,
+          list: FxList.Handler,
           s: {State.Handler, 0}
         )
 

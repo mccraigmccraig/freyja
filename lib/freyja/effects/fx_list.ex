@@ -1,6 +1,6 @@
-defmodule Freyja.Effects.List do
+defmodule Freyja.Effects.FxList do
   @moduledoc """
-  Operations in the List effect
+  Operations in the FxList effect
   """
   import Freyja.Sig.DefEffectStruct
 
@@ -18,9 +18,9 @@ defmodule Freyja.Effects.List do
   def fx_reduce(l, init, f), do: %FxReduceList{list: l, init: init, f: f}
 end
 
-defmodule Freyja.Effects.List.Handler do
+defmodule Freyja.Effects.FxList.Handler do
   @moduledoc """
-  A handler for the List effect
+  A handler for the FxList effect
   """
   require Logger
 
@@ -28,9 +28,9 @@ defmodule Freyja.Effects.List.Handler do
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Effects.Coroutine
-  alias Freyja.Effects.List
-  alias Freyja.Effects.List.FxMapList
-  alias Freyja.Effects.List.FxReduceList
+  alias Freyja.Effects.FxList
+  alias Freyja.Effects.FxList.FxMapList
+  alias Freyja.Effects.FxList.FxReduceList
   alias Freyja.Run.RunState
   alias Freyja.Run
   alias Freyja.RunOutcome
@@ -47,12 +47,12 @@ defmodule Freyja.Effects.List.Handler do
 
   @impl Freyja.EffectHandler
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
-    sig == List
+    sig == FxList
   end
 
   @impl Freyja.EffectHandler
   def interpret(
-        %Freer.Impure{sig: List, data: u, q: q} = _computation,
+        %Freer.Impure{sig: FxList, data: u, q: q} = _computation,
         _handler_key,
         _state,
         %RunState{} = run_state

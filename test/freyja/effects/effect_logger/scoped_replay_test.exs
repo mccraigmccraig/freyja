@@ -5,7 +5,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
 
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.Error
-  alias Freyja.Effects.List
+  alias Freyja.Effects.FxList
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
   alias Freyja.OkResult
@@ -16,7 +16,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays simple List.fx_map with no other effects" do
       # Simplest case: just map over a list returning pure values
       computation =
-        con [List] do
+        con [FxList] do
           result <- fx_map([1, 2, 3], fn x -> return(x * 2) end)
           return(result)
         end
@@ -24,7 +24,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       runner =
         Run.with_handlers(
           l: EffectLogger.Handler,
-          list: List.Handler
+          list: FxList.Handler
         )
 
       first_outcome = computation |> Run.run(runner)
@@ -57,7 +57,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       end
 
       computation =
-        con [List, State] do
+        con [FxList, State] do
           result <- fx_map([1, 2, 3], map_fn)
           final_state <- get()
           return({result, final_state})
@@ -66,7 +66,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       runner =
         Run.with_handlers(
           l: EffectLogger.Handler,
-          list: List.Handler,
+          list: FxList.Handler,
           s: {State.Handler, 0}
         )
 
@@ -99,7 +99,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       end
 
       computation =
-        con [List, Writer] do
+        con [FxList, Writer] do
           result <- fx_map([10, 20, 30], map_fn)
           return(result)
         end
@@ -107,7 +107,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       runner =
         Run.with_handlers(
           l: EffectLogger.Handler,
-          list: List.Handler,
+          list: FxList.Handler,
           w: Writer.Handler
         )
 
@@ -282,7 +282,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       end
 
       computation =
-        con [List, State, Writer] do
+        con [FxList, State, Writer] do
           result <- fx_map([:a, :b, :c], map_fn)
           return(result)
         end
@@ -290,7 +290,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       runner =
         Run.with_handlers(
           l: EffectLogger.Handler,
-          list: List.Handler,
+          list: FxList.Handler,
           s: {State.Handler, 0},
           w: Writer.Handler
         )
@@ -325,7 +325,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays nested scoped effects - catch_fx inside List.fx_map" do
       # Nested scoping: error handling inside list iteration
       computation =
-        con [List, Error] do
+        con [FxList, Error] do
           result <-
             fx_map([1, 0, 3], fn x ->
               catch_fx(
@@ -344,7 +344,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       runner =
         Run.with_handlers(
           l: EffectLogger.Handler,
-          list: List.Handler,
+          list: FxList.Handler,
           e: Error.Handler
         )
 
@@ -372,7 +372,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays List.fx_map inside catch_fx" do
       # Opposite nesting: list iteration inside error handling
       inner_catch =
-        con [List] do
+        con [FxList] do
           mapped <- fx_map([1, 2, 3], fn x -> return(x * 10) end)
           return({:ok, Enum.sum(mapped)})
         end
@@ -395,7 +395,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         Run.with_handlers(
           l: EffectLogger.Handler,
           e: Error.Handler,
-          list: List.Handler
+          list: FxList.Handler
         )
 
       first_outcome = computation |> Run.run(runner)
@@ -422,7 +422,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays deserialized List.fx_map" do
       # Use strings for JSON compatibility
       computation =
-        con [List] do
+        con [FxList] do
           result <-
             fx_map(["a", "b", "c"], fn item ->
               con [State] do
@@ -438,7 +438,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       runner =
         Run.with_handlers(
           l: EffectLogger.Handler,
-          list: List.Handler,
+          list: FxList.Handler,
           s: {State.Handler, 0}
         )
 

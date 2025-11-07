@@ -6,7 +6,7 @@ defmodule Freyja.Examples.ChangeCapture do
   This example shows:
   - Storage effect for querying and updating records
   - TaggedWriter for capturing changes during processing
-  - List effect for mapping over collections
+  - FxList effect for mapping over collections
   - State effect for counting processed records
   - Using `listen` to capture changes and apply them in bulk
 
@@ -31,7 +31,7 @@ defmodule Freyja.Examples.ChangeCapture do
   import Freyja.Con
 
   alias Freyja.Effects.State
-  alias Freyja.Effects.List
+  alias Freyja.Effects.FxList
   alias Freyja.Effects.TaggedWriter
 
   # Storage Effect Definition
@@ -159,7 +159,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(updated_user)
   end
 
-  defcon process_users(user_ids), [List, TaggedWriter] do
+  defcon process_users(user_ids), [FxList, TaggedWriter] do
     # Query users from storage
     users <- Storage.query(user_ids)
 
@@ -207,7 +207,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(updated_user)
   end
 
-  defcon process_users_with_validation(user_ids), [List, TaggedWriter] do
+  defcon process_users_with_validation(user_ids), [FxList, TaggedWriter] do
     # Query users
     users <- Storage.query(user_ids)
 
@@ -255,7 +255,7 @@ defmodule Freyja.Examples.ChangeCapture do
     return(user)
   end
 
-  defcon multi_stage_process(user_ids), [List, TaggedWriter] do
+  defcon multi_stage_process(user_ids), [FxList, TaggedWriter] do
     users <- Storage.query(user_ids)
 
     # Stage 1: Anonymization with change capture

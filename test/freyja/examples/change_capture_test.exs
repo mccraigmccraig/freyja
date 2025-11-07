@@ -13,18 +13,21 @@ defmodule Freyja.Examples.ChangeCaptureTest do
   # Test helper computations
   defcon test_scoped_capture, [Storage, List, TaggedWriter, State] do
     user_list <- Storage.query([1])
-    first_user <- return(Elixir.List.first(user_list))
+    first_user = Elixir.List.first(user_list)
 
     # Change before listen
     Storage.change(first_user, %{first_user | name: "Alicia"})
 
     # Listen scope - should only capture changes inside
-    {result, all_logs} <- listen(con [Storage, List, State] do
-      users <- Storage.query([1])
-      fx_map(users, &ChangeCapture.remove_email_from_user/1)
-    end)
+    {result, all_logs} <-
+      listen(
+        con [List] do
+          users <- Storage.query([1])
+          fx_map(users, &ChangeCapture.remove_email_from_user/1)
+        end
+      )
 
-    captured <- return(all_logs[:changes] || [])
+    captured = all_logs[:changes] || []
 
     # Change after listen
     Storage.change(first_user, %{first_user | name: "Ali"})
@@ -41,28 +44,29 @@ defmodule Freyja.Examples.ChangeCaptureTest do
   defcon check_conflicts_and_update, [Storage, TaggedWriter, State, List] do
     users <- Storage.query([1])
 
-    {_results, all_logs} <- listen(con [Storage, State, List] do
-      fx_map(users, &ChangeCapture.remove_email_from_user/1)
-    end)
+    {_results, all_logs} <-
+      listen(fx_map(users, &ChangeCapture.remove_email_from_user/1))
 
-    changes <- return(all_logs[:changes] || [])
+    changes = all_logs[:changes] || []
 
     # Inspect changes for conflicts
-    has_conflicts <- return(Enum.any?(changes, fn {old, _new} ->
-      # In real scenario, check version numbers
-      old.version != 1
-    end))
+    has_conflicts =
+      Enum.any?(changes, fn {old, _new} ->
+        # In real scenario, check version numbers
+        old.version != 1
+      end)
 
-    update_result <- if !has_conflicts do
-      # No conflicts, apply changes
-      Storage.update_all(changes)
-    else
-      # Conflicts detected, log and skip
-      con [TaggedWriter] do
-        tell(:conflicts, changes)
-        return(0)
+    update_result <-
+      if !has_conflicts do
+        # No conflicts, apply changes
+        Storage.update_all(changes)
+      else
+        # Conflicts detected, log and skip
+        con [TaggedWriter] do
+          tell(:conflicts, changes)
+          return(0)
+        end
       end
-    end
 
     return({has_conflicts, update_result})
   end
@@ -90,10 +94,10 @@ defmodule Freyja.Examples.ChangeCaptureTest do
 
       # Should have updated 3 users
       assert result.updated_users == [
-        %{id: 1, name: "Alice", created_at: ~D[2020-01-01]},
-        %{id: 2, name: "Bob", created_at: ~D[2020-02-01]},
-        %{id: 3, name: "Charlie", created_at: ~D[2020-03-01]}
-      ]
+               %{id: 1, name: "Alice", created_at: ~D[2020-01-01]},
+               %{id: 2, name: "Bob", created_at: ~D[2020-02-01]},
+               %{id: 3, name: "Charlie", created_at: ~D[2020-03-01]}
+             ]
 
       # Should have captured 3 changes
       assert length(result.captured_changes) == 3
@@ -188,19 +192,24 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       assert result.changes_applied == 2
 
       # Check validation results
-      validation_map = Enum.group_by(result.validations, fn
-        {:removed_test_email, _} -> :removed
-        {:kept_email, _} -> :kept
-      end)
+      validation_map =
+        Enum.group_by(result.validations, fn
+          {:removed_test_email, _} -> :removed
+          {:kept_email, _} -> :kept
+        end)
 
       assert length(validation_map[:removed]) == 2
       assert length(validation_map[:kept]) == 2
 
       # Verify storage updated correctly
-      assert outcome.outputs.storage[1].email == nil  # test email removed
-      assert outcome.outputs.storage[2].email == "bob@example.com"  # kept
-      assert outcome.outputs.storage[3].email == nil  # test email removed
-      assert outcome.outputs.storage[4].email == "dave@example.com"  # kept
+      # test email removed
+      assert outcome.outputs.storage[1].email == nil
+      # kept
+      assert outcome.outputs.storage[2].email == "bob@example.com"
+      # test email removed
+      assert outcome.outputs.storage[3].email == nil
+      # kept
+      assert outcome.outputs.storage[4].email == "dave@example.com"
     end
   end
 

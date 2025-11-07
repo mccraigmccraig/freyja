@@ -152,9 +152,7 @@ defmodule Freyja.Examples.ChangeCapture do
     # Process users with change tracking
     # Use listen to capture all changes made during the map
     {updated_users, captured_changes} <-
-      listen(:changes, con [List, Storage, State] do
-        fx_map(users, &remove_email_from_user/1)
-      end)
+      listen(:changes, fx_map(users, &remove_email_from_user/1))
 
     # Get final count of processed records
     processed_count <- State.get()
@@ -175,19 +173,20 @@ defmodule Freyja.Examples.ChangeCapture do
     # Only remove email if it's a test email
     is_test_email <- return(String.ends_with?(user.email || "", "@test.com"))
 
-    updated_user <- if is_test_email do
-      con [Storage, TaggedWriter] do
-        new_user <- return(Map.put(user, :email, nil))
-        Storage.change(user, new_user)
-        tell(:validations, {:removed_test_email, user.id})
-        return(new_user)
+    updated_user <-
+      if is_test_email do
+        con [Storage, TaggedWriter] do
+          new_user <- return(Map.put(user, :email, nil))
+          Storage.change(user, new_user)
+          tell(:validations, {:removed_test_email, user.id})
+          return(new_user)
+        end
+      else
+        con [TaggedWriter] do
+          tell(:validations, {:kept_email, user.id})
+          return(user)
+        end
       end
-    else
-      con [TaggedWriter] do
-        tell(:validations, {:kept_email, user.id})
-        return(user)
-      end
-    end
 
     # Increment processed count
     count <- State.get()
@@ -202,9 +201,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
     # Process with both change and validation tracking
     {updated_users, captured_changes} <-
-      listen(:changes, con [List, Storage, State, TaggedWriter] do
-        fx_map(users, &validate_and_update_user/1)
-      end)
+      listen(:changes, fx_map(users, &validate_and_update_user/1))
 
     # Get validation results
     validation_results <- peek(:validations)
@@ -226,11 +223,12 @@ defmodule Freyja.Examples.ChangeCapture do
   # Example: Multi-stage processing with multiple listen scopes
   defcon anonymize_user(user), [Storage, State] do
     # Remove PII fields
-    anonymized <- return(%{
-      id: user.id,
-      created_at: user.created_at
-      # email, name removed
-    })
+    anonymized <-
+      return(%{
+        id: user.id,
+        created_at: user.created_at
+        # email, name removed
+      })
 
     Storage.change(user, anonymized)
 
@@ -255,9 +253,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
     # Stage 1: Anonymization with change capture
     {anonymized_users, anonymize_changes} <-
-      listen(:changes, con [List, Storage, State] do
-        fx_map(users, &anonymize_user/1)
-      end)
+      listen(:changes, fx_map(users, &anonymize_user/1))
 
     anonymize_count <- peek(:changes)
     tell(:stages, {:anonymization_complete, length(anonymize_count)})
@@ -267,9 +263,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
     # Stage 2: Audit trail
     {_audited_users, audit_logs} <-
-      listen(:audit, con [List, Storage, State, TaggedWriter] do
-        fx_map(anonymized_users, &audit_user/1)
-      end)
+      listen(:audit, fx_map(anonymized_users, &audit_user/1))
 
     tell(:stages, {:audit_complete, length(audit_logs)})
 

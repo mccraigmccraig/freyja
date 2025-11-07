@@ -233,7 +233,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
   # Listen operations
   defcon simple_listen, [TaggedWriter] do
-    listen(:audit, con [TaggedWriter] do
+    listen(con [TaggedWriter] do
       tell(:audit, "inner1")
       tell(:audit, "inner2")
       return(42)
@@ -243,7 +243,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   defcon listen_with_outer_logs, [TaggedWriter] do
     tell(:audit, "before")
 
-    {result, inner_logs} <- listen(:audit, con [TaggedWriter] do
+    {result, inner_logs} <- listen(con [TaggedWriter] do
       tell(:audit, "inner1")
       tell(:audit, "inner2")
       return(100)
@@ -257,10 +257,10 @@ defmodule Freyja.Effects.TaggedWriterTest do
   defcon nested_listen, [TaggedWriter] do
     tell(:log, "outer start")
 
-    {r1, logs1} <- listen(:log, con [TaggedWriter] do
+    {r1, logs1} <- listen(con [TaggedWriter] do
       tell(:log, "level1 start")
 
-      {r2, logs2} <- listen(:log, con [TaggedWriter] do
+      {r2, logs2} <- listen(con [TaggedWriter] do
         tell(:log, "level2")
         return(2)
       end)
@@ -275,30 +275,23 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   defcon listen_multiple_tags, [TaggedWriter] do
-    {audit_result, audit_logs} <- listen(:audit, con [TaggedWriter] do
+    {result, all_logs} <- listen(con [TaggedWriter] do
       tell(:audit, "a1")
       tell(:debug, "d1")
       tell(:audit, "a2")
-      return(:audit_done)
-    end)
-
-    {debug_result, debug_logs} <- listen(:debug, con [TaggedWriter] do
       tell(:debug, "d2")
       tell(:audit, "a3")
       tell(:debug, "d3")
-      return(:debug_done)
+      return(:done)
     end)
 
-    return(%{
-      audit: {audit_result, audit_logs},
-      debug: {debug_result, debug_logs}
-    })
+    return({result, all_logs})
   end
 
   defcon listen_with_state, [TaggedWriter, State] do
     State.put(0)
 
-    {result, logs} <- listen(:counter, con [TaggedWriter, State] do
+    {result, logs} <- listen(con [TaggedWriter, State] do
       count1 <- State.get()
       State.put(count1 + 1)
       tell(:counter, {:count, count1})
@@ -681,14 +674,14 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   describe "listen operation" do
-    test "simple listen captures inner logs" do
+    test "simple listen captures inner logs for all tags" do
       runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
       outcome = Run.run(simple_listen(), runner)
 
       {result, captured_logs} = outcome.result.value
 
       assert result == 42
-      assert captured_logs == ["inner2", "inner1"]
+      assert captured_logs == %{audit: ["inner2", "inner1"]}
       # Inner logs should also be added to final output
       assert outcome.outputs.tw == %{audit: ["inner2", "inner1"]}
     end
@@ -700,8 +693,8 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {result, inner_logs} = outcome.result.value
 
       assert result == 100
-      # Inner logs are captured separately
-      assert inner_logs == ["inner2", "inner1"]
+      # Inner logs are captured separately (map with audit tag)
+      assert inner_logs == %{audit: ["inner2", "inner1"]}
       # Final output has all logs in order
       assert outcome.outputs.tw == %{audit: ["after", "inner2", "inner1", "before"]}
     end
@@ -713,8 +706,8 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {{level2_result, level2_logs}, level1_logs} = outcome.result.value
 
       assert level2_result == 2
-      assert level2_logs == ["level2"]
-      assert level1_logs == ["level1 end", "level2", "level1 start"]
+      assert level2_logs == %{log: ["level2"]}
+      assert level1_logs == %{log: ["level1 end", "level2", "level1 start"]}
 
       # Final output has everything
       assert outcome.outputs.tw == %{
@@ -722,14 +715,18 @@ defmodule Freyja.Effects.TaggedWriterTest do
       }
     end
 
-    test "listen on different tags independently" do
+    test "listen captures multiple tags simultaneously" do
       runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
       outcome = Run.run(listen_multiple_tags(), runner)
 
-      result = outcome.result.value
+      {result, all_logs} = outcome.result.value
 
-      assert result.audit == {:audit_done, ["a2", "a1"]}
-      assert result.debug == {:debug_done, ["d3", "d2"]}
+      assert result == :done
+      # All tags captured in one map
+      assert all_logs == %{
+        audit: ["a3", "a2", "a1"],
+        debug: ["d3", "d2", "d1"]
+      }
 
       # Final outputs have all logs
       assert outcome.outputs.tw.audit == ["a3", "a2", "a1"]
@@ -747,7 +744,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {result, logs} = outcome.result.value
 
       assert result == 2
-      assert logs == [{:count, 1}, {:count, 0}]
+      assert logs == %{counter: [{:count, 1}, {:count, 0}]}
       assert outcome.outputs.s == 2
     end
 
@@ -755,7 +752,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
 
       computation = con [TaggedWriter] do
-        listen(:log, return(:empty))
+        listen(return(:empty))
       end
 
       outcome = Run.run(computation, runner)
@@ -763,15 +760,15 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {result, logs} = outcome.result.value
 
       assert result == :empty
-      assert logs == []
+      assert logs == %{}
       assert outcome.outputs.tw == %{}
     end
 
-    test "listen doesn't capture logs from other tags" do
+    test "listen captures all tags written inside" do
       runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
 
       computation = con [TaggedWriter] do
-        {result, audit_logs} <- listen(:audit, con [TaggedWriter] do
+        {result, all_logs} <- listen(con [TaggedWriter] do
           tell(:audit, "audit1")
           tell(:debug, "debug1")
           tell(:audit, "audit2")
@@ -779,7 +776,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
           return(:done)
         end)
 
-        return({result, audit_logs})
+        return({result, all_logs})
       end
 
       outcome = Run.run(computation, runner)
@@ -787,10 +784,14 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {result, captured_logs} = outcome.result.value
 
       assert result == :done
-      # Only audit logs captured
-      assert captured_logs == ["audit2", "audit1"]
+      # All tags captured
+      assert captured_logs == %{
+        audit: ["audit2", "audit1"],
+        debug: ["debug1"],
+        metrics: ["metric1"]
+      }
 
-      # But all logs present in final output
+      # All logs present in final output
       assert outcome.outputs.tw == %{
         audit: ["audit2", "audit1"],
         debug: ["debug1"],

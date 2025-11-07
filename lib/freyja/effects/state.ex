@@ -6,9 +6,11 @@ defmodule Freyja.Effects.State do
 
   def_effect_struct(Get)
   def_effect_struct(Put, val: nil)
+  def_effect_struct(Update, f: nil)
 
   def put(v), do: %Put{val: v}
   def get, do: %Get{}
+  def update(f), do: %Update{f: f}
 end
 
 defmodule Freyja.Effects.State.Handler do
@@ -22,6 +24,7 @@ defmodule Freyja.Effects.State.Handler do
   alias Freyja.Effects.State
   alias Freyja.Effects.State.Get
   alias Freyja.Effects.State.Put
+  alias Freyja.Effects.State.Update
   alias Freyja.Run.RunState
 
   @behaviour Freyja.EffectHandler
@@ -42,6 +45,10 @@ defmodule Freyja.Effects.State.Handler do
       %Put{val: o} ->
         # return the old value, set the new
         {Impl.q_apply(q, state), o}
+
+      %Update{f: f} ->
+        # return the old value, update state with the function
+        {Impl.q_apply(q, state), f.(state)}
 
       %Get{} ->
         {Impl.q_apply(q, state), state}

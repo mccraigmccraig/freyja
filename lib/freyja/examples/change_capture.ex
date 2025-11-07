@@ -50,6 +50,7 @@ defmodule Freyja.Examples.ChangeCapture do
     def_effect_struct(Query, ids: [])
     def_effect_struct(Change, old: nil, new: nil)
     def_effect_struct(UpdateAll, changes: [])
+    def_effect_struct(ListenForChanges, computation: nil)
 
     @doc "Query records by IDs"
     def query(ids), do: %Query{ids: ids}
@@ -65,6 +66,8 @@ defmodule Freyja.Examples.ChangeCapture do
     Returns the number of records updated.
     """
     def update_all(changes), do: %UpdateAll{changes: changes}
+
+    def listen_for_changes(computation), do: %ListenForChanges{computation: computation}
   end
 
   # Storage Handler for Users
@@ -82,6 +85,7 @@ defmodule Freyja.Examples.ChangeCapture do
     alias Freyja.Examples.ChangeCapture.Storage.Query
     alias Freyja.Examples.ChangeCapture.Storage.Change
     alias Freyja.Examples.ChangeCapture.Storage.UpdateAll
+    alias Freyja.Examples.ChangeCapture.Storage.ListenForChanges
     alias Freyja.Effects.TaggedWriter
     alias Freyja.Run.RunState
 
@@ -126,6 +130,17 @@ defmodule Freyja.Examples.ChangeCapture do
 
           # Return count of changes applied
           {Impl.q_apply(q, length(changes)), updated_state}
+
+        %ListenForChanges{computation: computation} ->
+          list_update_comp =
+            con do
+              {result, all_logs} <- TaggedWriter.listen(computation)
+              changes = all_logs[:changes] || []
+              Storage.update_all(changes)
+              return({result, all_logs})
+            end
+
+          {Impl.bindp(list_update_comp, q), state}
       end
     end
   end
@@ -151,9 +166,8 @@ defmodule Freyja.Examples.ChangeCapture do
     # Process users with change tracking
     # Use listen to capture all changes made during the map
     {updated_users, all_logs} <-
-      listen(fx_map(users, &remove_email_from_user/1))
+      Storage.listen_for_changes(fx_map(users, &remove_email_from_user/1))
 
-    # Extract the changes we care about
     captured_changes = all_logs[:changes] || []
 
     # Get final count of processed records
@@ -202,7 +216,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
     # Process with both change and validation tracking
     {updated_users, all_logs} <-
-      listen(fx_map(users, &validate_and_update_user/1))
+      Storage.listen_for_changes(fx_map(users, &validate_and_update_user/1))
 
     # Extract the specific logs we care about
     captured_changes = all_logs[:changes] || []
@@ -252,7 +266,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
     # Stage 1: Anonymization with change capture
     {anonymized_users, stage1_logs} <-
-      listen(fx_map(users, &anonymize_user/1))
+      Storage.listen_for_changes(fx_map(users, &anonymize_user/1))
 
     anonymize_changes = stage1_logs[:changes] || []
     tell(:stages, {:anonymization_complete, length(anonymize_changes)})

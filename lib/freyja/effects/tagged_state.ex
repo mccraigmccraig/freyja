@@ -41,6 +41,7 @@ defmodule Freyja.Effects.TaggedState do
 
   def_effect_struct(GetTagged, tag: nil)
   def_effect_struct(PutTagged, tag: nil, val: nil)
+  def_effect_struct(UpdateTagged, tag: nil, f: nil)
 
   @doc """
   Get the state value for the given tag.
@@ -56,6 +57,23 @@ defmodule Freyja.Effects.TaggedState do
   Returns the previous state value for that tag.
   """
   def put(tag, val), do: %PutTagged{tag: tag, val: val}
+
+  @doc """
+  Update the state value for the given tag using a function.
+
+  Applies function `f` to the current state associated with `tag`,
+  and sets the result as the new state for that tag.
+  Returns the previous state value for that tag.
+
+  ## Example
+
+      con [TaggedState] do
+        # Increment a counter
+        old_count <- TaggedState.update(:counter, fn c -> c + 1 end)
+        return(old_count)
+      end
+  """
+  def update(tag, f), do: %UpdateTagged{tag: tag, f: f}
 end
 
 defmodule Freyja.Effects.TaggedState.Handler do
@@ -87,6 +105,7 @@ defmodule Freyja.Effects.TaggedState.Handler do
   alias Freyja.Effects.TaggedState
   alias Freyja.Effects.TaggedState.GetTagged
   alias Freyja.Effects.TaggedState.PutTagged
+  alias Freyja.Effects.TaggedState.UpdateTagged
   alias Freyja.Run.RunState
 
   @behaviour Freyja.EffectHandler
@@ -115,6 +134,12 @@ defmodule Freyja.Effects.TaggedState.Handler do
 
       %PutTagged{tag: tag, val: new_val} ->
         old_val = Map.get(state, tag)
+        new_state = Map.put(state, tag, new_val)
+        {Impl.q_apply(q, old_val), new_state}
+
+      %UpdateTagged{tag: tag, f: f} ->
+        old_val = Map.get(state, tag)
+        new_val = f.(old_val)
         new_state = Map.put(state, tag, new_val)
         {Impl.q_apply(q, old_val), new_state}
     end

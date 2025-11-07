@@ -152,6 +152,48 @@ defmodule Freyja.Effects.TaggedStateTest do
     TaggedState.get(:cache)
   end
 
+  # Update operations
+  defcon update_counter, [TaggedState] do
+    old_val <- TaggedState.update(:counter, fn c -> c + 1 end)
+    new_val <- TaggedState.get(:counter)
+    return({old_val, new_val})
+  end
+
+  defcon update_with_map_function, [TaggedState] do
+    TaggedState.update(:cache, fn cache -> Map.put(cache, :updated, true) end)
+    TaggedState.get(:cache)
+  end
+
+  defcon update_multiple_tags, [TaggedState] do
+    TaggedState.update(:count, fn c -> c + 1 end)
+    TaggedState.update(:total, fn t -> t + 10 end)
+    TaggedState.update(:count, fn c -> c * 2 end)
+
+    count <- TaggedState.get(:count)
+    total <- TaggedState.get(:total)
+
+    return({count, total})
+  end
+
+  defcon update_missing_tag, [TaggedState] do
+    # Update should work even if tag doesn't exist (nil case)
+    old_val <- TaggedState.update(:missing, fn val -> (val || 0) + 1 end)
+    new_val <- TaggedState.get(:missing)
+    return({old_val, new_val})
+  end
+
+  defcon increment_nested, [TaggedState] do
+    TaggedState.update(:counter, fn c -> c + 1 end)
+    TaggedState.get(:counter)
+  end
+
+  defcon call_increment_nested_three_times, [TaggedState] do
+    r1 <- increment_nested()
+    r2 <- increment_nested()
+    r3 <- increment_nested()
+    return([r1, r2, r3])
+  end
+
   # Tests
   describe "basic tagged state operations" do
     test "get and put with single tag" do
@@ -342,6 +384,72 @@ defmodule Freyja.Effects.TaggedStateTest do
       assert outcome.result == %Freyja.OkResult{
         value: {%{name: "Alice"}, %{name: "Bob"}}
       }
+    end
+  end
+
+  describe "update operation" do
+    test "updates a counter and returns old value" do
+      runner =
+        Run.with_handlers(
+          ts: {TaggedState.Handler, %{counter: 5}}
+        )
+
+      outcome = Run.run(update_counter(), runner)
+
+      assert outcome.result == %Freyja.OkResult{value: {5, 6}}
+      assert outcome.outputs.ts == %{counter: 6}
+    end
+
+    test "updates with map function" do
+      runner =
+        Run.with_handlers(
+          ts: {TaggedState.Handler, %{cache: %{existing: "value"}}}
+        )
+
+      outcome = Run.run(update_with_map_function(), runner)
+
+      assert outcome.result == %Freyja.OkResult{
+        value: %{existing: "value", updated: true}
+      }
+      assert outcome.outputs.ts == %{cache: %{existing: "value", updated: true}}
+    end
+
+    test "updates multiple tags" do
+      runner =
+        Run.with_handlers(
+          ts: {TaggedState.Handler, %{count: 1, total: 0}}
+        )
+
+      outcome = Run.run(update_multiple_tags(), runner)
+
+      # count: 1 -> 2 (+ 1) -> 4 (* 2)
+      # total: 0 -> 10 (+ 10)
+      assert outcome.result == %Freyja.OkResult{value: {4, 10}}
+      assert outcome.outputs.ts == %{count: 4, total: 10}
+    end
+
+    test "updates missing tag (nil case)" do
+      runner =
+        Run.with_handlers(
+          ts: {TaggedState.Handler, %{}}
+        )
+
+      outcome = Run.run(update_missing_tag(), runner)
+
+      assert outcome.result == %Freyja.OkResult{value: {nil, 1}}
+      assert outcome.outputs.ts == %{missing: 1}
+    end
+
+    test "nested update computations" do
+      runner =
+        Run.with_handlers(
+          ts: {TaggedState.Handler, %{counter: 0}}
+        )
+
+      outcome = Run.run(call_increment_nested_three_times(), runner)
+
+      assert outcome.result == %Freyja.OkResult{value: [1, 2, 3]}
+      assert outcome.outputs.ts == %{counter: 3}
     end
   end
 end

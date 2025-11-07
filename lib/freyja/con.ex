@@ -27,11 +27,23 @@ defmodule Freyja.Con do
       :bad -> return(:ok)
     end
   """
+  defmacro defcon(call_ast, do: body),
+    do: Freyja.Con.Impl.defcon(call_ast, [], body)
+
+  defmacro defcon(call_ast, do: body, catch: else_block),
+    do: Freyja.Con.Impl.defcon(call_ast, [], body, else_block)
+
   defmacro defcon(call_ast, mods_ast, do: body),
     do: Freyja.Con.Impl.defcon(call_ast, mods_ast, body)
 
   defmacro defcon(call_ast, mods_ast, do: body, catch: else_block),
     do: Freyja.Con.Impl.defcon(call_ast, mods_ast, body, else_block)
+
+  defmacro defconp(call_ast, do: body),
+    do: Freyja.Con.Impl.defconp(call_ast, [], body)
+
+  defmacro defconp(call_ast, do: body, catch: else_block),
+    do: Freyja.Con.Impl.defconp(call_ast, [], body, else_block)
 
   defmacro defconp(call_ast, mods_ast, do: body),
     do: Freyja.Con.Impl.defconp(call_ast, mods_ast, body)
@@ -66,6 +78,12 @@ defmodule Freyja.Con do
   end
 
   """
+
+  defmacro con(do: do_block), do: Freyja.Con.Impl.con([], do_block)
+
+  defmacro con(do: do_block, catch: else_block),
+    do: Freyja.Con.Impl.con([], do_block, else_block)
+
   defmacro con(mod_or_mods, do: do_block), do: Freyja.Con.Impl.con(mod_or_mods, do_block)
 
   defmacro con(mod_or_mods, do: do_block, catch: else_block),

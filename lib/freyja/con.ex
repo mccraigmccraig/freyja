@@ -11,19 +11,20 @@ defmodule Freyja.Con do
   Usage:
     import Freyja.Con
 
-    defcon foo(a, b), [Reader, Writer] do
+    defcon foo(a), [Reader, Writer] do
+      b = 10
       c <- get()
       put(a + b)
       return(a + b + c)
     end
 
-  With else:
+  With catch:
     import Freyja.Con
 
-    defcon foo(a), [Error] do
-      _ <- Error.throw_fx(:bad)
+    defcon foo(a) do
+      Error.throw_fx(:bad)
       return(a)
-    else
+    catch
       :bad -> return(:ok)
     end
   """
@@ -52,24 +53,27 @@ defmodule Freyja.Con do
     do: Freyja.Con.Impl.defconp(call_ast, mods_ast, body, else_block)
 
   @doc """
-  `con` - profitable cheating -and Spanish/Italian `with`
+  `con` - profitable cheating - and Spanish/Italian `with`
+
+  https://okmij.org/ftp/Computation/free-monad.html#cheating
 
   macro sugar which rewrites a with-like statement into
   Freer.bind steps - similar to Haskell `do` notation
 
   con [Reader, Writer] do
     a <- get()
+    b = 10
     put(a + 5)
-    return(a + 10)
+    return(a + b)
   end
 
   there's also a `catch` clause which translates into an `Error`
   effect `catch_fx` operation
 
   Freer.con [Error, Writer] do
-    _ <- put(:before)
-    _ <- throw_fx(:bad)
-    _ <- put(:after)
+    put(:before)
+    throw_fx(:bad)
+    put(:after)
     return(:nope)
   catch
     :bad ->
@@ -78,7 +82,6 @@ defmodule Freyja.Con do
   end
 
   """
-
   defmacro con(do: do_block), do: Freyja.Con.Impl.con([], do_block)
 
   defmacro con(do: do_block, catch: else_block),

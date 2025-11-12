@@ -348,4 +348,4 @@ Contributions are welcome! Please feel free to open issues or submit pull reques
 
 ## License
 
-[Your license here]
+[MIT License](LICENSE)

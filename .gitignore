@@ -33,6 +33,7 @@ freyja-*.tar
 /.elixir-tools
 
 /archive
+/research
 
 .DS_Store
 /CLAUDE.md

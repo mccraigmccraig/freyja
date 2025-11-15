@@ -98,7 +98,6 @@ defmodule Freyja.Hefty.Elaborate do
   alias Freyja.Hefty
   alias Freyja.Hefty.Pure
   alias Freyja.Hefty.Impure
-  alias Freyja.Hefty.Algebra
   alias Freyja.Freer
 
   @doc """

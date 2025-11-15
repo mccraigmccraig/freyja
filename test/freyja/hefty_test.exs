@@ -253,11 +253,17 @@ defmodule Freyja.HeftyTest do
   end
 
   describe "pattern matching on Hefty trees" do
-    test "can pattern match on Pure" do
-      hefty = Hefty.pure(42)
+    # Helper that returns union type to avoid type system warnings
+    defp make_hefty(type, value) do
+      case type do
+        :pure -> Hefty.pure(value)
+        :impure -> Hefty.send_hefty(:Test, %{data: value}, %{})
+      end
+    end
 
+    test "can pattern match on Pure" do
       result =
-        case hefty do
+        case make_hefty(:pure, 42) do
           %Pure{val: v} -> {:pure, v}
           %Impure{} -> :impure
         end
@@ -266,15 +272,21 @@ defmodule Freyja.HeftyTest do
     end
 
     test "can pattern match on Impure" do
-      hefty = Hefty.send_hefty(:Test, %{data: :value}, %{})
-
       result =
-        case hefty do
+        case make_hefty(:impure, :value) do
           %Pure{} -> :pure
           %Impure{sig: sig, data: data} -> {sig, data}
         end
 
       assert result == {:Test, %{data: :value}}
+    end
+
+    test "can directly pattern match Pure in function head" do
+      assert %Pure{val: 42} = Hefty.pure(42)
+    end
+
+    test "can directly pattern match Impure in function head" do
+      assert %Impure{sig: :Test} = Hefty.send_hefty(:Test, %{}, %{})
     end
 
     test "can extract computation parameters from psi" do

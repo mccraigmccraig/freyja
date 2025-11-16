@@ -173,15 +173,30 @@ defmodule Freyja.Hefty.Elaborate do
 
     # Recursively elaborate all computation parameters (bottom-up!)
     # psi is %{fork_key => Hefty} → transform to %{fork_key => Freer}
+    # Computation parameters might be bare sendable structs, so convert first
     elaborated_psi =
-      Map.new(psi, fn {key, hefty_comp} ->
+      Map.new(psi, fn {key, comp} ->
+        # Convert to Hefty if needed (handles bare structs)
+        hefty_comp = case comp do
+          %Hefty.Pure{} -> comp
+          %Hefty.Impure{} -> comp
+          other -> Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+        end
         {key, do_elaborate(hefty_comp, algebras)}
       end)
 
     # Recursively elaborate the continuation
     # k is (any -> Hefty) → transform to (any -> Freer)
+    # The continuation might return bare sendable structs, so convert first
     elaborated_k = fn x ->
-      do_elaborate(k.(x), algebras)
+      result = k.(x)
+      # Convert to Hefty if needed (handles bare structs)
+      hefty_result = case result do
+        %Hefty.Pure{} -> result
+        %Hefty.Impure{} -> result
+        other -> Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+      end
+      do_elaborate(hefty_result, algebras)
     end
 
     # Now call the algebra with already-elaborated parts

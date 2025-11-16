@@ -198,6 +198,13 @@ defmodule Freyja.Hefty do
     }
   end
 
+  # Catch-all: Use IHeftySendable protocol to convert to Hefty
+  # This enables auto-lifting of Freer effects
+  def bind(other, k) do
+    hefty = Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+    bind(hefty, k)
+  end
+
   @doc """
   Create a higher-order operation node with computation parameters.
 

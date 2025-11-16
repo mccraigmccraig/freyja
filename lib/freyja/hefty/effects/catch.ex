@@ -109,20 +109,30 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
 
   ## The Runner Effect Pattern
 
-  This is a key pattern for elaborating higher-order effects in Heftia:
+  This is a key pattern for elaborating higher-order effects in Hefty algebras:
 
-  **Runner Effect**: A first-order effect that takes a computation as **data** (not
-  as a higher-order parameter) and executes it, returning an inspectable result.
+  **Runner Effect**: A first-order effect that a handler executes to produce an
+  inspectable result (like `{:ok, value}` or `{:error, err}`). The algebra creates
+  this effect during elaboration, and embeds control flow (case statements) in the
+  elaborated Freer computation.
 
   In this case:
-  - `RunCatching` struct contains the computation as data
-  - `RunCatchingHandler` executes it and returns `{:ok, value}` or `{:error, err}`
-  - The elaborated code has a case statement that branches on the result
+  - Algebra creates a `RunCatching` effect with the (already elaborated) computation
+  - Algebra embeds a case statement in the elaborated Freer code to branch on results
+  - `RunCatchingHandler` executes the computation and returns `{:ok, value}` or `{:error, err}`
+  - The case statement's branches are plain Freer code that execute based on the result
 
-  This pattern separates concerns:
-  - **Elaboration** (structural transformation): Creates the runner effect and case statement
-  - **Interpretation** (execution): Handler runs the computation and propagates state
-  - **Control flow**: Encoded as ordinary case statements in the elaborated Freer code
+  ## Why Use This Pattern?
+
+  This two-phase approach (elaboration → interpretation) separates concerns:
+  - **Algebras** handle structural transformations (creating effects, embedding control flow)
+  - **Handlers** handle execution concerns (running computations, propagating state)
+  - **Control flow** is encoded as ordinary Elixir code (case statements) in elaborated Freer computations
+
+  Compare this to direct scoped effects (like old `Error.Catch`), where a single handler
+  does everything: receives the computation, executes it, inspects the result, and decides
+  what to do next. The Hefty approach is more modular - algebras compose independently
+  of handlers, and complex higher-order effects can be elaborated into simpler primitives.
 
   ## State Propagation
 

@@ -102,10 +102,35 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
 
   The Catch operation is elaborated using a first-order "runner" effect pattern:
 
-  1. Use `Error.catch_fx/1` to run the try computation with error handling
-  2. The runner returns `{:ok, value}` or `{:error, err}`
+  1. Create a `RunCatching` effect that wraps the try computation
+  2. The runner handler executes the computation and returns `{:ok, value}` or `{:error, err}`
   3. Use a case statement to branch on the result
   4. Call continuation with appropriate value
+
+  ## The Runner Effect Pattern
+
+  This is a key pattern for elaborating higher-order effects in Heftia:
+
+  **Runner Effect**: A first-order effect that takes a computation as **data** (not
+  as a higher-order parameter) and executes it, returning an inspectable result.
+
+  In this case:
+  - `RunCatching` struct contains the computation as data
+  - `RunCatchingHandler` executes it and returns `{:ok, value}` or `{:error, err}`
+  - The elaborated code has a case statement that branches on the result
+
+  This pattern separates concerns:
+  - **Elaboration** (structural transformation): Creates the runner effect and case statement
+  - **Interpretation** (execution): Handler runs the computation and propagates state
+  - **Control flow**: Encoded as ordinary case statements in the elaborated Freer code
+
+  ## State Propagation
+
+  The `RunCatchingHandler` uses `ScopedOk` to propagate state changes from the
+  inner computation back to the parent context. This implements non-transactional
+  semantics by default - state changes persist even when errors occur.
+
+  See `RunCatchingHandler` documentation for details on state propagation.
 
   ## Key Insight
 
@@ -113,7 +138,7 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
   in `psi` are already Freer (not Hefty). The fold has elaborated them bottom-up.
 
   The algebra just needs to compose these Freer computations using the
-  Error.catch_fx runner and a case statement.
+  runner effect and a case statement.
 
   ## Example Elaboration
 
@@ -125,7 +150,7 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
 
   Elaborated Freer:
       con do
-        result <- Error.catch_fx(
+        result <- run_catching(
           con do x <- State.get(); Freer.pure(x) end  # Already Freer!
         )
         case result do

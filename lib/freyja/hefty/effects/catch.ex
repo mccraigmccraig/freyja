@@ -51,11 +51,11 @@ defmodule Freyja.Hefty.Effects.Catch do
   - `Freyja.Effects.Error` - First-order error effects
   """
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Sig.DefHeftyStruct
 
   # The Catch operation struct
   # Fields: type - Optional type filter (currently unused, for future extension)
-  def_effect_struct(Catch, type: :any)
+  def_hefty_struct(Catch, type: :any)
 
   @doc """
   Create a Catch operation with try and catch computations.

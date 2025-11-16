@@ -293,11 +293,12 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 0}
       )
 
-      # PROTOTYPE NOTE: State changes in try block currently don't propagate to catch block
-      # This is a scoping semantics question for full implementation
-      # For now, catch block sees initial state (0)
-      assert %OkResult{value: 0} = outcome.result
-      # TODO: freyja-bsj should decide on scoped state semantics
+      # Non-transactional semantics: State changes persist through errors
+      # The try block sets State=100, then throws
+      # The catch block sees State=100 (not the initial state of 0)
+      # This matches Heftia's default behavior
+      assert %OkResult{value: 100} = outcome.result
+      assert outcome.outputs[State.Handler] == 100
     end
   end
 
@@ -360,8 +361,8 @@ defmodule Freyja.Hefty.PrototypeTest do
         [Catch.Algebra, Lift.Algebra]
       )
 
-      # The freer_tree should be an Impure node (HeftyError.run_catching)
-      assert %Freyja.Freer.Impure{sig: HeftyError} = freer_tree
+      # The freer_tree should be an Impure node (Catch.Algebra.run_catching)
+      assert %Freyja.Freer.Impure{sig: Catch.Algebra} = freer_tree
 
       # Now interpret (phase 2)
       run_state = Freyja.Run.with_handlers([

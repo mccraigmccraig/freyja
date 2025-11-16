@@ -91,13 +91,18 @@ defmodule Freyja.Hefty.Effects.Lift do
     Freyja.Hefty.pure(value)
   end
 
-  def lift(freer_comp) do
+  def lift(%Freyja.Freer.Impure{} = freer_comp) do
     # Freer.Impure (actual effects) need Lift operation
     Freyja.Hefty.send_hefty(
       __MODULE__,
       %__MODULE__{computation: freer_comp},
-      %{}  # No forks - the computation is data, not a parameter
+      # No forks - the computation is data, not a parameter
+      %{}
     )
+  end
+
+  def lift(freer_comp) do
+    Freyja.Sig.ISendable.send(freer_comp) |> lift()
   end
 end
 

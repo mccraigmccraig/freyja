@@ -139,8 +139,9 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
 
   import Freyja.Sig.DefEffectStruct
 
+  require Logger
+
   alias Freyja.Hefty.Effects.Catch.Catch, as: CatchOp
-  alias Freyja.Hefty.Effects.HeftyError
   alias Freyja.Freer
 
   # Simple runner effect for the prototype
@@ -156,14 +157,14 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
   def handles?(_), do: false
 
   @impl true
-  def elaborate(%CatchOp{}, psi, k, _elaborator) do
+  def elaborate(%CatchOp{} = _op, psi, k, _elaborator) do
     # Extract already-elaborated Freer computations
     try_comp = Map.fetch!(psi, :try)
     catch_comp = Map.fetch!(psi, :catch)
 
-    # Use HeftyError.run_catching runner effect
-    # It executes try_comp and returns {:ok, value} or {:error, err}
-    Freer.bind(HeftyError.run_catching(try_comp), fn result ->
+    # Use our own run_catching runner effect (not HeftyError.run_catching)
+    # This ensures it gets handled by Catch.RunCatchingHandler which uses ScopedOk
+    Freer.bind(run_catching(try_comp), fn result ->
       # Branch on the result (this case is in the Freer computation)
       case result do
         {:ok, value} ->
@@ -184,17 +185,47 @@ defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
 
   Executes a computation and returns `{:ok, value}` or `{:error, err}`.
 
-  This handler is specific to the Catch elaboration and works with HeftyError
-  to provide clean error handling without the legacy scoped system.
+  ## State Propagation Semantics
+
+  This handler implements **non-transactional semantics** for state propagation,
+  matching the approach used in Heftia:
+
+  - State changes in the inner computation **always propagate** to the parent context
+  - This applies whether the computation succeeds, fails, or has unexpected results
+  - Both `{:ok, value}` and `{:error, err}` cases preserve state changes
+
+  This means:
+  ```elixir
+  catch_hefty(
+    hefty do
+      Lift.lift(State.put(100))
+      Lift.lift(Error.throw("boom"))
+    end,
+    hefty do
+      x <- Lift.lift(State.get())
+      Hefty.pure(x)  # Will see x = 100, not initial state
+    end
+  )
+  ```
+
+  ## Transactional Semantics
+
+  If you need transactional semantics (rollback state on error), use an explicit
+  transactional wrapper. This keeps the Catch handler simple and makes the choice
+  of transactional vs non-transactional explicit in the code.
+
+  See: Heftia's `transactState` for reference implementation of transactional wrapper.
   """
 
   @behaviour Freyja.EffectHandler
 
+  require Logger
+
   alias Freyja.Hefty.Effects.Catch.Algebra.RunCatching
   alias Freyja.Freer.Impure
-  alias Freyja.Freer.Impl
   alias Freyja.Run
   alias Freyja.Run.RunState
+  alias Freyja.Run.RunEffects
   alias Freyja.OkResult
   alias Freyja.ErrorResult
 
@@ -205,16 +236,24 @@ defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
 
   @impl true
   def interpret(
-        %Impure{sig: Freyja.Hefty.Effects.Catch.Algebra, data: %RunCatching{computation: comp}, q: q},
+        %Impure{
+          sig: Freyja.Hefty.Effects.Catch.Algebra,
+          data: %RunCatching{computation: comp},
+          q: q
+        },
         _handler_key,
         state,
         %RunState{} = run_state
       ) do
+    alias Freyja.RunOutcome
+
     # Run the computation
     outcome = Run.run(comp, run_state)
 
-    # Inspect the result and return tagged tuple
-    result =
+    # Inspect the result and wrap it in a tagged tuple
+    # IMPORTANT: We use ScopedOk for ALL cases (success, error, unexpected)
+    # This ensures state changes from outcome.run_state propagate to parent context
+    result_value =
       case outcome.result do
         %OkResult{value: value} ->
           {:ok, value}
@@ -227,7 +266,27 @@ defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
           {:error, {:unexpected_result, other}}
       end
 
-    # Return the tagged result
-    {Impl.q_apply(q, result), state}
+    # IMPORTANT FIX: Run.run returns outcome with run_state pointing to INPUT states,
+    # but outputs pointing to FINAL states. For ScopedOk to work properly, we need
+    # run_state to also have the final states. Reconstruct outcome with updated run_state.
+    corrected_outcome = %RunOutcome{
+      result: outcome.result,
+      outputs: outcome.outputs,
+      run_state: %{outcome.run_state | states: outcome.outputs}
+    }
+
+    # Return ScopedOk effect to propagate state changes
+    # The value is the tagged result tuple, and run_outcome contains updated states
+    # We pass through the original q - this is terminal for the scoped operation
+    scoped_ok_effect = %Impure{
+      sig: RunEffects,
+      data: %RunEffects.ScopedOk{
+        value: result_value,
+        run_outcome: corrected_outcome
+      },
+      q: q
+    }
+
+    {scoped_ok_effect, state}
   end
 end

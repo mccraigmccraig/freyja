@@ -84,8 +84,15 @@ defmodule Freyja.Hefty.Effects.Lift do
 
       hefty_comp = lift(freer)
   """
-  @spec lift(Freyja.Freer.t()) :: Freyja.Hefty.Impure.t()
+  @spec lift(Freyja.Freer.t()) :: Freyja.Hefty.t()
+  def lift(%Freyja.Freer.Pure{val: value}) do
+    # Optimization: Pure values don't need Lift operation
+    # Just convert directly to Hefty.Pure
+    Freyja.Hefty.pure(value)
+  end
+
   def lift(freer_comp) do
+    # Freer.Impure (actual effects) need Lift operation
     Freyja.Hefty.send_hefty(
       __MODULE__,
       %__MODULE__{computation: freer_comp},

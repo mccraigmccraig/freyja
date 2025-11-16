@@ -78,7 +78,8 @@ defmodule Freyja.HeftyMacroTest do
       result =
         hefty do
           x <- Hefty.pure(42)
-          return(x)  # This is Hefty.return
+          # This is Hefty.return
+          return(x)
         end
 
       assert %Hefty.Pure{val: 42} = result
@@ -89,7 +90,8 @@ defmodule Freyja.HeftyMacroTest do
     test "auto-lifts Freer.Pure" do
       result =
         hefty do
-          x <- Freyja.Freer.pure(42)  # Freer - auto-lifted!
+          # Freer - auto-lifted!
+          x <- Freyja.Freer.pure(42)
           Hefty.pure(x)
         end
 
@@ -100,7 +102,8 @@ defmodule Freyja.HeftyMacroTest do
     test "auto-lifts Freer effect (State.get)" do
       result =
         hefty do
-          x <- State.get()  # Returns Freer.Impure - auto-lifted!
+          # Returns Freer.Impure - auto-lifted!
+          x <- State.get()
           Hefty.pure(x)
         end
 
@@ -109,13 +112,14 @@ defmodule Freyja.HeftyMacroTest do
     end
 
     test "chains multiple Freer effects" do
-      import Freyja.Con
-
       result =
         hefty do
-          x <- State.get()       # Freer - auto-lifted
-          _ <- State.put(x + 1)  # Freer - auto-lifted
-          y <- State.get()       # Freer - auto-lifted
+          # Freer - auto-lifted
+          x <- State.get()
+          # Freer - auto-lifted
+          _ <- State.put(x + 1)
+          # Freer - auto-lifted
+          y <- State.get()
           Hefty.pure(y)
         end
 
@@ -126,12 +130,18 @@ defmodule Freyja.HeftyMacroTest do
     test "mixes Freer and Hefty seamlessly" do
       result =
         hefty do
-          x <- State.get()  # Freer - auto-lifted
-          y <- Catch.catch_hefty(
-            Hefty.pure(10),
-            Hefty.pure(0)
-          )  # Hefty - stays as-is
-          _z <- State.put(x + y)  # Freer - auto-lifted
+          # Freer - auto-lifted
+          x <- State.get()
+
+          y <-
+            Catch.catch_hefty(
+              Hefty.pure(10),
+              Hefty.pure(0)
+            )
+
+          # Hefty - stays as-is
+          # Freer - auto-lifted
+          _z <- State.put(x + y)
           Hefty.pure(x + y)
         end
 
@@ -156,16 +166,18 @@ defmodule Freyja.HeftyMacroTest do
     test "executes with auto-lifted State" do
       computation =
         hefty do
-          x <- State.get()  # Auto-lifted
+          # Auto-lifted
+          x <- State.get()
           Hefty.pure(x * 2)
         end
 
-      outcome = HeftyRun.run(
-        computation,
-        [Lift.Algebra],
-        [State.Handler],
-        %{State.Handler => 21}
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [Lift.Algebra],
+          [State.Handler],
+          %{State.Handler => 21}
+        )
 
       assert %OkResult{value: 42} = outcome.result
     end
@@ -173,37 +185,44 @@ defmodule Freyja.HeftyMacroTest do
     test "executes with Catch and auto-lifted effects" do
       computation =
         hefty do
-          result <- Catch.catch_hefty(
-            hefty do
-              x <- State.get()  # Auto-lifted
-              if x < 0 do
-                HeftyError.throw_error("negative")  # Freer - auto-lifted
-              else
-                Hefty.pure(x * 2)
-              end
-            end,
-            Hefty.pure(0)
-          )
+          result <-
+            Catch.catch_hefty(
+              hefty do
+                # Auto-lifted
+                x <- State.get()
+
+                if x < 0 do
+                  # Freer - auto-lifted
+                  HeftyError.throw_error("negative")
+                else
+                  Hefty.pure(x * 2)
+                end
+              end,
+              Hefty.pure(0)
+            )
+
           Hefty.pure(result)
         end
 
       # With positive state
-      outcome1 = HeftyRun.run(
-        computation,
-        [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
-        %{State.Handler => 5}
-      )
+      outcome1 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => 5}
+        )
 
       assert %OkResult{value: 10} = outcome1.result
 
       # With negative state
-      outcome2 = HeftyRun.run(
-        computation,
-        [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
-        %{State.Handler => -3}
-      )
+      outcome2 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => -3}
+        )
 
       assert %OkResult{value: 0} = outcome2.result
     end
@@ -222,8 +241,10 @@ defmodule Freyja.HeftyMacroTest do
     end
 
     defhefty with_state(initial) do
-      State.put(initial)  # Auto-lifted Freer
-      x <- State.get()    # Auto-lifted Freer
+      # Auto-lifted Freer
+      State.put(initial)
+      # Auto-lifted Freer
+      x <- State.get()
       Hefty.pure(x)
     end
 
@@ -235,16 +256,18 @@ defmodule Freyja.HeftyMacroTest do
     end
 
     defhefty with_catch(value) do
-      result <- Catch.catch_hefty(
-        hefty do
-          if value < 0 do
-            HeftyError.throw_error("negative")
-          else
-            Hefty.pure(value * 2)
-          end
-        end,
-        Hefty.pure(0)
-      )
+      result <-
+        Catch.catch_hefty(
+          hefty do
+            if value < 0 do
+              HeftyError.throw_error("negative")
+            else
+              Hefty.pure(value * 2)
+            end
+          end,
+          Hefty.pure(0)
+        )
+
       Hefty.pure(result)
     end
 
@@ -252,22 +275,24 @@ defmodule Freyja.HeftyMacroTest do
       # Success case
       result1 = with_catch(5)
 
-      outcome1 = HeftyRun.run(
-        result1,
-        [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
-      )
+      outcome1 =
+        HeftyRun.run(
+          result1,
+          [Catch.Algebra, Lift.Algebra],
+          [HeftyErrorHandler, Catch.RunCatchingHandler]
+        )
 
       assert %OkResult{value: 10} = outcome1.result
 
       # Error case
       result2 = with_catch(-3)
 
-      outcome2 = HeftyRun.run(
-        result2,
-        [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
-      )
+      outcome2 =
+        HeftyRun.run(
+          result2,
+          [Catch.Algebra, Lift.Algebra],
+          [HeftyErrorHandler, Catch.RunCatchingHandler]
+        )
 
       assert %OkResult{value: 0} = outcome2.result
     end

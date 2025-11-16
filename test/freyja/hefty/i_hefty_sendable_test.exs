@@ -56,11 +56,12 @@ defmodule Freyja.Hefty.IHeftySendableTest do
       import Freyja.Con
       alias Freyja.Effects.State
 
-      freer = con do
-        x <- State.get()
-        State.put(x + 10)
-        return(x)
-      end
+      freer =
+        con do
+          x <- State.get()
+          State.put(x + 10)
+          return(x)
+        end
 
       hefty = IHeftySendable.send_to_hefty(freer)
 
@@ -129,7 +130,6 @@ defmodule Freyja.Hefty.IHeftySendableTest do
     end
 
     test "chain of auto-lifted Freer effects" do
-      import Freyja.Con
       alias Freyja.Effects.State
 
       # Build chain of Freer effects

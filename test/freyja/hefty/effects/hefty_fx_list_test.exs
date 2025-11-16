@@ -18,6 +18,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Hefty.Effects.HeftyFxList
   alias Freyja.Hefty.Effects.HeftyFxList.FxMap
+  alias Freyja.Hefty.Effects.HeftyFxList.RunFxReduceHandler
   alias Freyja.Hefty.Effects.Lift
   alias Freyja.Effects.State
   alias Freyja.OkResult
@@ -36,61 +37,69 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
 
   describe "fx_map/2 - basic functionality" do
     test "maps pure function over list" do
-      computation = HeftyFxList.fx_map([1, 2, 3], fn x ->
-        Hefty.pure(x * 2)
-      end)
+      computation =
+        HeftyFxList.fx_map([1, 2, 3], fn x ->
+          Hefty.pure(x * 2)
+        end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        []
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          []
+        )
 
       assert %OkResult{value: [2, 4, 6]} = outcome.result
     end
 
     test "maps over empty list" do
-      computation = HeftyFxList.fx_map([], fn x ->
-        Hefty.pure(x * 2)
-      end)
+      computation =
+        HeftyFxList.fx_map([], fn x ->
+          Hefty.pure(x * 2)
+        end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        []
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          []
+        )
 
       assert %OkResult{value: []} = outcome.result
     end
 
     test "maps over single element" do
-      computation = HeftyFxList.fx_map([42], fn x ->
-        Hefty.pure(x + 1)
-      end)
+      computation =
+        HeftyFxList.fx_map([42], fn x ->
+          Hefty.pure(x + 1)
+        end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        []
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          []
+        )
 
       assert %OkResult{value: [43]} = outcome.result
     end
 
     test "function can use hefty blocks" do
-      computation = HeftyFxList.fx_map([1, 2, 3], fn x ->
-        hefty do
-          y = x * 2
-          z = y + 1
-          return(z)
-        end
-      end)
+      computation =
+        HeftyFxList.fx_map([1, 2, 3], fn x ->
+          hefty do
+            y = x * 2
+            z = y + 1
+            return(z)
+          end
+        end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        []
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          []
+        )
 
       assert %OkResult{value: [3, 5, 7]} = outcome.result
     end
@@ -98,20 +107,24 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
 
   describe "fx_map/2 - with first-order effects (auto-lifted)" do
     test "function uses State effect" do
-      computation = HeftyFxList.fx_map([1, 2, 3], fn x ->
-        hefty do
-          count <- State.get()  # Auto-lifted
-          State.put(count + 1)  # Auto-lifted
-          return(x * 2)
-        end
-      end)
+      computation =
+        HeftyFxList.fx_map([1, 2, 3], fn x ->
+          hefty do
+            # Auto-lifted
+            count <- State.get()
+            # Auto-lifted
+            State.put(count + 1)
+            return(x * 2)
+          end
+        end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        [State.Handler],
-        %{State.Handler => 0}
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [State.Handler],
+          %{State.Handler => 0}
+        )
 
       assert %OkResult{value: [2, 4, 6]} = outcome.result
       # State should be incremented 3 times
@@ -119,21 +132,23 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
     end
 
     test "function modifies and reads state" do
-      computation = HeftyFxList.fx_map([10, 20, 30], fn x ->
-        hefty do
-          current <- State.get()
-          State.put(current + x)
-          new_val <- State.get()
-          return(new_val)
-        end
-      end)
+      computation =
+        HeftyFxList.fx_map([10, 20, 30], fn x ->
+          hefty do
+            current <- State.get()
+            State.put(current + x)
+            new_val <- State.get()
+            return(new_val)
+          end
+        end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        [State.Handler],
-        %{State.Handler => 0}
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [State.Handler],
+          %{State.Handler => 0}
+        )
 
       # 0 + 10 = 10, 10 + 20 = 30, 30 + 30 = 60
       assert %OkResult{value: [10, 30, 60]} = outcome.result
@@ -147,53 +162,61 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         HeftyFxList.fx_map([1, 2, 3], fn x -> Hefty.pure(x * 2) end)
         |> Hefty.bind(fn results -> Hefty.pure(Enum.sum(results)) end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        []
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          []
+        )
 
       # [2, 4, 6] → sum = 12
       assert %OkResult{value: 12} = outcome.result
     end
 
     test "fx_map in hefty block" do
-      computation = hefty do
-        State.put(0)
-        results <- HeftyFxList.fx_map([1, 2, 3], fn x ->
-          hefty do
-            count <- State.get()
-            State.put(count + 1)
-            return(x * count)
-          end
-        end)
-        final_count <- State.get()
-        return({results, final_count})
-      end
+      computation =
+        hefty do
+          State.put(0)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        [State.Handler],
-        %{State.Handler => 0}
-      )
+          results <-
+            HeftyFxList.fx_map([1, 2, 3], fn x ->
+              hefty do
+                count <- State.get()
+                State.put(count + 1)
+                return(x * count)
+              end
+            end)
+
+          final_count <- State.get()
+          return({results, final_count})
+        end
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [State.Handler],
+          %{State.Handler => 0}
+        )
 
       # count: 0, 1, 2 → results: [0, 2, 6]
       assert %OkResult{value: {[0, 2, 6], 3}} = outcome.result
     end
 
     test "nested fx_map" do
-      computation = HeftyFxList.fx_map([1, 2], fn x ->
-        HeftyFxList.fx_map([10, 20], fn y ->
-          Hefty.pure(x + y)
+      computation =
+        HeftyFxList.fx_map([1, 2], fn x ->
+          HeftyFxList.fx_map([10, 20], fn y ->
+            Hefty.pure(x + y)
+          end)
         end)
-      end)
 
-      outcome = HeftyRun.run(
-        computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        []
-      )
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          []
+        )
 
       # [[11, 21], [12, 22]]
       assert %OkResult{value: [[11, 21], [12, 22]]} = outcome.result
@@ -223,7 +246,8 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
       assert %Hefty.Pure{val: 6} = psi[2]
 
       # Elaborate
-      freer_tree = Freyja.Hefty.Elaborate.elaborate(hefty_tree, [HeftyFxList.Algebra, Lift.Algebra])
+      freer_tree =
+        Freyja.Hefty.Elaborate.elaborate(hefty_tree, [HeftyFxList.Algebra, Lift.Algebra])
 
       # For this simple case (pure values), elaboration produces Pure
       # In more complex cases with effects, would be Impure
@@ -244,38 +268,216 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
       alias Freyja.Effects.FxList
 
       # Old FxList approach
-      old_computation = con do
-        results <- FxList.fx_map([1, 2, 3], fn x ->
-          con do
-            count <- State.get()
-            State.put(count + 1)
-            return(x * 2)
-          end
-        end)
-        return(results)
-      end
+      old_computation =
+        con do
+          results <-
+            FxList.fx_map([1, 2, 3], fn x ->
+              con do
+                count <- State.get()
+                State.put(count + 1)
+                return(x * 2)
+              end
+            end)
 
-      old_outcome = Freyja.Run.run(
-        old_computation,
-        Freyja.Run.with_handlers([
-          {State.Handler, {State.Handler, 0}},
-          {FxList.Handler, FxList.Handler}
-        ])
-      )
+          return(results)
+        end
+
+      old_outcome =
+        Freyja.Run.run(
+          old_computation,
+          Freyja.Run.with_handlers([
+            {State.Handler, {State.Handler, 0}},
+            {FxList.Handler, FxList.Handler}
+          ])
+        )
 
       # New HeftyFxList approach
       new_computation = HeftyFxList.fx_map([1, 2, 3], &ComparisonHelper.process_item/1)
 
-      new_outcome = HeftyRun.run(
-        new_computation,
-        [HeftyFxList.Algebra, Lift.Algebra],
-        [State.Handler],
-        %{State.Handler => 0}
-      )
+      new_outcome =
+        HeftyRun.run(
+          new_computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [State.Handler],
+          %{State.Handler => 0}
+        )
 
       # Same results!
       assert old_outcome.result.value == new_outcome.result.value
       assert old_outcome.result.value == [2, 4, 6]
+    end
+  end
+
+  describe "fx_reduce/3 - basic functionality" do
+    test "reduces with pure function" do
+      computation =
+        HeftyFxList.fx_reduce([1, 2, 3], 0, fn elem, acc ->
+          Hefty.pure(acc + elem)
+        end)
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [RunFxReduceHandler]
+        )
+
+      assert %OkResult{value: 6} = outcome.result
+    end
+
+    test "reduces empty list" do
+      computation =
+        HeftyFxList.fx_reduce([], 99, fn elem, acc ->
+          Hefty.pure(acc + elem)
+        end)
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [RunFxReduceHandler]
+        )
+
+      # Empty list returns init value
+      assert %OkResult{value: 99} = outcome.result
+    end
+
+    test "reduces single element" do
+      computation =
+        HeftyFxList.fx_reduce([42], 10, fn elem, acc ->
+          Hefty.pure(acc + elem)
+        end)
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [RunFxReduceHandler]
+        )
+
+      assert %OkResult{value: 52} = outcome.result
+    end
+
+    test "reduce with State effect" do
+      computation =
+        HeftyFxList.fx_reduce([1, 2, 3], 0, fn elem, acc ->
+          hefty do
+            # Auto-lifted
+            count <- State.get()
+            # Auto-lifted
+            State.put(count + 1)
+            return(acc + elem)
+          end
+        end)
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [State.Handler, RunFxReduceHandler],
+          %{State.Handler => 0}
+        )
+
+      # Accumulator: 0 + 1 = 1, 1 + 2 = 3, 3 + 3 = 6
+      assert %OkResult{value: 6} = outcome.result
+      # State incremented 3 times
+      assert outcome.outputs[State.Handler] == 3
+    end
+
+    test "reduce accumulates complex structures" do
+      computation =
+        HeftyFxList.fx_reduce([1, 2, 3], [], fn elem, acc ->
+          Hefty.pure([elem * 2 | acc])
+        end)
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [RunFxReduceHandler]
+        )
+
+      # Builds list in reverse: [6, 4, 2]
+      assert %OkResult{value: [6, 4, 2]} = outcome.result
+    end
+
+    test "reduce with accumulator-dependent computation" do
+      # Function behavior depends on current accumulator
+      computation =
+        HeftyFxList.fx_reduce([1, 2, 3, 4], 0, fn elem, acc ->
+          hefty do
+            if acc > 3 do
+              # Stop accumulating once we exceed 3
+              return(acc)
+            else
+              return(acc + elem)
+            end
+          end
+        end)
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [RunFxReduceHandler]
+        )
+
+      # 0 + 1 = 1, 1 + 2 = 3, 3 + 3 = 6, 6 > 3 so returns 6, 6 > 3 so returns 6
+      assert %OkResult{value: 6} = outcome.result
+    end
+  end
+
+  describe "fx_reduce/3 - comparison with old FxList" do
+    test "produces same results as old FxList.fx_reduce" do
+      import Freyja.Con
+      alias Freyja.Effects.FxList
+
+      # Old FxList approach
+      old_computation =
+        con do
+          result <-
+            FxList.fx_reduce([1, 2, 3], 0, fn elem, acc ->
+              con do
+                count <- State.get()
+                State.put(count + 1)
+                return(acc + elem)
+              end
+            end)
+
+          return(result)
+        end
+
+      old_outcome =
+        Freyja.Run.run(
+          old_computation,
+          Freyja.Run.with_handlers([
+            {State.Handler, {State.Handler, 0}},
+            {FxList.Handler, FxList.Handler}
+          ])
+        )
+
+      # New HeftyFxList approach
+      new_computation =
+        HeftyFxList.fx_reduce([1, 2, 3], 0, fn elem, acc ->
+          hefty do
+            count <- State.get()
+            State.put(count + 1)
+            Hefty.pure(acc + elem)
+          end
+        end)
+
+      new_outcome =
+        HeftyRun.run(
+          new_computation,
+          [HeftyFxList.Algebra, Lift.Algebra],
+          [State.Handler, RunFxReduceHandler],
+          %{State.Handler => 0}
+        )
+
+      # Same results!
+      assert old_outcome.result.value == new_outcome.result.value
+      assert old_outcome.result.value == 6
+      assert old_outcome.outputs[State.Handler] == new_outcome.outputs[State.Handler]
     end
   end
 end

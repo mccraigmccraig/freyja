@@ -84,10 +84,9 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
   # Fields: list (the list to map over), f (effectful function)
   def_hefty_struct(FxMap, list: [], f: nil)
 
-  # TODO: FxReduce - deferred to freyja-07m
-  # Reduce is more complex because computation parameters depend on previous results
-  # Need to design the right elaboration pattern
-  # def_hefty_struct(FxReduce, list: [], init: nil, f: nil)
+  # FxReduce operation - reduce with effectful function
+  # Fields: list (the list to reduce), init (initial accumulator), f (effectful function)
+  def_hefty_struct(FxReduce, list: [], init: nil, f: nil)
 
   @doc """
   Map an effectful function over a list.
@@ -129,8 +128,52 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
     )
   end
 
-  # TODO: fx_reduce - deferred to freyja-07m
-  # Need to design elaboration pattern for dependent computations
+  @doc """
+  Reduce a list with an effectful function.
+
+  ## Parameters
+
+  - `list` - List of elements to process
+  - `init` - Initial accumulator value
+  - `f` - Effectful function: (element, accumulator) -> Hefty computation
+
+  ## Returns
+
+  Hefty computation that produces final accumulator.
+
+  ## Example
+
+      HeftyFxList.fx_reduce([1, 2, 3], 0, fn elem, acc ->
+        hefty do
+          State.put(acc + elem)
+          return(acc + elem)
+        end
+      end)
+  """
+  def fx_reduce(list, init, f) when is_list(list) and is_function(f, 2) do
+    # For reduce, we don't create forks (computation parameters) upfront
+    # because each computation depends on the result of the previous one.
+    # Instead, the elaboration will directly generate the recursive Freer code.
+    # We just need to pass the list, init, and f to the algebra.
+    Freyja.Hefty.send_hefty(
+      __MODULE__,
+      %FxReduce{list: list, init: init, f: f},
+      # No forks - elaboration handles recursion directly
+      %{}
+    )
+  end
+end
+
+# First-order runner effect for fx_reduce
+# Defined before Algebra so it can be imported
+defmodule Freyja.Hefty.Effects.HeftyFxList.RunFxReduce do
+  import Freyja.Sig.DefEffectStruct
+
+  def_effect_struct(RunFxReduce, list: [], init: nil, f: nil)
+
+  def run_fx_reduce(list, init, f) do
+    %RunFxReduce{list: list, init: init, f: f}
+  end
 end
 
 defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
@@ -164,8 +207,11 @@ defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
   @behaviour Freyja.Hefty.Algebra
 
   alias Freyja.Hefty.Effects.HeftyFxList.FxMap
+  alias Freyja.Hefty.Effects.HeftyFxList.FxReduce
+  alias Freyja.Hefty
   alias Freyja.Freer
   import Freyja.Con
+  import Freyja.Hefty.Effects.HeftyFxList.RunFxReduce, only: [run_fx_reduce: 3]
 
   @impl true
   def handles?(sig) when sig == Freyja.Hefty.Effects.HeftyFxList, do: true
@@ -192,6 +238,16 @@ defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
     end
   end
 
+  def elaborate(%FxReduce{list: list, init: init, f: f}, _psi, k, _elaborator) do
+    # For reduce, we use a runner effect pattern (like Catch)
+    # Create a first-order RunFxReduce effect that wraps the list, init, and function
+    # The handler will execute the reduction at interpretation time
+    con do
+      result <- run_fx_reduce(list, init, f)
+      k.(result)
+    end
+  end
+
   # Helper: Sequence a list of Freer computations
   # Returns Freer computation that produces list of results
   defp sequence([]), do: Freer.pure([])
@@ -203,8 +259,89 @@ defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
       return([val | rest_vals])
     end
   end
+end
 
-  # NOTE: fx_reduce deferred to freyja-07m
-  # Reduce is more complex because computations depend on previous results
-  # Need to design proper elaboration pattern (maybe use recursion scheme in elaboration)
+defmodule Freyja.Hefty.Effects.HeftyFxList.RunFxReduceHandler do
+  @moduledoc """
+  Handler for RunFxReduce effect.
+
+  Executes the reduction by recursively running the effectful function.
+  Uses the same state propagation approach as RunCatchingHandler.
+  """
+
+  @behaviour Freyja.EffectHandler
+
+  alias Freyja.Hefty.Effects.HeftyFxList.RunFxReduce.RunFxReduce
+  alias Freyja.Freer
+  alias Freyja.Freer.Impure
+  alias Freyja.Freer.Impl
+  alias Freyja.Hefty
+  alias Freyja.Run.RunState
+  import Freyja.Con
+
+  @impl true
+  def handles?(%Impure{sig: sig}, _state) do
+    sig == Freyja.Hefty.Effects.HeftyFxList.RunFxReduce
+  end
+
+  @impl true
+  def interpret(
+        %Impure{
+          sig: Freyja.Hefty.Effects.HeftyFxList.RunFxReduce,
+          data: %RunFxReduce{list: list, init: init, f: f},
+          q: q
+        },
+        _handler_key,
+        state,
+        %RunState{} = run_state
+      ) do
+    # f returns Hefty computations - we need to elaborate them and run them
+    # Build the reduction as a Freer computation
+    reduce_computation = reduce_loop(list, init, f, run_state)
+
+    # Return the reduction computation bound to the continuation
+    {Impl.bindp(reduce_computation, q), state}
+  end
+
+  # Helper: Recursively reduce the list
+  defp reduce_loop([], acc, _f, _run_state) do
+    Freer.pure(acc)
+  end
+
+  defp reduce_loop([elem | rest], acc, f, run_state) do
+    # f returns a Hefty computation
+    # We need to convert it to Freer
+    hefty_comp = f.(elem, acc)
+
+    # Convert Hefty to Freer by unwrapping Lift operations
+    # Lift.lift wraps Freer in Hefty - we just extract it
+    freer_comp = unwrap_lifts(hefty_comp)
+
+    # Run the computation and continue with result
+    con do
+      new_acc <- freer_comp
+      reduce_loop(rest, new_acc, f, run_state)
+    end
+  end
+
+  # Unwrap Lift operations to get underlying Freer
+  defp unwrap_lifts(%Hefty.Pure{val: v}) do
+    Freer.pure(v)
+  end
+
+  defp unwrap_lifts(%Hefty.Impure{
+         sig: Freyja.Hefty.Effects.Lift,
+         data: %Freyja.Hefty.Effects.Lift{computation: freer_comp},
+         k: k
+       }) do
+    # This is a Lift - extract the Freer computation and continue
+    Freer.bind(freer_comp, fn val ->
+      unwrap_lifts(k.(val))
+    end)
+  end
+
+  defp unwrap_lifts(other) do
+    raise ArgumentError,
+          "fx_reduce function must return only Lift-wrapped Freer computations, got: #{inspect(other)}"
+  end
 end

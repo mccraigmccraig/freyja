@@ -3,26 +3,29 @@ defmodule Freyja.Effects.ErrorTest do
 
   require Logger
 
-  import Freyja.Con
+  import Freyja.HeftyMacro
 
+  alias Freyja.Hefty
+  alias Freyja.Hefty.Effects.Catch
+  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Hefty.Effects.HeftyError
+  alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler
+  alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.Error
   alias Freyja.Effects.Writer
   alias Freyja.Effects.State
-  alias Freyja.Run
   alias Freyja.RunOutcome
   alias Freyja.ErrorResult
 
   describe "throw/catch basics" do
     test "throw without catch propagates error" do
       fv =
-        con [Error] do
-          _ <- throw_fx(:oops)
+        hefty do
+          Lift.lift(HeftyError.throw_error(:oops))
           return(:unreachable)
         end
 
-      runner = Run.with_handlers(e: Error.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Lift.Algebra], [HeftyErrorHandler])
 
       assert %RunOutcome{result: %ErrorResult{error: :oops}} = outcome
     end
@@ -31,21 +34,20 @@ defmodule Freyja.Effects.ErrorTest do
   describe "recovery" do
     test "catch recovers from throw" do
       fv =
-        con Error do
+        hefty do
           res <-
-            catch_fx(
-              con Error do
-                _ <- throw_fx(:bad)
+            Catch.catch_hefty(
+              hefty do
+                Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              fn err -> return({:recovered, err}) end
+              Hefty.pure({:recovered, :bad})
             )
 
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [HeftyErrorHandler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
                result: %Freyja.OkResult{value: {:recovered, :bad}}
@@ -56,13 +58,12 @@ defmodule Freyja.Effects.ErrorTest do
   describe "catch and success" do
     test "catch passes through success" do
       fv =
-        con Error do
-          res <- catch_fx(return(42), fn _ -> return(0) end)
+        hefty do
+          res <- Catch.catch_hefty(Hefty.pure(42), Hefty.pure(0))
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [HeftyErrorHandler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{result: %Freyja.OkResult{value: 42}} = outcome
     end
@@ -71,190 +72,189 @@ defmodule Freyja.Effects.ErrorTest do
   describe "composition with stateful Effects" do
     test "writer in successful computation is applied" do
       fv =
-        con [Error, Writer] do
-          tell(:from_outer_1)
+        hefty do
+          Lift.lift(Writer.tell(:from_outer_1))
 
           res <-
-            catch_fx(
-              con [Error, Writer] do
-                tell(:from_inner)
+            Catch.catch_hefty(
+              hefty do
+                Lift.lift(Writer.tell(:from_inner))
                 return(42)
               end,
-              fn _ -> return(0) end
+              Hefty.pure(0)
             )
 
-          tell(:from_outer_2)
+          Lift.lift(Writer.tell(:from_outer_2))
 
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler, w: Writer.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [HeftyErrorHandler, Writer.Handler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
                result: %Freyja.OkResult{
                  value: 42
                },
-               outputs: %{w: [:from_outer_2, :from_inner, :from_outer_1]}
+               outputs: %{Writer.Handler => [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
 
-    test "writer in throwing computation is discarded" do
+    test "writer in throwing computation is PRESERVED (non-transactional)" do
       fv =
-        con [Error, Writer] do
-          tell(:from_outer_1)
+        hefty do
+          Lift.lift(Writer.tell(:from_outer_1))
 
           res <-
-            catch_fx(
-              con [Error, Writer] do
-                tell(:from_inner)
-                throw_fx(:bad)
+            Catch.catch_hefty(
+              hefty do
+                Lift.lift(Writer.tell(:from_inner))
+                Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              fn _err -> throw_fx(:also_bad) end
+              hefty do
+                Lift.lift(HeftyError.throw_error(:also_bad))
+              end
             )
 
-          tell(:from_outer_2)
+          Lift.lift(Writer.tell(:from_outer_2))
 
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler, w: Writer.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [HeftyErrorHandler, Writer.Handler, Catch.RunCatchingHandler])
 
+      # Hefty Catch uses non-transactional semantics - state changes persist even on error
       assert %Freyja.RunOutcome{
                result: %Freyja.ErrorResult{error: :also_bad},
-               outputs: %{w: [:from_outer_1]}
+               outputs: %{Writer.Handler => [:from_inner, :from_outer_1]}
              } = outcome
     end
 
     test "writer in recovered computation is applied" do
       fv =
-        con [Error, Writer] do
-          tell(:from_outer_1)
+        hefty do
+          Lift.lift(Writer.tell(:from_outer_1))
 
           res <-
-            catch_fx(
-              con [Error, Writer] do
-                tell(:from_inner)
-                throw_fx(:bad)
+            Catch.catch_hefty(
+              hefty do
+                Lift.lift(Writer.tell(:from_inner))
+                Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              fn err -> return({:recovered, err}) end
+              Hefty.pure({:recovered, :bad})
             )
 
-          tell(:from_outer_2)
+          Lift.lift(Writer.tell(:from_outer_2))
 
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler, w: Writer.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [HeftyErrorHandler, Writer.Handler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
                result: %Freyja.OkResult{value: {:recovered, :bad}},
-               outputs: %{w: [:from_outer_2, :from_inner, :from_outer_1]}
+               outputs: %{Writer.Handler => [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
 
     test "state in successful computation is applied" do
       fv =
-        con [Error, State] do
-          put(5)
+        hefty do
+          Lift.lift(State.put(5))
 
           res <-
-            catch_fx(
-              con [Error, State] do
-                a <- get()
-                put(a + 5)
+            Catch.catch_hefty(
+              hefty do
+                a <- Lift.lift(State.get())
+                Lift.lift(State.put(a + 5))
                 return(42)
               end,
-              fn _ -> return(0) end
+              Hefty.pure(0)
             )
 
-          b <- get()
-          put(b + 5)
+          b <- Lift.lift(State.get())
+          Lift.lift(State.put(b + 5))
 
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler, s: State.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
                result: %Freyja.OkResult{
                  value: 42
                },
-               outputs: %{s: 15}
+               outputs: %{State.Handler => 15}
              } = outcome
     end
 
-    test "state in failed computation is discarded" do
+    test "state in failed computation is PRESERVED (non-transactional)" do
       fv =
-        con [Error, State] do
-          put(5)
+        hefty do
+          Lift.lift(State.put(5))
 
           res <-
-            catch_fx(
-              con [Error, State] do
-                a <- get()
-                put(a + 5)
-                throw_fx(:bad)
+            Catch.catch_hefty(
+              hefty do
+                a <- Lift.lift(State.get())
+                Lift.lift(State.put(a + 5))
+                Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              fn _err -> throw_fx(:also_bad) end
+              hefty do
+                Lift.lift(HeftyError.throw_error(:also_bad))
+              end
             )
 
-          b <- get()
-          put(b + 5)
+          b <- Lift.lift(State.get())
+          Lift.lift(State.put(b + 5))
 
           return(res)
         end
 
-      runner = Run.with_handlers(e: Error.Handler, s: State.Handler)
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler])
 
+      # Hefty Catch uses non-transactional semantics - state changes persist even on error
+      # Initial state: nil -> put(5) = 5 -> put(10) in try block = 10
       assert %Freyja.RunOutcome{
                result: %Freyja.ErrorResult{error: :also_bad},
-               outputs: %{s: 5}
+               outputs: %{State.Handler => 10}
              } = outcome
     end
 
     test "state in reocvered computation is applied" do
       fv =
-        con [Error, State] do
-          put(5)
+        hefty do
+          Lift.lift(State.put(5))
 
           res <-
-            catch_fx(
-              con [Error, State] do
-                a <- get()
-                put(a + 5)
-                throw_fx(:bad)
+            Catch.catch_hefty(
+              hefty do
+                a <- Lift.lift(State.get())
+                Lift.lift(State.put(a + 5))
+                Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              fn err -> return({:recovered, err}) end
+              Hefty.pure({:recovered, :bad})
             )
 
-          b <- get()
+          b <- Lift.lift(State.get())
           c <- return(b + 5)
-          put(c)
+          Lift.lift(State.put(c))
 
           return(res)
         end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          e: Error.Handler,
-          s: State.Handler
-        )
-
-      outcome = Run.run(fv, runner)
+      outcome = HeftyRun.run(
+        fv,
+        [Catch.Algebra, Lift.Algebra],
+        [EffectLogger.Handler, State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
+      )
 
       assert %Freyja.RunOutcome{
                result: %Freyja.OkResult{value: {:recovered, :bad}},
-               outputs: %{s: 15}
+               outputs: %{State.Handler => 15}
              } = outcome
 
       # Logger.error("#{__MODULE__}.outcome #{inspect(outcome, pretty: true)}")

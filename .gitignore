@@ -29,6 +29,7 @@ freyja-*.tar
 # other similar projects for easy reference
 /freer-simple
 /heftia
+/data-effects
 
 /.elixir-tools
 

@@ -81,7 +81,7 @@ defmodule Freyja.Freer.Impl do
     error_data = Freyja.Exception.to_serializable(exception, stacktrace)
 
     # Create and return Error effect
-    Freyja.Effects.Error.throw_fx(error_data)
+    Freyja.Effects.Error.throw_error(error_data)
     |> ISendable.send()
   end
 

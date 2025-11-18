@@ -67,7 +67,7 @@ defmodule Freyja.Effects.WriterTest do
     defcon error_path, [Writer, Error] do
       tell("starting")
       tell("about to error")
-      throw_fx(:error)
+      throw_error(:error)
       tell("this should not be logged")
       return(:not_reached)
     end

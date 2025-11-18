@@ -19,8 +19,8 @@ defmodule Freyja.Hefty.PrototypeTest do
   alias Freyja.Effects.Catch
   alias Freyja.Effects.Catch.RunCatchingHandler
   alias Freyja.Effects.Lift
-  alias Freyja.Hefty.Effects.HeftyError
-  alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler
+  alias Freyja.Effects.Error
+  alias Freyja.Effects.Error.Handler, as: ErrorHandler
   alias Freyja.Effects.State
   alias Freyja.OkResult
 
@@ -88,7 +88,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
+        [ErrorHandler, Catch.RunCatchingHandler]
       )
 
       assert %OkResult{value: 42} = outcome.result
@@ -103,7 +103,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 42}
       )
 
@@ -127,7 +127,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 5}
       )
 
@@ -139,7 +139,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
   describe "Catch effect - error path" do
     test "returns catch block result when error occurs" do
-      try_block = Lift.lift(HeftyError.throw_error("boom"))
+      try_block = Lift.lift(Error.throw_error("boom"))
       catch_block = Hefty.pure(:recovered)
 
       computation = Catch.catch_hefty(try_block, fn _err -> catch_block end)
@@ -147,14 +147,14 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
+        [ErrorHandler, Catch.RunCatchingHandler]
       )
 
       assert %OkResult{value: :recovered} = outcome.result
     end
 
     test "executes catch block with State effect" do
-      try_block = Lift.lift(HeftyError.throw_error("error"))
+      try_block = Lift.lift(Error.throw_error("error"))
 
       catch_block = Lift.lift(State.get())
 
@@ -163,7 +163,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 99}
       )
 
@@ -173,7 +173,7 @@ defmodule Freyja.Hefty.PrototypeTest do
     test "catch block can modify state" do
       import Freyja.Con
 
-      try_block = Lift.lift(HeftyError.throw_error("error"))
+      try_block = Lift.lift(Error.throw_error("error"))
 
       catch_block = Lift.lift(con do
         State.put(999)
@@ -185,7 +185,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 0}
       )
 
@@ -201,7 +201,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       try_block = Lift.lift(con do
         x <- State.get()
         if x < 0 do
-          HeftyError.throw_error("negative value")
+          Error.throw_error("negative value")
         else
           return(x * 2)
         end
@@ -213,7 +213,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome1 = HeftyRun.run(
         Catch.catch_hefty(try_block, fn _err -> catch_block end),
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 5}
       )
 
@@ -223,7 +223,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome2 = HeftyRun.run(
         Catch.catch_hefty(try_block, fn _err -> catch_block end),
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => -3}
       )
 
@@ -233,7 +233,7 @@ defmodule Freyja.Hefty.PrototypeTest do
     test "nested Catch operations" do
       import Freyja.Con
 
-      inner_try = Lift.lift(HeftyError.throw_error("inner error"))
+      inner_try = Lift.lift(Error.throw_error("inner error"))
       inner_catch = Hefty.pure(:inner_recovered)
       inner = Catch.catch_hefty(inner_try, fn _err -> inner_catch end)
 
@@ -244,7 +244,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         outer,
         [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
+        [ErrorHandler, Catch.RunCatchingHandler]
       )
 
       # Inner catch should handle the error
@@ -256,7 +256,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
       computation =
         Catch.catch_hefty(
-          Lift.lift(HeftyError.throw_error("error")),
+          Lift.lift(Error.throw_error("error")),
           fn _err -> Hefty.pure(10) end
         )
         |> Hefty.bind(fn x ->
@@ -267,7 +267,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
+        [ErrorHandler, Catch.RunCatchingHandler]
       )
 
       # Catch returns 10, continuation doubles it
@@ -279,7 +279,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
       try_block = Lift.lift(con do
         State.put(100)
-        HeftyError.throw_error("after setting state")
+        Error.throw_error("after setting state")
       end)
 
       catch_block = Lift.lift(State.get())
@@ -289,7 +289,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 0}
       )
 
@@ -315,7 +315,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [HeftyErrorHandler, Catch.RunCatchingHandler]
+        [ErrorHandler, Catch.RunCatchingHandler]
       )
 
       # (5 + 1) * 2 = 12
@@ -338,7 +338,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
         %{State.Handler => 999}
       )
 
@@ -350,7 +350,7 @@ defmodule Freyja.Hefty.PrototypeTest do
   describe "Two-phase execution validation" do
     test "elaboration produces Freer with case statement for control flow" do
       # This test validates that elaboration encodes control flow as case statements
-      try_block = Lift.lift(HeftyError.throw_error("error"))
+      try_block = Lift.lift(Error.throw_error("error"))
       catch_block = Hefty.pure(:fallback)
 
       hefty_tree = Catch.catch_hefty(try_block, fn _err -> catch_block end)
@@ -366,7 +366,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
       # Now interpret (phase 2)
       run_state = Freyja.Run.with_handlers([
-        {HeftyErrorHandler, HeftyErrorHandler},
+        {ErrorHandler, ErrorHandler},
         {Catch.RunCatchingHandler, Catch.RunCatchingHandler}
       ])
       outcome = Freyja.Run.run(freer_tree, run_state)
@@ -384,7 +384,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       outcome = HeftyRun.run(
         computation,
         [Catch.Algebra, Lift.Algebra],
-        [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],  # Need HeftyErrorHandler, Catch.RunCatchingHandler for catch_fx
+        [State.Handler, ErrorHandler, Catch.RunCatchingHandler],  # Need ErrorHandler, Catch.RunCatchingHandler for catch_fx
         %{State.Handler => 42}
       )
 

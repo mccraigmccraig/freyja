@@ -2,35 +2,46 @@ defmodule Freyja.Effects.Error do
   @moduledoc """
   First-order Error effect for throwing errors.
 
-  This module provides ONLY the `throw_fx` operation (first-order).
+  This module provides the `throw_error` operation (first-order).
 
   For the higher-order `catch` operation (catching and handling errors),
   use `Freyja.Effects.Catch` which provides Hefty algebra-based
   exception handling.
 
+  ## Example
+
+      import Freyja.HeftyMacro
+
+      # Throw an error
+      Lift.lift(Error.throw_error("something went wrong"))
+
   ## See Also
 
   - `Freyja.Effects.Catch` - For the higher-order catch operation
-  - `Freyja.Hefty.Effects.HeftyError` - For Hefty-compatible error operations
   """
   import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Throw, error: nil)
 
-  def throw_fx(err), do: %Throw{error: err}
+  @doc """
+  Throw an error, short-circuiting the computation.
+
+  Returns a Freer effect that will fail with the given error value.
+  """
+  def throw_error(err), do: %Throw{error: err}
 end
 
 defmodule Freyja.Effects.Error.Handler do
   @moduledoc """
   Handler for first-order Error operations (throw only).
 
-  This is now a simple first-order effect handler. The scoped `catch_fx` operation
-  has been removed and is available via `Freyja.Effects.Catch` as a Hefty
-  algebra-based higher-order effect.
+  This is a simple first-order effect handler. The scoped `catch` operation
+  is available via `Freyja.Effects.Catch` as a Hefty algebra-based
+  higher-order effect.
 
   ## Operations
 
-  - `throw_fx(error)` - Short-circuits computation with error
+  - `throw_error(error)` - Short-circuits computation with error
 
   ## See Also
 

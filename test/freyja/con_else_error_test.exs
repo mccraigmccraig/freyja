@@ -3,7 +3,7 @@ defmodule Freyja.ConElseErrorTest do
 
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
-  alias Freyja.Effects.{Lift, HeftyError}
+  alias Freyja.Effects.{Lift, Error}
   alias Freyja.Effects.Catch
 
   describe "hefty ... catch error handling" do
@@ -11,14 +11,14 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(HeftyError.throw_error({:invalid, 3}))
+        Lift.lift(Error.throw_error({:invalid, 3}))
         return(:unreachable)
       catch
         {:invalid, n} -> return({:fixed, n + 1})
       end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
@@ -31,14 +31,14 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(HeftyError.throw_error(:nope))
+        Lift.lift(Error.throw_error(:nope))
         return(:unreachable)
       catch
         :other -> return(:ok)
       end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res} = Hefty.Run.run(fv, algebras, handlers, initial_states)
@@ -50,7 +50,7 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(HeftyError.throw_error(:bad))
+        Lift.lift(Error.throw_error(:bad))
         return(:nope)
       catch
         :bad ->
@@ -59,7 +59,7 @@ defmodule Freyja.ConElseErrorTest do
       end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler, Writer.Handler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler, Writer.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
@@ -74,14 +74,14 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(HeftyError.throw_error(:anything))
+        Lift.lift(Error.throw_error(:anything))
         return(:unreachable)
       catch
         _ -> return(:handled)
       end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} = Hefty.Run.run(fv, algebras, handlers, initial_states)

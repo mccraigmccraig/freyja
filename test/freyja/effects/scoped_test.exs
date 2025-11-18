@@ -8,7 +8,7 @@ defmodule Freyja.Effects.ScopedTest do
   alias Freyja.ErrorResult
   alias Freyja.Run
   alias Freyja.Hefty
-  alias Freyja.Effects.{Lift, HeftyError}
+  alias Freyja.Effects.{Lift, Error}
   alias Freyja.Effects.Catch
 
   defmodule ScopedFx do
@@ -19,12 +19,12 @@ defmodule Freyja.Effects.ScopedTest do
       first <- yield(a)
       tell(first)
 
-      if first == "boo", do: HeftyError.throw_error(:boo), else: return(:ok)
+      if first == "boo", do: Error.throw_error(:boo), else: return(:ok)
 
       second <- yield(b)
       tell(second)
 
-      if second == "hoo", do: HeftyError.throw_error(:hoo), else: return(:ok)
+      if second == "hoo", do: Error.throw_error(:hoo), else: return(:ok)
 
       result <- return(%{a: a, b: b, first: first, second: second})
       tell(result)
@@ -61,7 +61,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "it suspends" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one = Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
@@ -87,7 +87,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "the scope is still in effect after resume" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one = Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
@@ -106,7 +106,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "uncaught errors propagate out" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [HeftyError.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
+      handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one = Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)

@@ -21,7 +21,7 @@ defmodule Freyja.Effects.Catch do
           hefty do
             x <- Lift.lift(State.get())
             if x < 0 do
-              Lift.lift(Error.throw_fx("negative value"))
+              Lift.lift(Error.throw_error("negative value"))
             else
               Hefty.pure(x * 2)
             end

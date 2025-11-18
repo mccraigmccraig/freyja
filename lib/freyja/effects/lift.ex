@@ -20,7 +20,7 @@ defmodule Freyja.Effects.Lift do
 
         # Use higher-order Catch effect
         y <- Catch.catch_hefty(
-          lift(Error.throw_fx("error")),
+          lift(Error.throw_error("error")),
           Hefty.pure(0)
         )
 

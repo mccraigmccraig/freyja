@@ -192,7 +192,7 @@ defmodule Freyja.HeftyMacro do
           hefty do
             x <- State.get()
             if x < 0 do
-              HeftyError.throw_error("negative")
+              Error.throw_error("negative")
             else
               Hefty.pure(x * 2)
             end
@@ -206,7 +206,7 @@ defmodule Freyja.HeftyMacro do
       hefty do
         x <- State.get()
         if x < 0 do
-          HeftyError.throw_error("negative")
+          Error.throw_error("negative")
         else
           Hefty.pure(x * 2)
         end
@@ -355,7 +355,7 @@ defmodule Freyja.HeftyMacro do
           rewritten_clauses ++
             [
               {:->, [], [[quote(do: __freyja_unhandled_error__)],
-                quote(do: Freyja.Effects.Lift.lift(Freyja.Hefty.Effects.HeftyError.throw_error(__freyja_unhandled_error__)))]}
+                quote(do: Freyja.Effects.Lift.lift(Freyja.Effects.Error.throw_error(__freyja_unhandled_error__)))]}
             ]
         end
 

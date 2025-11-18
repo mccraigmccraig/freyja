@@ -36,7 +36,7 @@ defmodule Freyja.Hefty.Run do
       computation = Catch.catch_hefty(
         hefty do
           x <- Lift.lift(State.get())
-          if x < 0, do: Lift.lift(Error.throw_fx("negative"))
+          if x < 0, do: Lift.lift(Error.throw_error("negative"))
           Hefty.pure(x * 2)
         end,
         fn _err -> Hefty.pure(0) end
@@ -132,7 +132,7 @@ defmodule Freyja.Hefty.Run do
 
       # With Catch and error handling
       computation = Catch.catch_hefty(
-        Lift.lift(Error.throw_fx("error")),
+        Lift.lift(Error.throw_error("error")),
         fn _err -> Hefty.pure(:recovered) end
       )
 

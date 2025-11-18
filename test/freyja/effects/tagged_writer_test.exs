@@ -113,7 +113,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   defcon error_with_writer, [TaggedWriter, Error] do
     tell(:trace, "starting")
     tell(:trace, "about to error")
-    Error.throw_fx(:boom)
+    Error.throw_error(:boom)
     tell(:trace, "never logged")
     return(:not_reached)
   end

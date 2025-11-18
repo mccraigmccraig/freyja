@@ -201,7 +201,7 @@ defmodule Freyja.Hefty do
   # Catch-all: Use IHeftySendable protocol to convert to Hefty
   # This enables auto-lifting of Freer effects
   def bind(other, k) do
-    hefty = Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+    hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
     bind(hefty, k)
   end
 

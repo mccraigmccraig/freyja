@@ -180,7 +180,7 @@ defmodule Freyja.Hefty.Elaborate do
         hefty_comp = case comp do
           %Hefty.Pure{} -> comp
           %Hefty.Impure{} -> comp
-          other -> Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+          other -> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
         end
         {key, do_elaborate(hefty_comp, algebras)}
       end)
@@ -194,7 +194,7 @@ defmodule Freyja.Hefty.Elaborate do
       hefty_result = case result do
         %Hefty.Pure{} -> result
         %Hefty.Impure{} -> result
-        other -> Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+        other -> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
       end
       do_elaborate(hefty_result, algebras)
     end

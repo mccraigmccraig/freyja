@@ -53,7 +53,7 @@ defmodule Freyja.HeftyMacro do
   ## Auto-Lifting
 
   When you use first-order effects (State, Reader, etc.) in a `hefty` block,
-  they are automatically lifted to Hefty via `Freyja.Hefty.IHeftySendable` protocol.
+  they are automatically lifted to Hefty via `Freyja.Hefty.Sig.IHeftySendable` protocol.
 
   This happens in `Hefty.bind/2`'s catch-all clause, which uses the protocol
   to convert Freer computations to Hefty (via Lift).
@@ -79,7 +79,7 @@ defmodule Freyja.HeftyMacro do
   ## See Also
 
   - `Freyja.Con` - For first-order (Freer) computations
-  - `Freyja.Hefty.IHeftySendable` - Protocol for auto-lifting
+  - `Freyja.Hefty.Sig.IHeftySendable` - Protocol for auto-lifting
   - `Freyja.Hefty.bind/2` - Monadic bind with auto-lifting
   """
 
@@ -142,7 +142,7 @@ defmodule Freyja.HeftyMacro do
       end
 
   The auto-lifting happens in `Hefty.bind/2`'s catch-all clause via
-  `Freyja.Hefty.IHeftySendable.send_to_hefty/1`.
+  `Freyja.Hefty.Sig.IHeftySendable.send_to_hefty/1`.
 
   ## Examples
 

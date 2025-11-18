@@ -1,8 +1,8 @@
-defmodule Freyja.Hefty.IHeftySendableTest do
+defmodule Freyja.Hefty.Sig.IHeftySendableTest do
   use ExUnit.Case, async: true
 
   alias Freyja.Hefty
-  alias Freyja.Hefty.IHeftySendable
+  alias Freyja.Hefty.Sig.IHeftySendable
   alias Freyja.Hefty.Effects.Lift
   alias Freyja.Freer
 

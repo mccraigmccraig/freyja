@@ -1,4 +1,4 @@
-defprotocol Freyja.Hefty.IHeftySendable do
+defprotocol Freyja.Hefty.Sig.IHeftySendable do
   @fallback_to_any true
 
   @moduledoc """
@@ -31,7 +31,7 @@ defprotocol Freyja.Hefty.IHeftySendable do
 
       # In Hefty.bind
       def bind(other, k) do
-        hefty = Freyja.Hefty.IHeftySendable.send_to_hefty(other)
+        hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
         bind(hefty, k)
       end
 
@@ -51,7 +51,7 @@ defprotocol Freyja.Hefty.IHeftySendable do
 
   If a value doesn't implement IHeftySendable, you'll get a clear error:
 
-      Protocol.UndefinedError: protocol Freyja.Hefty.IHeftySendable not implemented
+      Protocol.UndefinedError: protocol Freyja.Hefty.Sig.IHeftySendable not implemented
       for %SomeStruct{} of type SomeStruct
 
   This helps catch bugs where:
@@ -61,9 +61,9 @@ defprotocol Freyja.Hefty.IHeftySendable do
 
   ## Comparison with Freer.Sig.ISendable
 
-  | Protocol | Freyja.Sig.ISendable | Freyja.Hefty.IHeftySendable |
-  |----------|----------------------|-----------------------------|
-  | Module   | ISendable            | IHeftySendable              |
+  | Protocol | Freyja.Sig.ISendable | Freyja.Hefty.Sig.IHeftySendable |
+  |----------|----------------------|---------------------------------|
+  | Module   | ISendable            | IHeftySendable                  |
   | Method   | `send/2`             | `send_to_hefty/1`           |
   | Purpose  | Create Freer.Impure  | Convert to Hefty            |
   | Fallback | Error (no Any impl)  | Error (no Any impl)         |
@@ -106,30 +106,30 @@ defprotocol Freyja.Hefty.IHeftySendable do
   ## Examples
 
       # Hefty nodes - identity
-      iex> Freyja.Hefty.IHeftySendable.send_to_hefty(Hefty.pure(42))
+      iex> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(Hefty.pure(42))
       %Freyja.Hefty.Pure{val: 42}
 
       # Freer.Pure - converts directly to Hefty.Pure (optimization)
       iex> freer_pure = Freer.pure(42)
-      iex> Freyja.Hefty.IHeftySendable.send_to_hefty(freer_pure)
+      iex> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(freer_pure)
       %Freyja.Hefty.Pure{val: 42}
 
       # Freer.Impure - lifts via Lift operation
       iex> freer_impure = Freer.send(Freyja.Effects.State, %Freyja.Effects.State.Get{})
-      iex> result = Freyja.Hefty.IHeftySendable.send_to_hefty(freer_impure)
+      iex> result = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(freer_impure)
       iex> match?(%Freyja.Hefty.Impure{sig: Freyja.Hefty.Effects.Lift}, result)
       true
 
       # Unsupported type - error
-      iex> Freyja.Hefty.IHeftySendable.send_to_hefty(%{not: :a_computation})
-      ** (Protocol.UndefinedError) protocol Freyja.Hefty.IHeftySendable not implemented...
+      iex> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(%{not: :a_computation})
+      ** (Protocol.UndefinedError) protocol Freyja.Hefty.Sig.IHeftySendable not implemented...
   """
   @spec send_to_hefty(any) :: Freyja.Hefty.t()
   def send_to_hefty(value)
 end
 
 # Hefty.Pure - already Hefty, return as-is
-defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Hefty.Pure do
+defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Hefty.Pure do
   @moduledoc """
   Hefty.Pure is already a Hefty computation.
 
@@ -140,7 +140,7 @@ defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Hefty.Pure do
 end
 
 # Hefty.Impure - already Hefty, return as-is
-defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Hefty.Impure do
+defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Hefty.Impure do
   @moduledoc """
   Hefty.Impure is already a Hefty computation.
 
@@ -151,7 +151,7 @@ defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Hefty.Impure do
 end
 
 # Freer.Pure - lift to Hefty
-defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Freer.Pure do
+defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Freer.Pure do
   @moduledoc """
   Freer.Pure is lifted to Hefty.
 
@@ -167,7 +167,7 @@ defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Freer.Pure do
 end
 
 # Freer.Impure - lift to Hefty via Lift
-defimpl Freyja.Hefty.IHeftySendable, for: Freyja.Freer.Impure do
+defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Freer.Impure do
   @moduledoc """
   Freer.Impure is a first-order effect that needs lifting to Hefty.
 
@@ -194,7 +194,7 @@ end
 
 # Any - try to send via Freer.Sig.ISendable, then lift
 # This handles first-order effect operation structs like %State.Get{}
-defimpl Freyja.Hefty.IHeftySendable, for: Any do
+defimpl Freyja.Hefty.Sig.IHeftySendable, for: Any do
   @moduledoc """
   Fallback for types that might be first-order effect operations.
 

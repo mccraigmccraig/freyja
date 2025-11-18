@@ -295,19 +295,22 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     #
     # Storage.apply_all_changes is a "higher-order" operation - it
     # takes a computation as a parameter, and captures the outputs
-    # it needs by running that computation. In this case, it captures
-    # all the values given to the Storage.change operations
+    # it needs by running that computation
     #
-    # All Storage.change does is append the change to a list (Using
-    # a TaggedWriter.tell effect) - so the process_user_fn doesn't write
-    # to the db
+    # In this case, it captures all the values given to any
+    # Storage.change operations in the process_user_fn calls
     #
-    # Storage.apply_all_changes uses a TaggedWriter.listen
-    # effect to capture all the logged changes, and can then apply them
-    # to the (hypothetical) database in bulk
+    # All Storage.change does is append the change to a list (internally
+    # using a TaggedWriter.tell effect) - so the process_user_fn doesn't
+    # need to write to the db - it is effectively pure
     #
-    # You write simple single-value oriented code, but get bulk-operation
-    # performance
+    # Storage.apply_all_changes internally uses a TaggedWriter.listen
+    # effect to retrieve all the logged changes after all the calls
+    # to process_user_fn have been made, and it can then apply all the
+    # changes to the (hypothetical) database in a single bulk operation
+    #
+    # You write simple single-value oriented pure functions, but get
+    # bulk-operation performance
     {updated_users, all_logs} <-
       Storage.apply_all_changes(HeftyFxList.fx_map(users, process_user_fn))
 

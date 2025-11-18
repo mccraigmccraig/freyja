@@ -73,7 +73,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
 
   alias Freyja.Effects.State
   alias Freyja.Effects.TaggedWriter
-  alias Freyja.Hefty.Effects.HeftyFxList
+  alias Freyja.Effects.FxList
   alias Freyja.Hefty.Effects.HeftyTaggedWriter
 
   # Storage Effect Definition - Mixed first-order and higher-order
@@ -312,7 +312,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     # You write simple single-value oriented pure functions, but get
     # bulk-operation performance
     {updated_users, all_logs} <-
-      Storage.apply_all_changes(HeftyFxList.fx_map(users, process_user_fn))
+      Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
 
     # Get final count of processed records (auto-lifted)
     processed_count <- State.get()
@@ -423,7 +423,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     # Stage 2: Audit trail (on already-processed users)
     # Notice: We use HeftyTaggedWriter.listen directly here to get fresh user list
     {_audited_users, audit_logs} <-
-      HeftyTaggedWriter.listen(HeftyFxList.fx_map(anonymized_users, &audit_user/1))
+      HeftyTaggedWriter.listen(FxList.fx_map(anonymized_users, &audit_user/1))
 
     audit_entries = audit_logs[:audit] || []
     TaggedWriter.tell(:stages, {:audit_complete, length(audit_entries)})

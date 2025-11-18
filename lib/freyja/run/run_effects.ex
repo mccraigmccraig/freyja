@@ -24,7 +24,7 @@ defmodule Freyja.Run.RunEffects do
   A privileged operation used by Hefty algebras to propagate state changes
   from child computations (forks) to the parent's RunState.
 
-  This is used by higher-order effect algebras (Catch, HeftyFxList, HeftyTaggedWriter)
+  This is used by higher-order effect algebras (Catch, FxList, HeftyTaggedWriter)
   to implement non-transactional semantics - state changes persist even when
   errors occur or computations branch.
 
@@ -40,7 +40,7 @@ defmodule Freyja.Run.RunEffects do
   ## See Also
 
   - `Freyja.Effects.Catch.RunCatchingHandler` - Uses ScopedOk for state propagation
-  - `Freyja.Hefty.Effects.HeftyFxList.Algebra` - Uses ScopedOk for fork results
+  - `Freyja.Effects.FxList.Algebra` - Uses ScopedOk for fork results
   """
   def scoped_return(value, run_outcome),
     do: %ScopedOk{

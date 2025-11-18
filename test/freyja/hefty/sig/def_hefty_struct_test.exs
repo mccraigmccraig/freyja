@@ -97,7 +97,7 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
     end
 
     test "multiple Hefty operation types implement IHeftySendable" do
-      alias Freyja.Hefty.Effects.HeftyFxList.FxMap
+      alias Freyja.Effects.FxList.FxMap
 
       # FxMap is also defined with def_hefty_struct
       fx_map = %FxMap{list: [1, 2, 3], f: & &1}

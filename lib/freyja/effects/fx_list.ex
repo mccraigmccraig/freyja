@@ -1,4 +1,4 @@
-defmodule Freyja.Hefty.Effects.HeftyFxList do
+defmodule Freyja.Effects.FxList do
   @moduledoc """
   Higher-order FxList effect using Hefty algebras.
 
@@ -7,7 +7,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
 
   ## Benefits of Hefty Algebra Approach
 
-  **HeftyFxList.Algebra** (this module):
+  **FxList.Algebra** (this module):
   - ~40 lines total (module + algebra)
   - Just sequences computations
   - No special cases for suspension/error
@@ -34,7 +34,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
       import Freyja.HeftyMacro
 
       defhefty process_users(user_ids) do
-        users <- HeftyFxList.fx_map(user_ids, fn id ->
+        users <- FxList.fx_map(user_ids, fn id ->
           hefty do
             user <- Storage.query_user(id)  # Freer - auto-lifted
             count <- State.get()            # Freer - auto-lifted
@@ -52,7 +52,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
       fx_map([1, 2, 3], f)
       →
       Hefty.Impure{
-        sig: HeftyFxList,
+        sig: FxList,
         data: %FxMap{list: [1, 2, 3], f: f},
         psi: %{
           0 => f.(1),  # Hefty computation
@@ -74,7 +74,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
 
   ## See Also
 
-  - `Freyja.Hefty.Effects.HeftyFxList.Algebra` - The elaboration algebra
+  - `Freyja.Effects.FxList.Algebra` - The elaboration algebra
   """
 
   import Freyja.Hefty.Sig.DefHeftyStruct
@@ -99,7 +99,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
 
   ## Example
 
-      HeftyFxList.fx_map([1, 2, 3], fn x ->
+      FxList.fx_map([1, 2, 3], fn x ->
         hefty do
           count <- State.get()
           State.put(count + 1)
@@ -125,12 +125,12 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
 
 end
 
-defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
+defmodule Freyja.Effects.FxList.Algebra do
   @moduledoc """
-  Algebra for elaborating HeftyFxList operations.
+  Algebra for elaborating FxList operations.
 
   THIS IS THE SHOWCASE: Compare this ~40 line module to the ~150 line
-  lib/freyja/effects/fx_list.ex handler!
+  old FxList.Handler!
 
   ## What This Shows
 
@@ -155,12 +155,12 @@ defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
 
   @behaviour Freyja.Hefty.Algebra
 
-  alias Freyja.Hefty.Effects.HeftyFxList.FxMap
+  alias Freyja.Effects.FxList.FxMap
   alias Freyja.Freer
   import Freyja.Con
 
   @impl true
-  def handles?(sig) when sig == Freyja.Hefty.Effects.HeftyFxList, do: true
+  def handles?(sig) when sig == Freyja.Effects.FxList, do: true
   def handles?(_), do: false
 
   @impl true
@@ -176,7 +176,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList.Algebra do
 
       # Sequence them and call continuation - that's it!
       # This is the entire fx_map elaboration - ~15 lines!
-      # Compare to ~150 lines in lib/freyja/effects/fx_list.ex
+      # Compare to ~150 lines in old FxList.Handler
       con do
         results <- sequence(result_comps)
         k.(results)

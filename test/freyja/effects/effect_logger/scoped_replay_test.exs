@@ -7,22 +7,22 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.{Lift, HeftyFxList, HeftyError}
-  alias Freyja.Effects.Catch
+  alias Freyja.Hefty.Effects.{Lift, HeftyError}
+  alias Freyja.Effects.{Catch, FxList}
   alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler
   alias Freyja.OkResult
   alias Freyja.RunOutcome
 
-  describe "simple scoped effect replay - HeftyFxList.fx_map" do
-    test "replays simple HeftyFxList.fx_map with no other effects" do
+  describe "simple scoped effect replay - FxList.fx_map" do
+    test "replays simple FxList.fx_map with no other effects" do
       # Simplest case: just map over a list returning pure values
       # Using Hefty - let's see if EffectLogger logs the elaborated operations!
       computation = hefty do
-        result <- HeftyFxList.fx_map([1, 2, 3], fn x -> return(x * 2) end)
+        result <- FxList.fx_map([1, 2, 3], fn x -> return(x * 2) end)
         return(result)
       end
 
-      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler]
       initial_states = %{}
 
@@ -62,12 +62,12 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       end
 
       computation = hefty do
-        result <- HeftyFxList.fx_map([1, 2, 3], map_fn)
+        result <- FxList.fx_map([1, 2, 3], map_fn)
         final_state <- Lift.lift(State.get())
         return({result, final_state})
       end
 
-      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler, State.Handler]
       initial_states = %{State.Handler => 0}
 
@@ -106,11 +106,11 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       end
 
       computation = hefty do
-        result <- HeftyFxList.fx_map([10, 20, 30], map_fn)
+        result <- FxList.fx_map([10, 20, 30], map_fn)
         return(result)
       end
 
-      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler, Writer.Handler]
       initial_states = %{}
 
@@ -296,11 +296,11 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       end
 
       computation = hefty do
-        result <- HeftyFxList.fx_map([:a, :b, :c], map_fn)
+        result <- FxList.fx_map([:a, :b, :c], map_fn)
         return(result)
       end
 
-      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler, State.Handler, Writer.Handler]
       initial_states = %{State.Handler => 0}
 
@@ -340,7 +340,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays nested scoped effects - catch_hefty inside List.fx_map" do
       # Nested scoping: error handling inside list iteration
       computation = hefty do
-        result <- HeftyFxList.fx_map([1, 0, 3], fn x ->
+        result <- FxList.fx_map([1, 0, 3], fn x ->
           Catch.catch_hefty(
             if x == 0 do
               Lift.lift(HeftyError.throw_error(:divide_by_zero))
@@ -354,7 +354,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         return(result)
       end
 
-      algebras = [Catch.Algebra, Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
       initial_states = %{}
 
@@ -386,7 +386,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays List.fx_map inside catch_hefty" do
       # Opposite nesting: list iteration inside error handling
       inner_catch = hefty do
-        mapped <- HeftyFxList.fx_map([1, 2, 3], fn x -> Hefty.pure(x * 10) end)
+        mapped <- FxList.fx_map([1, 2, 3], fn x -> Hefty.pure(x * 10) end)
         return({:ok, Enum.sum(mapped)})
       end
 
@@ -402,7 +402,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
       end
 
-      algebras = [Catch.Algebra, Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
       initial_states = %{}
 
@@ -434,7 +434,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays deserialized List.fx_map" do
       # Use strings for JSON compatibility
       computation = hefty do
-        result <- HeftyFxList.fx_map(["a", "b", "c"], fn item ->
+        result <- FxList.fx_map(["a", "b", "c"], fn item ->
           hefty do
             count <- Lift.lift(State.get())
             Lift.lift(State.put(count + 1))
@@ -445,7 +445,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         return(result)
       end
 
-      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      algebras = [Lift.Algebra, FxList.Algebra]
       handlers = [EffectLogger.Handler, State.Handler]
       initial_states = %{State.Handler => 0}
 

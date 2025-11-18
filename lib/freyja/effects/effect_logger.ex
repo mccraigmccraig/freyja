@@ -151,6 +151,11 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
         ScopedLogs.push_scoped_log(scoped_logs, Log.new())
 
+      %Log{queue: []} ->
+        # Empty log - either first run with no effects or replay with no effects
+        # Just return as-is (will remain empty)
+        log
+
       nil ->
         Log.new()
     end

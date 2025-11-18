@@ -1,46 +1,50 @@
 defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   use ExUnit.Case
 
-  import Freyja.Con
+  import Freyja.HeftyMacro
 
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.Error
-  alias Freyja.Effects.FxList
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
+  alias Freyja.Hefty
+  alias Freyja.Hefty.Effects.{Lift, HeftyFxList, Catch, HeftyError}
+  alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler
   alias Freyja.OkResult
-  alias Freyja.Run
   alias Freyja.RunOutcome
 
-  describe "simple scoped effect replay - List.fx_map" do
-    test "replays simple List.fx_map with no other effects" do
+  describe "simple scoped effect replay - HeftyFxList.fx_map" do
+    test "replays simple HeftyFxList.fx_map with no other effects" do
       # Simplest case: just map over a list returning pure values
-      computation =
-        con [FxList] do
-          result <- fx_map([1, 2, 3], fn x -> return(x * 2) end)
-          return(result)
-        end
+      # Using Hefty - let's see if EffectLogger logs the elaborated operations!
+      computation = hefty do
+        result <- HeftyFxList.fx_map([1, 2, 3], fn x -> return(x * 2) end)
+        return(result)
+      end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          list: FxList.Handler
-        )
+      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler]
+      initial_states = %{}
 
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: [2, 4, 6]},
-               outputs: %{l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay using rerun
-      second_outcome = Run.rerun(computation, first_outcome)
+      # Check that EffectLogger logged something
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      # The log should contain the ELABORATED first-order operations
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: [2, 4, 6]},
-               outputs: %{l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
@@ -49,41 +53,43 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays List.fx_map with State inside the map function" do
       # Add State effect inside the mapped function
       map_fn = fn x ->
-        con [State] do
-          current <- get()
-          put(current + x)
+        hefty do
+          current <- Lift.lift(State.get())
+          Lift.lift(State.put(current + x))
           return(x * 2)
         end
       end
 
-      computation =
-        con [FxList, State] do
-          result <- fx_map([1, 2, 3], map_fn)
-          final_state <- get()
-          return({result, final_state})
-        end
+      computation = hefty do
+        result <- HeftyFxList.fx_map([1, 2, 3], map_fn)
+        final_state <- Lift.lift(State.get())
+        return({result, final_state})
+      end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          list: FxList.Handler,
-          s: {State.Handler, 0}
-        )
+      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler, State.Handler]
+      initial_states = %{State.Handler => 0}
 
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: {[2, 4, 6], 6}},
-               outputs: %{s: 6, l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.get(outputs, State.Handler) == 6
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: {[2, 4, 6], 6}},
-               outputs: %{s: 6, l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.get(replayed_outputs, State.Handler) == 6
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
@@ -92,177 +98,184 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays List.fx_map with Writer inside the map function" do
       # Add Writer effect inside the mapped function
       map_fn = fn x ->
-        con [Writer] do
-          tell({:processing, x})
+        hefty do
+          Lift.lift(Writer.tell({:processing, x}))
           return(x + 5)
         end
       end
 
-      computation =
-        con [FxList, Writer] do
-          result <- fx_map([10, 20, 30], map_fn)
-          return(result)
-        end
+      computation = hefty do
+        result <- HeftyFxList.fx_map([10, 20, 30], map_fn)
+        return(result)
+      end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          list: FxList.Handler,
-          w: Writer.Handler
-        )
+      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler, Writer.Handler]
+      initial_states = %{}
 
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: [15, 25, 35]},
-               outputs: %{w: [{:processing, 30}, {:processing, 20}, {:processing, 10}], l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.get(outputs, Writer.Handler) == [
+               {:processing, 30},
+               {:processing, 20},
+               {:processing, 10}
+             ]
+
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: [15, 25, 35]},
-               outputs: %{
-                 w: [{:processing, 30}, {:processing, 20}, {:processing, 10}],
-                 l: _replayed_log
-               }
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.get(replayed_outputs, Writer.Handler) == [
+               {:processing, 30},
+               {:processing, 20},
+               {:processing, 10}
+             ]
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end
   end
 
-  describe "simple scoped effect replay - Error.catch_fx" do
-    test "replays simple catch_fx with successful inner computation" do
+  describe "simple scoped effect replay - Catch.catch_hefty" do
+    test "replays simple catch_hefty with successful inner computation" do
       # Simplest case: catch around a successful computation
-      computation =
-        con [Error] do
-          result <-
-            catch_fx(
-              return(42),
-              fn _err -> return(0) end
-            )
-
-          return(result)
-        end
-
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          e: Error.Handler
+      computation = hefty do
+        result <- Catch.catch_hefty(
+          Hefty.pure(42),
+          Hefty.pure(0)
         )
 
-      first_outcome = computation |> Run.run(runner)
+        return(result)
+      end
+
+      algebras = [Catch.Algebra, Lift.Algebra]
+      handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
+      initial_states = %{}
+
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: 42},
-               outputs: %{l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: 42},
-               outputs: %{l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end
 
-    test "replays catch_fx with error and recovery" do
+    test "replays catch_hefty with error and recovery" do
       # Catch an error and recover
-      computation =
-        con [Error] do
-          result <-
-            catch_fx(
-              throw_fx(:oops),
-              fn err ->
-                return({:error, err})
-              end
-            )
-
-          case result do
-            {:ok, val} -> return({:success, val})
-            {:error, err} -> return({:recovered, err})
-          end
-        end
-
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          e: Error.Handler
+      computation = hefty do
+        result <- Catch.catch_hefty(
+          Lift.lift(HeftyError.throw_error(:oops)),
+          Hefty.pure({:error, :oops})
         )
 
-      first_outcome = computation |> Run.run(runner)
+        case result do
+          {:ok, val} -> return({:success, val})
+          {:error, err} -> return({:recovered, err})
+        end
+      end
+
+      algebras = [Catch.Algebra, Lift.Algebra]
+      handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
+      initial_states = %{}
+
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: {:recovered, :oops}},
-               outputs: %{l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: {:recovered, :oops}},
-               outputs: %{l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end
 
-    test "replays catch_fx with State inside" do
+    test "replays catch_hefty with State inside" do
       # State effects inside a catch block
-      inner_comp =
-        con [State] do
-          put(10)
-          x <- get()
-          put(x + 5)
-          return({:ok, x})
-        end
+      inner_comp = hefty do
+        Lift.lift(State.put(10))
+        x <- Lift.lift(State.get())
+        Lift.lift(State.put(x + 5))
+        return({:ok, x})
+      end
 
-      computation =
-        con [Error, State] do
-          result <-
-            catch_fx(
-              inner_comp,
-              fn err -> {:error, err} end
-            )
-
-          final_state <- get()
-
-          case result do
-            {:ok, val} -> return({:success, val, final_state})
-            {:error, err} -> return({:error, err, final_state})
-          end
-        end
-
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          e: Error.Handler,
-          s: {State.Handler, 0}
+      computation = hefty do
+        result <- Catch.catch_hefty(
+          inner_comp,
+          Hefty.pure({:error, :caught})
         )
 
-      first_outcome = computation |> Run.run(runner)
+        final_state <- Lift.lift(State.get())
+
+        case result do
+          {:ok, val} -> return({:success, val, final_state})
+          {:error, err} -> return({:error, err, final_state})
+        end
+      end
+
+      algebras = [Catch.Algebra, Lift.Algebra]
+      handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler, State.Handler]
+      initial_states = %{State.Handler => 0}
+
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: {:success, 10, 15}},
-               outputs: %{s: 15, l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.get(outputs, State.Handler) == 15
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: {:success, 10, 15}},
-               outputs: %{s: 15, l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.get(replayed_outputs, State.Handler) == 15
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
@@ -273,145 +286,143 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays List.fx_map with mixed State and Writer" do
       # Combine multiple effects in the map function
       map_fn = fn item ->
-        con [State, Writer] do
-          count <- get()
-          put(count + 1)
-          tell({:item, item, count})
+        hefty do
+          count <- Lift.lift(State.get())
+          Lift.lift(State.put(count + 1))
+          Lift.lift(Writer.tell({:item, item, count}))
           return({item, count})
         end
       end
 
-      computation =
-        con [FxList, State, Writer] do
-          result <- fx_map([:a, :b, :c], map_fn)
-          return(result)
-        end
+      computation = hefty do
+        result <- HeftyFxList.fx_map([:a, :b, :c], map_fn)
+        return(result)
+      end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          list: FxList.Handler,
-          s: {State.Handler, 0},
-          w: Writer.Handler
-        )
+      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler, State.Handler, Writer.Handler]
+      initial_states = %{State.Handler => 0}
 
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: [{:a, 0}, {:b, 1}, {:c, 2}]},
-               outputs: %{
-                 s: 3,
-                 w: [{:item, :c, 2}, {:item, :b, 1}, {:item, :a, 0}],
-                 l: _log
-               }
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.get(outputs, State.Handler) == 3
+      assert Map.get(outputs, Writer.Handler) == [{:item, :c, 2}, {:item, :b, 1}, {:item, :a, 0}]
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: [{:a, 0}, {:b, 1}, {:c, 2}]},
-               outputs: %{
-                 s: 3,
-                 w: [{:item, :c, 2}, {:item, :b, 1}, {:item, :a, 0}],
-                 l: _replayed_log
-               }
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.get(replayed_outputs, State.Handler) == 3
+
+      assert Map.get(replayed_outputs, Writer.Handler) == [
+               {:item, :c, 2},
+               {:item, :b, 1},
+               {:item, :a, 0}
+             ]
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end
 
-    test "replays nested scoped effects - catch_fx inside List.fx_map" do
+    test "replays nested scoped effects - catch_hefty inside List.fx_map" do
       # Nested scoping: error handling inside list iteration
-      computation =
-        con [FxList, Error] do
-          result <-
-            fx_map([1, 0, 3], fn x ->
-              catch_fx(
-                if x == 0 do
-                  throw_fx(:divide_by_zero)
-                else
-                  return({:ok, 10 / x})
-                end,
-                fn err -> return({:error, err}) end
-              )
-            end)
+      computation = hefty do
+        result <- HeftyFxList.fx_map([1, 0, 3], fn x ->
+          Catch.catch_hefty(
+            if x == 0 do
+              Lift.lift(HeftyError.throw_error(:divide_by_zero))
+            else
+              Hefty.pure({:ok, 10 / x})
+            end,
+            Hefty.pure({:error, :divide_by_zero})
+          )
+        end)
 
-          return(result)
-        end
+        return(result)
+      end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          list: FxList.Handler,
-          e: Error.Handler
-        )
+      algebras = [Catch.Algebra, Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
+      initial_states = %{}
 
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       ok_val = 10 / 3
 
       assert %RunOutcome{
                result: %OkResult{value: [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}]},
-               outputs: %{l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}]},
-               outputs: %{l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end
 
-    test "replays List.fx_map inside catch_fx" do
+    test "replays List.fx_map inside catch_hefty" do
       # Opposite nesting: list iteration inside error handling
-      inner_catch =
-        con [FxList] do
-          mapped <- fx_map([1, 2, 3], fn x -> return(x * 10) end)
-          return({:ok, Enum.sum(mapped)})
-        end
+      inner_catch = hefty do
+        mapped <- HeftyFxList.fx_map([1, 2, 3], fn x -> Hefty.pure(x * 10) end)
+        return({:ok, Enum.sum(mapped)})
+      end
 
-      computation =
-        con [Error] do
-          result <-
-            catch_fx(
-              inner_catch,
-              fn err -> return({:error, err}) end
-            )
-
-          case result do
-            {:ok, val} -> return({:success, val})
-            {:error, err} -> return({:failed, err})
-          end
-        end
-
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          e: Error.Handler,
-          list: FxList.Handler
+      computation = hefty do
+        result <- Catch.catch_hefty(
+          inner_catch,
+          Hefty.pure({:error, :caught})
         )
 
-      first_outcome = computation |> Run.run(runner)
+        case result do
+          {:ok, val} -> return({:success, val})
+          {:error, err} -> return({:failed, err})
+        end
+      end
+
+      algebras = [Catch.Algebra, Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler, HeftyErrorHandler, Catch.RunCatchingHandler]
+      initial_states = %{}
+
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: {:success, 60}},
-               outputs: %{l: _log}
+               outputs: outputs
              } = first_outcome
 
-      # Replay
-      second_outcome = Run.rerun(computation, first_outcome)
+      assert Map.has_key?(outputs, EffectLogger.Handler)
+
+      # Replay - re-elaborate and re-run with outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: {:success, 60}},
-               outputs: %{l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
@@ -421,56 +432,56 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   describe "scoped effect replay with serialization" do
     test "replays deserialized List.fx_map" do
       # Use strings for JSON compatibility
-      computation =
-        con [FxList] do
-          result <-
-            fx_map(["a", "b", "c"], fn item ->
-              con [State] do
-                count <- get()
-                put(count + 1)
-                return(%{item => count})
-              end
-            end)
+      computation = hefty do
+        result <- HeftyFxList.fx_map(["a", "b", "c"], fn item ->
+          hefty do
+            count <- Lift.lift(State.get())
+            Lift.lift(State.put(count + 1))
+            return(%{item => count})
+          end
+        end)
 
-          return(result)
-        end
+        return(result)
+      end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          list: FxList.Handler,
-          s: {State.Handler, 0}
-        )
+      algebras = [Lift.Algebra, HeftyFxList.Algebra]
+      handlers = [EffectLogger.Handler, State.Handler]
+      initial_states = %{State.Handler => 0}
 
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
                result: %OkResult{value: [%{"a" => 0}, %{"b" => 1}, %{"c" => 2}]},
-               outputs: %{l: log, s: 3}
+               outputs: outputs
              } = first_outcome
+
+      log = Map.get(outputs, EffectLogger.Handler)
+      state = Map.get(outputs, State.Handler)
+      assert state == 3
 
       # IO.puts("\nFirst outcome:\n#{inspect(first_outcome, pretty: true)}")
 
       # Serialize and deserialize
-      json = Jason.encode!(%{l: log, s: 3})
+      json = Jason.encode!(%{l: log, s: state})
       decoded_map = Jason.decode!(json)
 
       deserialized_outputs = %{
-        l: Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
-        s: decoded_map["s"]
+        EffectLogger.Handler => Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
+        State.Handler => decoded_map["s"]
       }
 
-      deserialized_outcome = %{first_outcome | outputs: deserialized_outputs}
+      # IO.puts("\nFirst outcome deserialized: :\n#{inspect(first_outcome, pretty: true)}")
 
-      # IO.puts("\nFirst outcome deserialized: :\n#{inspect(deserialized_outcome, pretty: true)}")
-
-      # Replay
-      second_outcome = Run.rerun(computation, deserialized_outcome)
+      # Replay - re-elaborate and re-run with deserialized outputs as initial states
+      second_outcome = Hefty.Run.run(computation, algebras, handlers, deserialized_outputs)
 
       assert %RunOutcome{
                result: %OkResult{value: [%{"a" => 0}, %{"b" => 1}, %{"c" => 2}]},
-               outputs: %{s: 3, l: _replayed_log}
+               outputs: replayed_outputs
              } = second_outcome
+
+      assert Map.get(replayed_outputs, State.Handler) == 3
+      assert Map.has_key?(replayed_outputs, EffectLogger.Handler)
 
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end

@@ -2,6 +2,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   use ExUnit.Case
 
   import Freyja.Con
+  import Freyja.HeftyMacro
 
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.Writer
@@ -9,6 +10,28 @@ defmodule Freyja.Effects.TaggedWriterTest do
   alias Freyja.Effects.Reader
   alias Freyja.Effects.Error
   alias Freyja.Run
+  alias Freyja.Hefty
+  alias Freyja.Hefty.Effects.{Lift, HeftyTaggedWriter}
+
+  # Helper to create Hefty runner for tests with listen
+  defp hefty_runner_with_tagged_writer(initial_tw_state \\ %{}, other_handlers \\ []) do
+    algebras = [Lift.Algebra, HeftyTaggedWriter.Algebra]
+
+    handlers = [
+      TaggedWriter.Handler,
+      HeftyTaggedWriter.RunListenHandler
+      | other_handlers
+    ]
+
+    initial_states = %{TaggedWriter.Handler => initial_tw_state}
+
+    {algebras, handlers, initial_states}
+  end
+
+  # Helper to add State handler to Hefty runner
+  defp add_state_handler({algebras, handlers, states}, initial_state) do
+    {algebras, [State.Handler | handlers], Map.put(states, State.Handler, initial_state)}
+  end
 
   # Basic operations
   defcon single_tell_tagged, [TaggedWriter] do
@@ -232,73 +255,74 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   # Listen operations
-  defcon simple_listen, [TaggedWriter] do
-    listen(con [TaggedWriter] do
-      tell(:audit, "inner1")
-      tell(:audit, "inner2")
+  # Listen operations - migrated to Hefty
+  defhefty simple_listen do
+    HeftyTaggedWriter.listen(hefty do
+      TaggedWriter.tell(:audit, "inner1")
+      TaggedWriter.tell(:audit, "inner2")
       return(42)
     end)
   end
 
-  defcon listen_with_outer_logs, [TaggedWriter] do
-    tell(:audit, "before")
+  defhefty listen_with_outer_logs do
+    TaggedWriter.tell(:audit, "before")
 
-    {result, inner_logs} <- listen(con [TaggedWriter] do
-      tell(:audit, "inner1")
-      tell(:audit, "inner2")
+    {result, inner_logs} <- HeftyTaggedWriter.listen(hefty do
+      TaggedWriter.tell(:audit, "inner1")
+      TaggedWriter.tell(:audit, "inner2")
       return(100)
     end)
 
-    tell(:audit, "after")
+    TaggedWriter.tell(:audit, "after")
 
     return({result, inner_logs})
   end
 
-  defcon nested_listen, [TaggedWriter] do
-    tell(:log, "outer start")
+  defhefty nested_listen do
+    TaggedWriter.tell(:log, "outer start")
 
-    {r1, logs1} <- listen(con [TaggedWriter] do
-      tell(:log, "level1 start")
+    {r1, logs1} <- HeftyTaggedWriter.listen(hefty do
+      TaggedWriter.tell(:log, "level1 start")
 
-      {r2, logs2} <- listen(con [TaggedWriter] do
-        tell(:log, "level2")
+      {r2, logs2} <- HeftyTaggedWriter.listen(hefty do
+        TaggedWriter.tell(:log, "level2")
         return(2)
       end)
 
-      tell(:log, "level1 end")
+      TaggedWriter.tell(:log, "level1 end")
       return({r2, logs2})
     end)
 
-    tell(:log, "outer end")
+    TaggedWriter.tell(:log, "outer end")
 
     return({r1, logs1})
   end
 
-  defcon listen_multiple_tags, [TaggedWriter] do
-    {result, all_logs} <- listen(con [TaggedWriter] do
-      tell(:audit, "a1")
-      tell(:debug, "d1")
-      tell(:audit, "a2")
-      tell(:debug, "d2")
-      tell(:audit, "a3")
-      tell(:debug, "d3")
+  defhefty listen_multiple_tags do
+    {result, all_logs} <- HeftyTaggedWriter.listen(hefty do
+      TaggedWriter.tell(:audit, "a1")
+      TaggedWriter.tell(:debug, "d1")
+      TaggedWriter.tell(:audit, "a2")
+      TaggedWriter.tell(:debug, "d2")
+      TaggedWriter.tell(:audit, "a3")
+      TaggedWriter.tell(:debug, "d3")
       return(:done)
     end)
 
     return({result, all_logs})
   end
 
-  defcon listen_with_state, [TaggedWriter, State] do
+  defhefty listen_with_state do
     State.put(0)
 
-    {result, logs} <- listen(con [TaggedWriter, State] do
+    {result, logs} <- HeftyTaggedWriter.listen(hefty do
       count1 <- State.get()
       State.put(count1 + 1)
-      tell(:counter, {:count, count1})
+      TaggedWriter.tell(:counter, {:count, count1})
 
       count2 <- State.get()
       State.put(count2 + 1)
-      tell(:counter, {:count, count2})
+      TaggedWriter.tell(:counter, {:count, count2})
 
       State.get()
     end)
@@ -675,20 +699,20 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
   describe "listen operation" do
     test "simple listen captures inner logs for all tags" do
-      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
-      outcome = Run.run(simple_listen(), runner)
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
+      outcome = Hefty.Run.run(simple_listen(), algebras, handlers, initial_states)
 
       {result, captured_logs} = outcome.result.value
 
       assert result == 42
       assert captured_logs == %{audit: ["inner2", "inner1"]}
       # Inner logs should also be added to final output
-      assert outcome.outputs.tw == %{audit: ["inner2", "inner1"]}
+      assert outcome.outputs[TaggedWriter.Handler] == %{audit: ["inner2", "inner1"]}
     end
 
     test "listen separates inner and outer logs" do
-      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
-      outcome = Run.run(listen_with_outer_logs(), runner)
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
+      outcome = Hefty.Run.run(listen_with_outer_logs(), algebras, handlers, initial_states)
 
       {result, inner_logs} = outcome.result.value
 
@@ -696,12 +720,12 @@ defmodule Freyja.Effects.TaggedWriterTest do
       # Inner logs are captured separately (map with audit tag)
       assert inner_logs == %{audit: ["inner2", "inner1"]}
       # Final output has all logs in order
-      assert outcome.outputs.tw == %{audit: ["after", "inner2", "inner1", "before"]}
+      assert outcome.outputs[TaggedWriter.Handler] == %{audit: ["after", "inner2", "inner1", "before"]}
     end
 
     test "nested listen operations" do
-      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
-      outcome = Run.run(nested_listen(), runner)
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
+      outcome = Hefty.Run.run(nested_listen(), algebras, handlers, initial_states)
 
       {{level2_result, level2_logs}, level1_logs} = outcome.result.value
 
@@ -710,14 +734,14 @@ defmodule Freyja.Effects.TaggedWriterTest do
       assert level1_logs == %{log: ["level1 end", "level2", "level1 start"]}
 
       # Final output has everything
-      assert outcome.outputs.tw == %{
+      assert outcome.outputs[TaggedWriter.Handler] == %{
         log: ["outer end", "level1 end", "level2", "level1 start", "outer start"]
       }
     end
 
     test "listen captures multiple tags simultaneously" do
-      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
-      outcome = Run.run(listen_multiple_tags(), runner)
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
+      outcome = Hefty.Run.run(listen_multiple_tags(), algebras, handlers, initial_states)
 
       {result, all_logs} = outcome.result.value
 
@@ -729,57 +753,56 @@ defmodule Freyja.Effects.TaggedWriterTest do
       }
 
       # Final outputs have all logs
-      assert outcome.outputs.tw.audit == ["a3", "a2", "a1"]
-      assert outcome.outputs.tw.debug == ["d3", "d2", "d1"]
+      tw_output = outcome.outputs[TaggedWriter.Handler]
+      assert tw_output.audit == ["a3", "a2", "a1"]
+      assert tw_output.debug == ["d3", "d2", "d1"]
     end
 
     test "listen with State effect" do
-      runner = Run.with_handlers(
-        tw: {TaggedWriter.Handler, %{}},
-        s: {State.Handler, 0}
-      )
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
+      {algebras, handlers, initial_states} = add_state_handler({algebras, handlers, initial_states}, 0)
 
-      outcome = Run.run(listen_with_state(), runner)
+      outcome = Hefty.Run.run(listen_with_state(), algebras, handlers, initial_states)
 
       {result, logs} = outcome.result.value
 
       assert result == 2
       assert logs == %{counter: [{:count, 1}, {:count, 0}]}
-      assert outcome.outputs.s == 2
+      assert outcome.outputs[State.Handler] == 2
     end
 
     test "listen with empty inner computation" do
-      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
 
-      computation = con [TaggedWriter] do
-        listen(return(:empty))
+      computation = hefty do
+        HeftyTaggedWriter.listen(return(:empty))
       end
 
-      outcome = Run.run(computation, runner)
+      outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       {result, logs} = outcome.result.value
 
       assert result == :empty
       assert logs == %{}
-      assert outcome.outputs.tw == %{}
+      assert outcome.outputs[TaggedWriter.Handler] == %{}
     end
 
     test "listen captures all tags written inside" do
-      runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
+      {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
 
-      computation = con [TaggedWriter] do
-        {result, all_logs} <- listen(con [TaggedWriter] do
-          tell(:audit, "audit1")
-          tell(:debug, "debug1")
-          tell(:audit, "audit2")
-          tell(:metrics, "metric1")
+      computation = hefty do
+        {result, all_logs} <- HeftyTaggedWriter.listen(hefty do
+          TaggedWriter.tell(:audit, "audit1")
+          TaggedWriter.tell(:debug, "debug1")
+          TaggedWriter.tell(:audit, "audit2")
+          TaggedWriter.tell(:metrics, "metric1")
           return(:done)
         end)
 
         return({result, all_logs})
       end
 
-      outcome = Run.run(computation, runner)
+      outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       {result, captured_logs} = outcome.result.value
 
@@ -792,7 +815,8 @@ defmodule Freyja.Effects.TaggedWriterTest do
       }
 
       # All logs present in final output
-      assert outcome.outputs.tw == %{
+      tw_output = outcome.outputs[TaggedWriter.Handler]
+      assert tw_output == %{
         audit: ["audit2", "audit1"],
         debug: ["debug1"],
         metrics: ["metric1"]

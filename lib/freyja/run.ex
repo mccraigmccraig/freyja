@@ -5,7 +5,6 @@ defmodule Freyja.Run do
 
   EffectHandlers are structs implementing the EffectHandler behaviour
   """
-  alias Freyja.ErrorResult
   alias Freyja.Freer
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
@@ -14,7 +13,6 @@ defmodule Freyja.Run do
   alias Freyja.Protocols.Result
   alias Freyja.Freer.Sig.ISendable
   alias Freyja.Run.RunEffects
-  alias Freyja.Run.RunEffects.ScopedError
   alias Freyja.Run.RunEffects.ScopedOk
   alias Freyja.Run.RunState
   alias Freyja.RunOutcome
@@ -223,39 +221,6 @@ defmodule Freyja.Run do
   # use the EffectHandler.scoped_error function to update each of the
   # effect states after a scoped handler returns
   #
-  # returns: an updated Map of effect states
-  @spec scoped_error_effect_states(RunState.t(), ScopedError.t()) :: map
-  defp scoped_error_effect_states(
-         %RunState{handlers: handlers, states: effect_states},
-         %ScopedError{
-           error: err,
-           run_outcome:
-             %RunOutcome{
-               result: scoped_effect_result,
-               run_state: %RunState{states: scoped_effect_states}
-             } = scoped_run_outcome
-         }
-       ) do
-    handlers
-    |> Enum.reduce(effect_states, fn {key, mod}, effect_states ->
-      if function_exported?(mod, :scoped_error, 6) do
-        updated_effect_state =
-          mod.scoped_error(
-            scoped_effect_result,
-            err,
-            key,
-            Map.get(effect_states, key),
-            Map.get(scoped_effect_states, key),
-            scoped_run_outcome
-          )
-
-        Map.put(effect_states, key, updated_effect_state)
-      else
-        # default - ignore the scoped state
-        effect_states
-      end
-    end)
-  end
 
   @doc """
   Interpret effects until there is only %Pure{} remaining - does not finalize.
@@ -342,39 +307,6 @@ defmodule Freyja.Run do
     interpreted
   end
 
-  def interpret_one(
-        %Impure{
-          sig: RunEffects,
-          data:
-            %ScopedError{
-              error: err,
-              run_outcome: %RunOutcome{result: _scoped_result}
-            } = scoped_return,
-          q: _q
-        } = _computation,
-        %RunState{} = run_state
-      ) do
-    # Logger.error(
-    #   "#{__MODULE__} ScopedError\n" <>
-    #     "effect: #{inspect(computation, pretty: true)}" <>
-    #     "run_state: #{inspect(run_state, pretty: true)}\n"
-    # )
-
-    updated_effect_states = scoped_error_effect_states(run_state, scoped_return)
-
-    interpreted = {
-      ErrorResult.error(err) |> Freer.return(),
-      %{run_state | states: updated_effect_states}
-    }
-
-    # Logger.error(
-    #   "#{__MODULE__} ScopedError OUT\n" <>
-    #     "effect: #{inspect(elem(interpreted, 0), pretty: true)}" <>
-    #     "run_state: #{inspect(elem(interpreted, 1), pretty: true)}\n"
-    # )
-
-    interpreted
-  end
 
   def interpret_one(
         %Impure{sig: _sig, data: _u, q: _q} = effect,

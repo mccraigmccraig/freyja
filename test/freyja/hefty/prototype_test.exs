@@ -16,8 +16,8 @@ defmodule Freyja.Hefty.PrototypeTest do
 
   alias Freyja.Hefty
   alias Freyja.Hefty.Run, as: HeftyRun
-  alias Freyja.Hefty.Effects.Catch
-  alias Freyja.Hefty.Effects.Catch.RunCatchingHandler
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Catch.RunCatchingHandler
   alias Freyja.Hefty.Effects.Lift
   alias Freyja.Hefty.Effects.HeftyError
   alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler

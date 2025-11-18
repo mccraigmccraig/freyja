@@ -6,7 +6,7 @@ defmodule Freyja.Effects.ErrorTest do
   import Freyja.HeftyMacro
 
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.Catch
+  alias Freyja.Effects.Catch
   alias Freyja.Hefty.Effects.Lift
   alias Freyja.Hefty.Effects.HeftyError
   alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler

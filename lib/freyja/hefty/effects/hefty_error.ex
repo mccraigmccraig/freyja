@@ -17,7 +17,7 @@ defmodule Freyja.Hefty.Effects.HeftyError do
 
   ## Note
 
-  Error handling (catch) is provided by the `Freyja.Hefty.Effects.Catch` higher-order
+  Error handling (catch) is provided by the `Freyja.Effects.Catch` higher-order
   effect, which elaborates using a runner effect. See `Catch.catch_hefty/2` for usage.
   """
 

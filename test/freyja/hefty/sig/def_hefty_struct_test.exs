@@ -8,7 +8,7 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
   and are distinct from first-order effect structs.
   """
 
-  alias Freyja.Hefty.Effects.Catch.Catch
+  alias Freyja.Effects.Catch.Catch
   alias Freyja.Hefty.Effects.Lift
   alias Freyja.Hefty.Sig.IHeftySendable
 

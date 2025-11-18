@@ -39,7 +39,7 @@ defmodule Freyja.Run.RunEffects do
 
   ## See Also
 
-  - `Freyja.Hefty.Effects.Catch.RunCatchingHandler` - Uses ScopedOk for state propagation
+  - `Freyja.Effects.Catch.RunCatchingHandler` - Uses ScopedOk for state propagation
   - `Freyja.Hefty.Effects.HeftyFxList.Algebra` - Uses ScopedOk for fork results
   """
   def scoped_return(value, run_outcome),

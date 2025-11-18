@@ -290,7 +290,7 @@ defmodule Freyja.HeftyMacro do
         # Import Hefty.return as return for convenience
         import Freyja.Hefty, only: [return: 1]
 
-        Freyja.Hefty.Effects.Catch.catch_hefty(
+        Freyja.Effects.Catch.catch_hefty(
           unquote(try_comp),
           unquote(handler_fn)
         )

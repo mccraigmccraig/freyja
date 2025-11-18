@@ -1,4 +1,4 @@
-defmodule Freyja.Hefty.Effects.Catch do
+defmodule Freyja.Effects.Catch do
   @moduledoc """
   Higher-order Catch effect for exception handling in Hefty computations.
 
@@ -13,7 +13,7 @@ defmodule Freyja.Hefty.Effects.Catch do
 
   ## Example
 
-      import Freyja.Hefty.Effects.Catch
+      import Freyja.Effects.Catch
 
       hefty do
         result <- catch_hefty(
@@ -47,7 +47,7 @@ defmodule Freyja.Hefty.Effects.Catch do
 
   ## See Also
 
-  - `Freyja.Hefty.Effects.Catch.Algebra` - The elaboration algebra
+  - `Freyja.Effects.Catch.Algebra` - The elaboration algebra
   - `Freyja.Effects.Error` - First-order error effects
   """
 
@@ -105,7 +105,7 @@ defmodule Freyja.Hefty.Effects.Catch do
   end
 end
 
-defmodule Freyja.Hefty.Effects.Catch.Algebra do
+defmodule Freyja.Effects.Catch.Algebra do
   @moduledoc """
   Algebra for elaborating Catch operations into first-order effects.
 
@@ -189,7 +189,7 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
 
   require Logger
 
-  alias Freyja.Hefty.Effects.Catch.Catch, as: CatchOp
+  alias Freyja.Effects.Catch.Catch, as: CatchOp
   alias Freyja.Freer
 
   # Simple runner effect for the prototype
@@ -201,7 +201,7 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
   end
 
   @impl true
-  def handles?(sig) when sig == Freyja.Hefty.Effects.Catch, do: true
+  def handles?(sig) when sig == Freyja.Effects.Catch, do: true
   def handles?(_), do: false
 
   @impl true
@@ -234,7 +234,7 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
   end
 end
 
-defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
+defmodule Freyja.Effects.Catch.RunCatchingHandler do
   @moduledoc """
   Handler for the RunCatching effect used by Catch.Algebra.
 
@@ -276,7 +276,7 @@ defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
 
   require Logger
 
-  alias Freyja.Hefty.Effects.Catch.Algebra.RunCatching
+  alias Freyja.Effects.Catch.Algebra.RunCatching
   alias Freyja.Freer.Impure
   alias Freyja.Run
   alias Freyja.Run.RunState
@@ -286,13 +286,13 @@ defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
 
   @impl true
   def handles?(%Impure{sig: sig}, _state) do
-    sig == Freyja.Hefty.Effects.Catch.Algebra
+    sig == Freyja.Effects.Catch.Algebra
   end
 
   @impl true
   def interpret(
         %Impure{
-          sig: Freyja.Hefty.Effects.Catch.Algebra,
+          sig: Freyja.Effects.Catch.Algebra,
           data: %RunCatching{computation: comp},
           q: q
         },

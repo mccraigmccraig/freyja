@@ -7,11 +7,11 @@ defmodule Freyja.Hefty.Sig.HeftySendable do
 
   ## Usage
 
-      defmodule Freyja.Hefty.Effects.Catch do
+      defmodule Freyja.Effects.Catch do
         defmodule Catch do
           defstruct [type: :any]
 
-          use Freyja.Hefty.Sig.HeftySendable, sig: Freyja.Hefty.Effects.Catch
+          use Freyja.Hefty.Sig.HeftySendable, sig: Freyja.Effects.Catch
         end
       end
 

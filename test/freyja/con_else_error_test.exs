@@ -3,7 +3,8 @@ defmodule Freyja.ConElseErrorTest do
 
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.{Lift, Catch, HeftyError}
+  alias Freyja.Hefty.Effects.{Lift, HeftyError}
+  alias Freyja.Effects.Catch
 
   describe "hefty ... catch error handling" do
     test "matches a pattern and recovers" do

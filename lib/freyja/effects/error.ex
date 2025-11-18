@@ -5,12 +5,12 @@ defmodule Freyja.Effects.Error do
   This module provides ONLY the `throw_fx` operation (first-order).
 
   For the higher-order `catch` operation (catching and handling errors),
-  use `Freyja.Hefty.Effects.Catch` which provides Hefty algebra-based
+  use `Freyja.Effects.Catch` which provides Hefty algebra-based
   exception handling.
 
   ## See Also
 
-  - `Freyja.Hefty.Effects.Catch` - For the higher-order catch operation
+  - `Freyja.Effects.Catch` - For the higher-order catch operation
   - `Freyja.Hefty.Effects.HeftyError` - For Hefty-compatible error operations
   """
   import Freyja.Freer.Sig.DefEffectStruct
@@ -25,7 +25,7 @@ defmodule Freyja.Effects.Error.Handler do
   Handler for first-order Error operations (throw only).
 
   This is now a simple first-order effect handler. The scoped `catch_fx` operation
-  has been removed and is available via `Freyja.Hefty.Effects.Catch` as a Hefty
+  has been removed and is available via `Freyja.Effects.Catch` as a Hefty
   algebra-based higher-order effect.
 
   ## Operations
@@ -34,7 +34,7 @@ defmodule Freyja.Effects.Error.Handler do
 
   ## See Also
 
-  - `Freyja.Hefty.Effects.Catch` - For the higher-order catch operation
+  - `Freyja.Effects.Catch` - For the higher-order catch operation
   """
 
   alias Freyja.ErrorResult

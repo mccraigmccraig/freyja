@@ -1,4 +1,4 @@
-defmodule Freyja.Sig.DefHeftyStructTest do
+defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
   use ExUnit.Case, async: true
 
   @moduledoc """

@@ -1,4 +1,4 @@
-defmodule Freyja.Sig.DefHeftyStruct do
+defmodule Freyja.Hefty.Sig.DefHeftyStruct do
   @moduledoc """
   Macro for defining higher-order effect operation structs.
 
@@ -14,7 +14,7 @@ defmodule Freyja.Sig.DefHeftyStruct do
   ## Usage
 
       defmodule Freyja.Hefty.Effects.Catch do
-        import Freyja.Sig.DefHeftyStruct
+        import Freyja.Hefty.Sig.DefHeftyStruct
 
         # Higher-order operation
         def_hefty_struct(Catch, type: :any)

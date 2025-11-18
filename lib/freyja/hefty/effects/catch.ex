@@ -51,7 +51,7 @@ defmodule Freyja.Hefty.Effects.Catch do
   - `Freyja.Effects.Error` - First-order error effects
   """
 
-  import Freyja.Sig.DefHeftyStruct
+  import Freyja.Hefty.Sig.DefHeftyStruct
 
   # The Catch operation struct
   # Fields: type - Optional type filter (currently unused, for future extension)

@@ -78,7 +78,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
   - `Freyja.Hefty.Effects.HeftyFxList.Algebra` - The elaboration algebra
   """
 
-  import Freyja.Sig.DefHeftyStruct
+  import Freyja.Hefty.Sig.DefHeftyStruct
 
   # FxMap operation - map with effectful function
   # Fields: list (the list to map over), f (effectful function)

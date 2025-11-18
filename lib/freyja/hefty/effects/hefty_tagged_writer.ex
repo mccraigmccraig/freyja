@@ -35,7 +35,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriter do
   - Uses runner effect pattern (like Catch and FxReduce)
   """
 
-  import Freyja.Sig.DefHeftyStruct
+  import Freyja.Hefty.Sig.DefHeftyStruct
 
   # Listen operation - higher-order effect that captures logs
   def_hefty_struct(Listen, [])

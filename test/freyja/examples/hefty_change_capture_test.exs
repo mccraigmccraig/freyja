@@ -3,7 +3,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
 
   alias Freyja.Examples.HeftyChangeCapture
   alias Freyja.Examples.HeftyChangeCapture.Storage
-  alias Freyja.Hefty.Effects.{HeftyTaggedWriter, Lift}
+  alias Freyja.Hefty.Effects.Lift
   alias Freyja.Effects.{FxList, TaggedWriter, State}
   alias Freyja.Hefty.Run
 
@@ -21,7 +21,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         Lift.Algebra,
         Storage.Algebra,
         FxList.Algebra,
-        HeftyTaggedWriter.Algebra
+        TaggedWriter.Algebra
       ]
 
       # Handlers for first-order effects (including runner effects)
@@ -29,7 +29,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         Storage.Handler,
         TaggedWriter.Handler,
         State.Handler,
-        HeftyTaggedWriter.RunListenHandler
+        TaggedWriter.RunListenHandler
       ]
 
       initial_states = %{
@@ -70,8 +70,8 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
     end
 
     test "handles empty user list" do
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, HeftyTaggedWriter.Algebra]
-      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, HeftyTaggedWriter.RunListenHandler]
+      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
+      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, TaggedWriter.RunListenHandler]
       initial_states = %{
         Storage.Handler => %{},
         TaggedWriter.Handler => %{},
@@ -101,8 +101,8 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         3 => %{id: 3, name: "Charlie", email: "charlie@test.com", created_at: ~D[2020-03-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, HeftyTaggedWriter.Algebra]
-      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, HeftyTaggedWriter.RunListenHandler]
+      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
+      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, TaggedWriter.RunListenHandler]
       initial_states = %{
         Storage.Handler => initial_users,
         TaggedWriter.Handler => %{},
@@ -151,8 +151,8 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         1 => %{id: 1, name: "Alice", email: "alice@example.com", created_at: ~D[2020-01-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, HeftyTaggedWriter.Algebra]
-      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, HeftyTaggedWriter.RunListenHandler]
+      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
+      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, TaggedWriter.RunListenHandler]
       initial_states = %{
         Storage.Handler => initial_users,
         TaggedWriter.Handler => %{},
@@ -198,8 +198,8 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         2 => %{id: 2, name: "Bob", email: "bob@example.com", created_at: ~D[2020-02-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, HeftyTaggedWriter.Algebra]
-      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, HeftyTaggedWriter.RunListenHandler]
+      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
+      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, TaggedWriter.RunListenHandler]
       initial_states = %{
         Storage.Handler => initial_users,
         TaggedWriter.Handler => %{},
@@ -242,8 +242,8 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         1 => %{id: 1, name: "Alice", email: "alice@example.com", created_at: ~D[2020-01-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, HeftyTaggedWriter.Algebra]
-      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, HeftyTaggedWriter.RunListenHandler]
+      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
+      handlers = [Storage.Handler, TaggedWriter.Handler, State.Handler, TaggedWriter.RunListenHandler]
       initial_states = %{
         Storage.Handler => initial_users,
         TaggedWriter.Handler => %{},

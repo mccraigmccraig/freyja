@@ -11,15 +11,14 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
   import Freyja.HeftyMacro
 
   alias Freyja.Hefty.Run, as: HeftyRun
-  alias Freyja.Hefty.Effects.HeftyTaggedWriter
-  alias Freyja.Hefty.Effects.HeftyTaggedWriter.RunListenHandler
-  alias Freyja.Hefty.Effects.Lift
   alias Freyja.Effects.TaggedWriter
+  alias Freyja.Effects.TaggedWriter.RunListenHandler
+  alias Freyja.Hefty.Effects.Lift
   alias Freyja.OkResult
 
   describe "listen/1 - basic functionality" do
     test "captures logs from inner computation" do
-      computation = HeftyTaggedWriter.listen(hefty do
+      computation = TaggedWriter.listen(hefty do
         TaggedWriter.tell(:audit, "event 1")
         TaggedWriter.tell(:audit, "event 2")
         return(:ok)
@@ -27,7 +26,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
       outcome = HeftyRun.run(
         computation,
-        [HeftyTaggedWriter.Algebra, Lift.Algebra],
+        [TaggedWriter.Algebra, Lift.Algebra],
         [TaggedWriter.Handler, RunListenHandler],
         %{TaggedWriter.Handler => %{}}
       )
@@ -37,7 +36,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
     end
 
     test "captures logs from multiple tags" do
-      computation = HeftyTaggedWriter.listen(hefty do
+      computation = TaggedWriter.listen(hefty do
         TaggedWriter.tell(:audit, "audit 1")
         TaggedWriter.tell(:debug, "debug 1")
         TaggedWriter.tell(:audit, "audit 2")
@@ -46,7 +45,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
       outcome = HeftyRun.run(
         computation,
-        [HeftyTaggedWriter.Algebra, Lift.Algebra],
+        [TaggedWriter.Algebra, Lift.Algebra],
         [TaggedWriter.Handler, RunListenHandler],
         %{TaggedWriter.Handler => %{}}
       )
@@ -57,13 +56,13 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
     end
 
     test "empty computation captures no logs" do
-      computation = HeftyTaggedWriter.listen(hefty do
+      computation = TaggedWriter.listen(hefty do
         return(:done)
       end)
 
       outcome = HeftyRun.run(
         computation,
-        [HeftyTaggedWriter.Algebra, Lift.Algebra],
+        [TaggedWriter.Algebra, Lift.Algebra],
         [TaggedWriter.Handler, RunListenHandler],
         %{TaggedWriter.Handler => %{}}
       )
@@ -76,7 +75,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
       computation = hefty do
         TaggedWriter.tell(:audit, "before")
 
-        {_result, captured} <- HeftyTaggedWriter.listen(hefty do
+        {_result, captured} <- TaggedWriter.listen(hefty do
           TaggedWriter.tell(:audit, "inner")
           return(:ok)
         end)
@@ -88,7 +87,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
       outcome = HeftyRun.run(
         computation,
-        [HeftyTaggedWriter.Algebra, Lift.Algebra],
+        [TaggedWriter.Algebra, Lift.Algebra],
         [TaggedWriter.Handler, RunListenHandler],
         %{TaggedWriter.Handler => %{}}
       )
@@ -106,10 +105,10 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
       computation = hefty do
         TaggedWriter.tell(:audit, "outer 1")
 
-        {_r1, outer_captured} <- HeftyTaggedWriter.listen(hefty do
+        {_r1, outer_captured} <- TaggedWriter.listen(hefty do
           TaggedWriter.tell(:audit, "middle 1")
 
-          {_r2, inner_captured} <- HeftyTaggedWriter.listen(hefty do
+          {_r2, inner_captured} <- TaggedWriter.listen(hefty do
             TaggedWriter.tell(:audit, "inner 1")
             TaggedWriter.tell(:audit, "inner 2")
             return(:inner_done)
@@ -125,7 +124,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
       outcome = HeftyRun.run(
         computation,
-        [HeftyTaggedWriter.Algebra, Lift.Algebra],
+        [TaggedWriter.Algebra, Lift.Algebra],
         [TaggedWriter.Handler, RunListenHandler],
         %{TaggedWriter.Handler => %{}}
       )

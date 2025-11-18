@@ -74,7 +74,6 @@ defmodule Freyja.Examples.HeftyChangeCapture do
   alias Freyja.Effects.State
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.FxList
-  alias Freyja.Hefty.Effects.HeftyTaggedWriter
 
   # Storage Effect Definition - Mixed first-order and higher-order
   defmodule Storage do
@@ -127,7 +126,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
 
     This is the key higher-order operation that:
     1. Runs the computation (which calls `change` operations)
-    2. Captures all changes via HeftyTaggedWriter.listen
+    2. Captures all changes via TaggedWriter.listen
     3. Applies changes in bulk via `update_all`
     4. Returns {result, all_logs}
 
@@ -222,7 +221,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     Compare this ~25 line algebra to the ~150 line scoped handler in old ChangeCapture!
 
     The elaboration is simple:
-    1. Use HeftyTaggedWriter.listen to wrap the inner computation
+    1. Use TaggedWriter.listen to wrap the inner computation
     2. Extract captured changes from logs
     3. Call update_all to apply changes in bulk
     4. Return {result, all_logs}
@@ -234,7 +233,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
 
     alias Freyja.Examples.HeftyChangeCapture.Storage
     alias Freyja.Examples.HeftyChangeCapture.Storage.ApplyAllChanges
-    alias Freyja.Hefty.Effects.HeftyTaggedWriter
+    alias Freyja.Effects.TaggedWriter
     alias Freyja.Freer
     import Freyja.Con
 
@@ -251,7 +250,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
       # This is the entire higher-order operation elaboration!
       con do
         # Use RunListen runner effect (first-order, already defined)
-        {result, all_logs} <- HeftyTaggedWriter.RunListen.run_listen(inner_comp)
+        {result, all_logs} <- TaggedWriter.RunListen.run_listen(inner_comp)
 
         # Extract captured changes
         changes = all_logs[:changes] || []
@@ -421,9 +420,9 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     TaggedWriter.tell(:stages, {:anonymization_complete, length(anonymize_changes)})
 
     # Stage 2: Audit trail (on already-processed users)
-    # Notice: We use HeftyTaggedWriter.listen directly here to get fresh user list
+    # Notice: We use TaggedWriter.listen directly here to get fresh user list
     {_audited_users, audit_logs} <-
-      HeftyTaggedWriter.listen(FxList.fx_map(anonymized_users, &audit_user/1))
+      TaggedWriter.listen(FxList.fx_map(anonymized_users, &audit_user/1))
 
     audit_entries = audit_logs[:audit] || []
     TaggedWriter.tell(:stages, {:audit_complete, length(audit_entries)})

@@ -11,15 +11,15 @@ defmodule Freyja.Effects.TaggedWriterTest do
   alias Freyja.Effects.Error
   alias Freyja.Run
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.{Lift, HeftyTaggedWriter}
+  alias Freyja.Hefty.Effects.Lift
 
   # Helper to create Hefty runner for tests with listen
   defp hefty_runner_with_tagged_writer(initial_tw_state \\ %{}, other_handlers \\ []) do
-    algebras = [Lift.Algebra, HeftyTaggedWriter.Algebra]
+    algebras = [Lift.Algebra, TaggedWriter.Algebra]
 
     handlers = [
       TaggedWriter.Handler,
-      HeftyTaggedWriter.RunListenHandler
+      TaggedWriter.RunListenHandler
       | other_handlers
     ]
 
@@ -257,7 +257,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   # Listen operations
   # Listen operations - migrated to Hefty
   defhefty simple_listen do
-    HeftyTaggedWriter.listen(hefty do
+    TaggedWriter.listen(hefty do
       TaggedWriter.tell(:audit, "inner1")
       TaggedWriter.tell(:audit, "inner2")
       return(42)
@@ -267,7 +267,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   defhefty listen_with_outer_logs do
     TaggedWriter.tell(:audit, "before")
 
-    {result, inner_logs} <- HeftyTaggedWriter.listen(hefty do
+    {result, inner_logs} <- TaggedWriter.listen(hefty do
       TaggedWriter.tell(:audit, "inner1")
       TaggedWriter.tell(:audit, "inner2")
       return(100)
@@ -281,10 +281,10 @@ defmodule Freyja.Effects.TaggedWriterTest do
   defhefty nested_listen do
     TaggedWriter.tell(:log, "outer start")
 
-    {r1, logs1} <- HeftyTaggedWriter.listen(hefty do
+    {r1, logs1} <- TaggedWriter.listen(hefty do
       TaggedWriter.tell(:log, "level1 start")
 
-      {r2, logs2} <- HeftyTaggedWriter.listen(hefty do
+      {r2, logs2} <- TaggedWriter.listen(hefty do
         TaggedWriter.tell(:log, "level2")
         return(2)
       end)
@@ -299,7 +299,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   defhefty listen_multiple_tags do
-    {result, all_logs} <- HeftyTaggedWriter.listen(hefty do
+    {result, all_logs} <- TaggedWriter.listen(hefty do
       TaggedWriter.tell(:audit, "a1")
       TaggedWriter.tell(:debug, "d1")
       TaggedWriter.tell(:audit, "a2")
@@ -315,7 +315,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   defhefty listen_with_state do
     State.put(0)
 
-    {result, logs} <- HeftyTaggedWriter.listen(hefty do
+    {result, logs} <- TaggedWriter.listen(hefty do
       count1 <- State.get()
       State.put(count1 + 1)
       TaggedWriter.tell(:counter, {:count, count1})
@@ -775,7 +775,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
 
       computation = hefty do
-        HeftyTaggedWriter.listen(return(:empty))
+        TaggedWriter.listen(return(:empty))
       end
 
       outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -791,7 +791,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
 
       computation = hefty do
-        {result, all_logs} <- HeftyTaggedWriter.listen(hefty do
+        {result, all_logs} <- TaggedWriter.listen(hefty do
           TaggedWriter.tell(:audit, "audit1")
           TaggedWriter.tell(:debug, "debug1")
           TaggedWriter.tell(:audit, "audit2")

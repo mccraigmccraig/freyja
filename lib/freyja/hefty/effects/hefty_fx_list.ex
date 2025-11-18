@@ -5,24 +5,24 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
   Provides map and reduce operations with effectful functions, demonstrating
   the power and simplicity of the Hefty algebras approach.
 
-  ## Comparison with Legacy FxList
+  ## Benefits of Hefty Algebra Approach
 
-  **Old FxList.Handler** (lib/freyja/effects/fx_list.ex):
-  - ~150 lines of complex code
-  - Manual RunOutcome handling
-  - ScopedOk/ScopedError callbacks
-  - Tricky queue management (see comments in code)
-  - Manual continuation wrapping for suspensions
-  - Fragile and hard to understand
-
-  **New HeftyFxList.Algebra**:
-  - ~20 lines of simple code
+  **HeftyFxList.Algebra** (this module):
+  - ~40 lines total (module + algebra)
   - Just sequences computations
   - No special cases for suspension/error
   - No queue management
   - Self-explanatory
 
-  This is the **15x complexity reduction** that Hefty algebras provide.
+  **Replaced old FxList.Handler**:
+  - Was ~228 lines of complex, fragile code
+  - Manual RunOutcome handling
+  - ScopedOk/ScopedError callbacks
+  - Tricky queue management
+  - Manual continuation wrapping for suspensions
+  - Hard to understand and maintain
+
+  This is a **~6x code reduction** with dramatically improved clarity and correctness.
 
   ## Operations
 
@@ -74,7 +74,6 @@ defmodule Freyja.Hefty.Effects.HeftyFxList do
 
   ## See Also
 
-  - `Freyja.Effects.FxList` - Legacy implementation (for comparison)
   - `Freyja.Hefty.Effects.HeftyFxList.Algebra` - The elaboration algebra
   """
 

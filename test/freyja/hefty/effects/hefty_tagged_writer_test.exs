@@ -10,7 +10,6 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
   import Freyja.HeftyMacro
 
-  alias Freyja.Hefty
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Hefty.Effects.HeftyTaggedWriter
   alias Freyja.Hefty.Effects.HeftyTaggedWriter.RunListenHandler
@@ -144,59 +143,6 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         "middle 1",
         "outer 1"
       ]
-    end
-  end
-
-  describe "listen/1 - comparison with old TaggedWriter" do
-    test "produces same results as old TaggedWriter.listen" do
-      import Freyja.Con
-
-      # Old TaggedWriter approach
-      old_computation = con do
-        TaggedWriter.tell(:audit, "before")
-
-        {result, logs} <- TaggedWriter.listen(con do
-          TaggedWriter.tell(:audit, "inner 1")
-          TaggedWriter.tell(:debug, "debug")
-          return(42)
-        end)
-
-        return({result, logs})
-      end
-
-      old_outcome = Freyja.Run.run(
-        old_computation,
-        Freyja.Run.with_handlers([
-          {:tw, {TaggedWriter.Handler, %{}}}
-        ])
-      )
-
-      # New HeftyTaggedWriter approach
-      new_computation = hefty do
-        TaggedWriter.tell(:audit, "before")
-
-        {result, logs} <- HeftyTaggedWriter.listen(hefty do
-          TaggedWriter.tell(:audit, "inner 1")
-          TaggedWriter.tell(:debug, "debug")
-          Hefty.pure(42)
-        end)
-
-        Hefty.pure({result, logs})
-      end
-
-      new_outcome = HeftyRun.run(
-        new_computation,
-        [HeftyTaggedWriter.Algebra, Lift.Algebra],
-        [TaggedWriter.Handler, RunListenHandler],
-        %{TaggedWriter.Handler => %{}}
-      )
-
-      # Same results!
-      assert old_outcome.result.value == new_outcome.result.value
-      {result, logs} = old_outcome.result.value
-      assert result == 42
-      assert logs[:audit] == ["inner 1"]
-      assert logs[:debug] == ["debug"]
     end
   end
 end

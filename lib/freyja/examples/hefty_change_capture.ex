@@ -2,47 +2,69 @@ defmodule Freyja.Examples.HeftyChangeCapture do
   @moduledoc """
   Example demonstrating real-world effectful processing using Hefty algebras.
 
-  This is a reimplementation of ChangeCapture using Hefty higher-order effects,
-  showcasing how to combine first-order and higher-order operations in a single
-  effect signature.
+  This showcases TWO key benefits of algebraic effects with Hefty:
 
-  This example shows:
-  - Storage effect with BOTH first-order and higher-order operations
-  - First-order: `query`, `change`, `update_all` (handled by EffectHandler)
-  - Higher-order: `apply_all_changes` (elaborated by Algebra)
-  - HeftyTaggedWriter for capturing changes during processing
-  - HeftyFxList for mapping over collections
-  - State effect for counting processed records
-  - Using Hefty algebras to elaborate higher-order operations
+  ## 1. Effect Polymorphism (The Main Point!)
 
-  ## Key Differences from Old ChangeCapture
+  The `process_users/2` function takes a `process_user_fn` parameter and doesn't
+  need to know what effects it uses:
+
+      # Simple email removal - uses Storage.change + State
+      process_users(ids, &remove_email_from_user/1)
+
+      # With validation - adds TaggedWriter effect
+      process_users(ids, &validate_and_update_user/1)
+
+      # Audit only - uses TaggedWriter + State, NO Storage.change
+      process_users(ids, &audit_user/1)
+
+  **No parameter threading!** No accumulators, no context objects, no callbacks.
+  The processing function uses whatever effects it needs, and they compose naturally.
+
+  Compare to traditional approaches:
+  - Callbacks: Must wire up each callback manually
+  - Context objects: Must thread context through every function
+  - Accumulators: Must add parameters for each type of output
+  - Reader/Writer monads: Must stack transformers and lift everywhere
+
+  With algebraic effects: **Just write the code. Effects compose automatically.**
+
+  ## 2. Complexity Reduction via Hefty Algebras
 
   **Old approach (Freer scoped effects):**
-  - `apply_all_changes` was first-order but had to manually handle scoped outcomes
-  - Used `TaggedWriter.listen` which required complex scoped handler
-  - ~150 lines of fragile handler code
+  - ~150 lines of complex scoped handler code
+  - Manual RunOutcome handling
+  - Fragile suspension management
+  - Hard to understand and maintain
 
   **New approach (Hefty algebras):**
-  - `apply_all_changes` is higher-order (takes computation parameter)
-  - Elaborates to first-order effects using `HeftyTaggedWriter.listen`
-  - Algebra is ~20 lines, handler is simple
-  - Suspensions/errors handled uniformly by runtime
+  - ~25 lines of simple algebra code
+  - No manual outcome handling
+  - Suspensions handled uniformly
+  - Self-explanatory
+
+  ## Mixed First-Order and Higher-Order Effects
+
+  The Storage effect demonstrates that a SINGLE signature can have BOTH:
+  - First-order: `query`, `change`, `update_all` (handled by EffectHandler)
+  - Higher-order: `apply_all_changes` (elaborated by Algebra)
+
+  Both `def_effect_struct` and `def_hefty_struct` coexist in the same module.
 
   ## Scenario
 
-  Process a collection of User records:
+  Process a collection of User records with pluggable processing logic:
   1. Query users from storage
-  2. Map over each user, removing email fields
-  3. Track each change with HeftyTaggedWriter
-  4. Count processed records with State
-  5. Use `apply_all_changes` to capture changes and bulk update
-  6. Elaborate higher-order ops before interpretation
+  2. Map over each user with supplied processing function
+  3. Capture changes via HeftyTaggedWriter
+  4. Apply changes in bulk
+  5. Return results with captured logs
 
   This pattern is useful for:
   - Audit logging with bulk commits
-  - Batch database updates
+  - Batch database updates with flexible processing
   - Change tracking and replay
-  - Transactional operations with rollback
+  - Effect-polymorphic pipelines
   """
 
   import Freyja.Freer.Sig.DefEffectStruct
@@ -243,61 +265,72 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     end
   end
 
-  # Example: Remove email from users with change tracking
-  defhefty remove_email_from_user(user) do
-    # Create new user without email
-    updated_user = Map.delete(user, :email)
+  @doc """
+  Generic user processing with change capture.
 
-    # Record the change (first-order, lifted automatically)
-    Storage.change(user, updated_user)
+  This is the KEY example showing effect polymorphism and composition!
 
-    # Increment processed count (first-order, lifted automatically)
-    State.update(&(&1 + 1))
+  The `process_user_fn` can use ANY effects it wants:
+  - State (for counting)
+  - TaggedWriter (for logging/validation)
+  - Storage.change (for recording changes)
+  - Error (for throwing)
+  - Any combination!
 
-    return(updated_user)
-  end
+  The caller doesn't need to know what effects are used. No need to:
+  - Thread state parameters through
+  - Pass accumulators for logging
+  - Manually wire up callbacks
+  - Add parameters for every possible output
 
-  defhefty process_users(user_ids) do
-    # Query users from storage (first-order, lifted)
+  The effects compose naturally. This is the power of algebraic effects!
+  """
+  defhefty process_users(user_ids, process_user_fn) do
+    # Query users from storage (first-order, auto-lifted)
     users <- Storage.query(user_ids)
 
     # Process users with change tracking
-    # apply_all_changes is higher-order - uses HeftyFxList and HeftyTaggedWriter
+    #
+    # The process_user_fn can use ANY effects - we don't need to know!
+    #
+    # Storage.apply_all_changes is a "higher-order" operation - it
+    # takes a computation as a parameter, and captures the outputs
+    # it needs by running that computation. In this case, it captures
+    # all the values given to the Storage.change operations
+    #
+    # All Storage.change does is append the change to a list (Using
+    # a TaggedWriter.tell effect) - so the process_user_fn doesn't write
+    # to the db
+    #
+    # Storage.apply_all_changes uses a TaggedWriter.listen
+    # effect to capture all the logged changes, and can then apply them
+    # to the (hypothetical) database in bulk
+    #
+    # You write simple single-value oriented code, but get bulk-operation
+    # performance
     {updated_users, all_logs} <-
-      Storage.apply_all_changes(HeftyFxList.fx_map(users, &remove_email_from_user/1))
+      Storage.apply_all_changes(HeftyFxList.fx_map(users, process_user_fn))
 
-    captured_changes = all_logs[:changes] || []
-
-    # Get final count of processed records (lifted)
+    # Get final count of processed records (auto-lifted)
     processed_count <- State.get()
 
     return(%{
       updated_users: updated_users,
-      captured_changes: captured_changes,
-      processed_count: processed_count,
-      update_count: Enum.count(captured_changes)
+      all_logs: all_logs,
+      processed_count: processed_count
     })
   end
 
-  # More complex example: Conditional updates with validation
-  defhefty validate_and_update_user(user) do
-    # Only remove email if it's a test email
-    is_test_email = String.ends_with?(user.email || "", "@test.com")
+  # Example processing functions - each uses different effects
 
-    updated_user <-
-      if is_test_email do
-        hefty do
-          new_user = Map.put(user, :email, nil)
-          Storage.change(user, new_user)
-          TaggedWriter.tell(:validations, {:removed_test_email, user.id})
-          return(new_user)
-        end
-      else
-        hefty do
-          TaggedWriter.tell(:validations, {:kept_email, user.id})
-          return(user)
-        end
-      end
+  @doc """
+  Simple email removal - uses Storage.change and State effects.
+  """
+  defhefty remove_email_from_user(user) do
+    updated_user = Map.delete(user, :email)
+
+    # Record the change
+    Storage.change(user, updated_user)
 
     # Increment processed count
     State.update(&(&1 + 1))
@@ -305,32 +338,41 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     return(updated_user)
   end
 
-  defhefty process_users_with_validation(user_ids) do
-    # Query users (lifted)
-    users <- Storage.query(user_ids)
+  @doc """
+  Conditional updates with validation - uses Storage.change, State, and TaggedWriter.
 
-    # Process with both change and validation tracking
-    {updated_users, all_logs} <-
-      Storage.apply_all_changes(HeftyFxList.fx_map(users, &validate_and_update_user/1))
+  Notice: the processing function uses MORE effects than remove_email_from_user,
+  but process_users doesn't need to change! Effect polymorphism!
+  """
+  defhefty validate_and_update_user(user) do
+    is_test_email = String.ends_with?(user.email || "", "@test.com")
 
-    # Extract the specific logs we care about
-    captured_changes = all_logs[:changes] || []
-    validation_results = all_logs[:validations] || []
+    updated_user <-
+      if is_test_email do
+        hefty do
+          new_user = Map.put(user, :email, nil)
+          Storage.change(user, new_user)
+          # Extra effect: validation logging
+          TaggedWriter.tell(:validations, {:removed_test_email, user.id})
+          return(new_user)
+        end
+      else
+        hefty do
+          # Extra effect: validation logging (different tag)
+          TaggedWriter.tell(:validations, {:kept_email, user.id})
+          return(user)
+        end
+      end
 
-    # Get processed count (lifted)
-    processed_count <- State.get()
-
-    return(%{
-      updated_users: updated_users,
-      changes_applied: Enum.count(captured_changes),
-      processed_count: processed_count,
-      validations: validation_results
-    })
+    State.update(&(&1 + 1))
+    return(updated_user)
   end
 
-  # Example: Multi-stage processing with multiple listen scopes
+  @doc """
+  Anonymization - removes PII fields.
+  Uses same effects as remove_email_from_user but different logic.
+  """
   defhefty anonymize_user(user) do
-    # Remove PII fields
     anonymized = %{
       id: user.id,
       created_at: user.created_at
@@ -343,8 +385,13 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     return(anonymized)
   end
 
+  @doc """
+  Audit logging - different effects than the others!
+  Uses TaggedWriter and State, but NOT Storage.change.
+
+  This shows you can pass ANY effectful function to process_users.
+  """
   defhefty audit_user(user) do
-    # Log audit trail
     TaggedWriter.tell(:audit, %{
       action: :reviewed,
       user_id: user.id,
@@ -356,30 +403,35 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     return(user)
   end
 
+  @doc """
+  Multi-stage processing demonstrating composition of process_users.
+
+  Notice: We call process_users twice with different processing functions,
+  then compose the results. No need to create separate process_users_* variants!
+  """
   defhefty multi_stage_process(user_ids) do
-    users <- Storage.query(user_ids)
-
     # Stage 1: Anonymization with change capture
-    {anonymized_users, stage1_logs} <-
-      Storage.apply_all_changes(HeftyFxList.fx_map(users, &anonymize_user/1))
+    stage1_result <- process_users(user_ids, &anonymize_user/1)
+    anonymized_users = stage1_result.updated_users
+    anonymize_changes = stage1_result.all_logs[:changes] || []
 
-    anonymize_changes = stage1_logs[:changes] || []
     TaggedWriter.tell(:stages, {:anonymization_complete, length(anonymize_changes)})
 
-    # Stage 2: Audit trail
-    {_audited_users, stage2_logs} <-
+    # Stage 2: Audit trail (on already-processed users)
+    # Notice: We use HeftyTaggedWriter.listen directly here to get fresh user list
+    {_audited_users, audit_logs} <-
       HeftyTaggedWriter.listen(HeftyFxList.fx_map(anonymized_users, &audit_user/1))
 
-    audit_logs = stage2_logs[:audit] || []
-    TaggedWriter.tell(:stages, {:audit_complete, length(audit_logs)})
+    audit_entries = audit_logs[:audit] || []
+    TaggedWriter.tell(:stages, {:audit_complete, length(audit_entries)})
 
-    # Get final counts (both lifted)
+    # Get final counts
     total_processed <- State.get()
     all_stages <- TaggedWriter.peek(:stages)
 
     return(%{
       anonymized: length(anonymize_changes),
-      audited: length(audit_logs),
+      audited: length(audit_entries),
       total_processed: total_processed,
       stages: all_stages
     })

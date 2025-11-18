@@ -33,7 +33,7 @@ defmodule Freyja.HeftyMacro do
             State.put(x * 2)       # Freer - auto-lifted!
             Hefty.pure(x * 2)
           end,
-          Hefty.pure(0)
+          fn _err -> Hefty.pure(0) end
         )
         Hefty.pure(y)
       end
@@ -165,7 +165,7 @@ defmodule Freyja.HeftyMacro do
               Hefty.pure(x * 2)
             end
           end,
-          Hefty.pure(0)
+          fn _err -> Hefty.pure(0) end
         )
         Hefty.pure(result)
       end

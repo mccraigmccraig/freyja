@@ -39,7 +39,7 @@ defmodule Freyja.Hefty.Run do
           if x < 0, do: Lift.lift(Error.throw_fx("negative"))
           Hefty.pure(x * 2)
         end,
-        Hefty.pure(0)
+        fn _err -> Hefty.pure(0) end
       )
 
       # Run with algebras and handlers
@@ -133,7 +133,7 @@ defmodule Freyja.Hefty.Run do
       # With Catch and error handling
       computation = Catch.catch_hefty(
         Lift.lift(Error.throw_fx("error")),
-        Hefty.pure(:recovered)
+        fn _err -> Hefty.pure(:recovered) end
       )
 
       outcome = Hefty.Run.run(
@@ -149,7 +149,7 @@ defmodule Freyja.Hefty.Run do
         x <- Lift.lift(State.get())
         y <- Catch.catch_hefty(
           Lift.lift(computation_that_might_fail(x)),
-          Hefty.pure(0)
+          fn _err -> Hefty.pure(0) end
         )
         Lift.lift(State.put(x + y))
         Hefty.pure(y)
@@ -188,7 +188,7 @@ defmodule Freyja.Hefty.Run do
 
       computation = Catch.catch_hefty(
         Hefty.pure(42),
-        Hefty.pure(0)
+        fn _err -> Hefty.pure(0) end
       )
 
       outcome = Hefty.Run.run_simple(

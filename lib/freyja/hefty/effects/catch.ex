@@ -54,39 +54,52 @@ defmodule Freyja.Hefty.Effects.Catch do
   import Freyja.Hefty.Sig.DefHeftyStruct
 
   # The Catch operation struct
-  # Fields: type - Optional type filter (currently unused, for future extension)
-  def_hefty_struct(Catch, type: :any)
+  # Fields:
+  #   type - Optional type filter (currently unused, for future extension)
+  #   handler - Error handler function (error -> Hefty.t())
+  def_hefty_struct(Catch, type: :any, handler: nil)
 
   @doc """
-  Create a Catch operation with try and catch computations.
+  Create a Catch operation with try computation and error handler function.
 
   ## Parameters
 
   - `try_comp` - Hefty computation to attempt
-  - `catch_comp` - Hefty computation to run if try fails
+  - `error_handler_fn` - Function `(error -> Hefty.t())` that receives the error
+    and returns a Hefty computation for recovery
 
   ## Returns
 
-  A Hefty.Impure node with the Catch operation and two forks.
+  A Hefty.Impure node with the Catch operation and computation forks.
 
   ## Example
 
-      try_comp = hefty do
-        x <- Lift.lift(computation_that_might_fail())
-        Hefty.pure(x)
-      end
+      # Simple default value on error
+      result = catch_hefty(
+        hefty do
+          x <- Lift.lift(computation_that_might_fail())
+          Hefty.pure(x)
+        end,
+        fn _err -> Hefty.pure(:default_value) end
+      )
 
-      catch_comp = Hefty.pure(:default_value)
-
-      result = catch_hefty(try_comp, catch_comp)
+      # Pattern match on error
+      result = catch_hefty(
+        hefty do ... end,
+        fn
+          :not_found -> Hefty.pure(:default)
+          :timeout -> retry_computation()
+          other -> Hefty.pure({:error, other})
+        end
+      )
   """
-  def catch_hefty(try_comp, catch_comp) do
+  def catch_hefty(try_comp, error_handler_fn) when is_function(error_handler_fn, 1) do
     Freyja.Hefty.send_hefty(
       __MODULE__,
-      %Catch{type: :any},
+      %Catch{type: :any, handler: error_handler_fn},
       %{
-        try: try_comp,
-        catch: catch_comp
+        try: try_comp
+        # Note: catch handler is in the Catch struct, not in psi!
       }
     )
   end
@@ -192,10 +205,13 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
   def handles?(_), do: false
 
   @impl true
-  def elaborate(%CatchOp{} = _op, psi, k, _elaborator) do
-    # Extract already-elaborated Freer computations
+  def elaborate(%CatchOp{handler: error_handler_fn} = _op, psi, k, elaborator) do
+    # Extract already-elaborated try computation (Freer)
     try_comp = Map.fetch!(psi, :try)
-    catch_comp = Map.fetch!(psi, :catch)
+
+    # The error handler function is stored in the Catch struct
+    # It's NOT in psi, so it won't be pre-elaborated
+    # We'll call it dynamically when an error occurs
 
     # Use our own run_catching runner effect (not HeftyError.run_catching)
     # This ensures it gets handled by Catch.RunCatchingHandler which uses ScopedOk
@@ -206,9 +222,13 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
           # Success: continue with value
           k.(value)
 
-        {:error, _err} ->
-          # Error: run catch computation, then continue
-          Freer.bind(catch_comp, k)
+        {:error, err} ->
+          # Error: call handler function with error to get Hefty computation
+          catch_hefty_comp = error_handler_fn.(err)
+          # Elaborate the catch computation (it's Hefty, needs elaboration!)
+          catch_freer_comp = elaborator.(catch_hefty_comp)
+          # Then bind to continuation
+          Freer.bind(catch_freer_comp, k)
       end
     end)
   end

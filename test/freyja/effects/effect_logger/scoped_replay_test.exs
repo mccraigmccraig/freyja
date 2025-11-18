@@ -155,7 +155,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       computation = hefty do
         result <- Catch.catch_hefty(
           Hefty.pure(42),
-          Hefty.pure(0)
+          fn _err -> Hefty.pure(0) end
         )
 
         return(result)
@@ -193,7 +193,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       computation = hefty do
         result <- Catch.catch_hefty(
           Lift.lift(HeftyError.throw_error(:oops)),
-          Hefty.pure({:error, :oops})
+          fn _err -> Hefty.pure({:error, :oops}) end
         )
 
         case result do
@@ -241,7 +241,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       computation = hefty do
         result <- Catch.catch_hefty(
           inner_comp,
-          Hefty.pure({:error, :caught})
+          fn _err -> Hefty.pure({:error, :caught}) end
         )
 
         final_state <- Lift.lift(State.get())
@@ -346,7 +346,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
             else
               Hefty.pure({:ok, 10 / x})
             end,
-            Hefty.pure({:error, :divide_by_zero})
+            fn _err -> Hefty.pure({:error, :divide_by_zero}) end
           )
         end)
 
@@ -392,7 +392,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       computation = hefty do
         result <- Catch.catch_hefty(
           inner_catch,
-          Hefty.pure({:error, :caught})
+          fn _err -> Hefty.pure({:error, :caught}) end
         )
 
         case result do

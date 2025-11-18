@@ -202,7 +202,9 @@ defmodule Freyja.Hefty.Elaborate do
     # Now call the algebra with already-elaborated parts
     # The algebra receives Freer computations in psi and k,
     # and returns a Freer computation
-    algebra.elaborate(op, elaborated_psi, elaborated_k, algebra)
+    # The 4th parameter is an elaborator function for dynamic Hefty elaboration
+    elaborator = fn hefty_comp -> do_elaborate(hefty_comp, algebras) end
+    algebra.elaborate(op, elaborated_psi, elaborated_k, elaborator)
   end
 
   # Find algebra that handles the given signature

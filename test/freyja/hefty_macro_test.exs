@@ -136,7 +136,7 @@ defmodule Freyja.HeftyMacroTest do
           y <-
             Catch.catch_hefty(
               Hefty.pure(10),
-              Hefty.pure(0)
+              fn _err -> Hefty.pure(0) end
             )
 
           # Hefty - stays as-is
@@ -198,7 +198,7 @@ defmodule Freyja.HeftyMacroTest do
                   Hefty.pure(x * 2)
                 end
               end,
-              Hefty.pure(0)
+              fn _err -> Hefty.pure(0) end
             )
 
           Hefty.pure(result)
@@ -265,7 +265,7 @@ defmodule Freyja.HeftyMacroTest do
               Hefty.pure(value * 2)
             end
           end,
-          Hefty.pure(0)
+          fn _err -> Hefty.pure(0) end
         )
 
       Hefty.pure(result)

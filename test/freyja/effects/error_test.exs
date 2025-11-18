@@ -41,7 +41,7 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              Hefty.pure({:recovered, :bad})
+              fn _err -> Hefty.pure({:recovered, :bad}) end
             )
 
           return(res)
@@ -59,7 +59,7 @@ defmodule Freyja.Effects.ErrorTest do
     test "catch passes through success" do
       fv =
         hefty do
-          res <- Catch.catch_hefty(Hefty.pure(42), Hefty.pure(0))
+          res <- Catch.catch_hefty(Hefty.pure(42), fn _err -> Hefty.pure(0) end)
           return(res)
         end
 
@@ -81,7 +81,7 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(Writer.tell(:from_inner))
                 return(42)
               end,
-              Hefty.pure(0)
+              fn _err -> Hefty.pure(0) end
             )
 
           Lift.lift(Writer.tell(:from_outer_2))
@@ -111,8 +111,10 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              hefty do
-                Lift.lift(HeftyError.throw_error(:also_bad))
+              fn _err ->
+                hefty do
+                  Lift.lift(HeftyError.throw_error(:also_bad))
+                end
               end
             )
 
@@ -142,7 +144,7 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              Hefty.pure({:recovered, :bad})
+              fn _err -> Hefty.pure({:recovered, :bad}) end
             )
 
           Lift.lift(Writer.tell(:from_outer_2))
@@ -170,7 +172,7 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(State.put(a + 5))
                 return(42)
               end,
-              Hefty.pure(0)
+              fn _err -> Hefty.pure(0) end
             )
 
           b <- Lift.lift(State.get())
@@ -202,8 +204,10 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              hefty do
-                Lift.lift(HeftyError.throw_error(:also_bad))
+              fn _err ->
+                hefty do
+                  Lift.lift(HeftyError.throw_error(:also_bad))
+                end
               end
             )
 
@@ -236,7 +240,7 @@ defmodule Freyja.Effects.ErrorTest do
                 Lift.lift(HeftyError.throw_error(:bad))
                 return(:nope)
               end,
-              Hefty.pure({:recovered, :bad})
+              fn _err -> Hefty.pure({:recovered, :bad}) end
             )
 
           b <- Lift.lift(State.get())

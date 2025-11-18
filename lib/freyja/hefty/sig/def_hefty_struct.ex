@@ -20,11 +20,11 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
         def_hefty_struct(Catch, type: :any)
 
         # Convenience function for creating Catch operations
-        def catch_hefty(try_comp, catch_comp) do
+        def catch_hefty(try_comp, error_handler_fn) do
           Freyja.Hefty.send_hefty(
             __MODULE__,
             %Catch{type: :any},
-            %{try: try_comp, catch: catch_comp}
+            %{try: try_comp, catch: error_handler_fn}
           )
         end
       end

@@ -1,6 +1,6 @@
 defmodule Freyja.Effects.Reader do
   @moduledoc "Operations (Ops) for the Reader effect"
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Ask)
 

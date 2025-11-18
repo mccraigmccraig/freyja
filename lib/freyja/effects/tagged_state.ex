@@ -37,7 +37,7 @@ defmodule Freyja.Effects.TaggedState do
   are recommended for clarity and performance.
   """
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(GetTagged, tag: nil)
   def_effect_struct(PutTagged, tag: nil, val: nil)

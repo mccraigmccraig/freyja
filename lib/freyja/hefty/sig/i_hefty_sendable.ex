@@ -10,7 +10,7 @@ defprotocol Freyja.Hefty.Sig.IHeftySendable do
 
   ## Design Philosophy
 
-  Similar to `Freyja.Sig.ISendable` for Freer, this protocol:
+  Similar to `Freyja.Freer.Sig.ISendable` for Freer, this protocol:
   - Determines what can be used in Hefty computations
   - Enables auto-lifting of Freer effects via Lift
   - Throws clear errors for unsupported types (NO Any fallback!)
@@ -61,7 +61,7 @@ defprotocol Freyja.Hefty.Sig.IHeftySendable do
 
   ## Comparison with Freer.Sig.ISendable
 
-  | Protocol | Freyja.Sig.ISendable | Freyja.Hefty.Sig.IHeftySendable |
+  | Protocol | Freyja.Freer.Sig.ISendable | Freyja.Hefty.Sig.IHeftySendable |
   |----------|----------------------|---------------------------------|
   | Module   | ISendable            | IHeftySendable                  |
   | Method   | `send/2`             | `send_to_hefty/1`           |
@@ -71,7 +71,7 @@ defprotocol Freyja.Hefty.Sig.IHeftySendable do
 
   ## See Also
 
-  - `Freyja.Sig.ISendable` - Protocol for first-order effects
+  - `Freyja.Freer.Sig.ISendable` - Protocol for first-order effects
   - `Freyja.Hefty.Effects.Lift` - Bridges Freer to Hefty
   - `Freyja.Hefty.bind/2` - Uses protocol for auto-lifting
   """
@@ -198,7 +198,7 @@ defimpl Freyja.Hefty.Sig.IHeftySendable, for: Any do
   @moduledoc """
   Fallback for types that might be first-order effect operations.
 
-  Attempts to convert via Freyja.Sig.ISendable (first-order effects),
+  Attempts to convert via Freyja.Freer.Sig.ISendable (first-order effects),
   then lift the resulting Freer to Hefty.
 
   This allows bare effect operation structs (like %State.Get{}, %Reader.Ask{})
@@ -209,7 +209,7 @@ defimpl Freyja.Hefty.Sig.IHeftySendable, for: Any do
   """
 
   alias Freyja.Hefty.Effects.Lift
-  alias Freyja.Sig.ISendable
+  alias Freyja.Freer.Sig.ISendable
 
   def send_to_hefty(value) do
     # Try to send as first-order effect

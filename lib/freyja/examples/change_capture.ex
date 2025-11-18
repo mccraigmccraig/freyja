@@ -27,7 +27,7 @@ defmodule Freyja.Examples.ChangeCapture do
   - Optimistic locking with conflict detection
   """
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Con
 
   alias Freyja.Effects.State
@@ -45,7 +45,7 @@ defmodule Freyja.Examples.ChangeCapture do
     - `update_all(changes)` - Apply a list of changes in bulk
     """
 
-    import Freyja.Sig.DefEffectStruct
+    import Freyja.Freer.Sig.DefEffectStruct
 
     def_effect_struct(Query, ids: [])
     def_effect_struct(Change, old: nil, new: nil)

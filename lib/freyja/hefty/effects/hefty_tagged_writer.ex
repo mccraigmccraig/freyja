@@ -70,7 +70,7 @@ end
 
 # First-order runner effect for listen
 defmodule Freyja.Hefty.Effects.HeftyTaggedWriter.RunListen do
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(RunListen, computation: nil)
 

@@ -2,7 +2,7 @@ defmodule Freyja.Effects.State do
   @moduledoc """
   Operations in the State effect
   """
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Get)
   def_effect_struct(Put, val: nil)

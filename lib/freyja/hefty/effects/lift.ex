@@ -102,7 +102,7 @@ defmodule Freyja.Hefty.Effects.Lift do
   end
 
   def lift(freer_comp) do
-    Freyja.Sig.ISendable.send(freer_comp) |> lift()
+    Freyja.Freer.Sig.ISendable.send(freer_comp) |> lift()
   end
 end
 

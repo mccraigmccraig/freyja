@@ -40,7 +40,7 @@ defmodule Freyja.Effects.TaggedWriter do
   order (most recent first) for each tag independently.
   """
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(TellTagged, tag: nil, val: nil)
   def_effect_struct(PeekTagged, tag: nil)

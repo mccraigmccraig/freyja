@@ -3,7 +3,7 @@ defmodule Freyja.Effects.Coroutine do
   @moduledoc """
   The Coroutine effect signature
   """
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Yield, value: nil)
   def_effect_struct(ScopedYield, value: nil)

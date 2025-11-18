@@ -2,11 +2,11 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
   @moduledoc """
   Macro for defining higher-order effect operation structs.
 
-  Similar to `Freyja.Sig.DefEffectStruct` but for Hefty (higher-order) effects.
+  Similar to `Freyja.Freer.Sig.DefEffectStruct` but for Hefty (higher-order) effects.
 
   ## Differences from def_effect_struct
 
-  - Does NOT implement `Freyja.Sig.Sendable` (higher-order ops can't be sent to Freer)
+  - Does NOT implement `Freyja.Freer.Sig.Sendable` (higher-order ops can't be sent to Freer)
   - DOES implement `Freyja.Hefty.Sig.IHeftySendable` (via `HeftySendable`)
   - Creates struct definition with automatic protocol implementation
   - Adds documentation marking it as higher-order
@@ -47,7 +47,7 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
 
   ## See Also
 
-  - `Freyja.Sig.DefEffectStruct` - For first-order effects
+  - `Freyja.Freer.Sig.DefEffectStruct` - For first-order effects
   - `Freyja.Hefty.Algebra` - For elaboration algebras
   """
 

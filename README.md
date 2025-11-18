@@ -24,7 +24,7 @@ alias Freyja.Effects.{State, FxList, TaggedWriter}
 
 # Define effect operations as pure data structures
 defmodule Storage do
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Query, ids: [])
   def_effect_struct(UpdateAll, changes: [])

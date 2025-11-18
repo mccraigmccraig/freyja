@@ -67,7 +67,7 @@ An algebraic effect operation is a data structure describing an action to be per
 
 ```elixir
 defmodule Storage do
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Query, ids: [])
   def_effect_struct(UpdateAll, changes: [])
@@ -318,7 +318,7 @@ Effects are defined using the `def_effect_struct` macro:
 
 ```elixir
 defmodule TodoApp.Effects do
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   @doc "List all todos, optionally filtered"
   def_effect_struct(ListTodos, filters: %{})
@@ -449,13 +449,13 @@ defmodule TodoApp.Handler do
 
   # Analytics helper effects
   defmodule Analytics do
-    import Freyja.Sig.DefEffectStruct
+    import Freyja.Freer.Sig.DefEffectStruct
     def_effect_struct(TrackEvent, event: nil, properties: %{})
     def_effect_struct(RecordMetric, metric: nil, value: 0)
   end
 
   defmodule Notifications do
-    import Freyja.Sig.DefEffectStruct
+    import Freyja.Freer.Sig.DefEffectStruct
     def_effect_struct(NotifyUsers, user_ids: [], message: nil)
   end
 

@@ -4,7 +4,7 @@ defmodule Freyja.Effects.EffectLogger do
   @moduledoc """
   Signature of the EffectLogger effect
   """
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(LogInterpretedEffectValue, value: nil)
 

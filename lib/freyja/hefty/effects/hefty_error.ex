@@ -21,7 +21,7 @@ defmodule Freyja.Hefty.Effects.HeftyError do
   effect, which elaborates using a runner effect. See `Catch.catch_hefty/2` for usage.
   """
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   # Throw an error - returns a Freer effect that will fail with the given error value
   def_effect_struct(ThrowError, error: nil)

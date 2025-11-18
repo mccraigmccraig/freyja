@@ -40,7 +40,7 @@ defmodule Freyja.Effects.TaggedReader do
   The same environment value will be returned for repeated asks with the same tag.
   """
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(AskTagged, tag: nil)
 

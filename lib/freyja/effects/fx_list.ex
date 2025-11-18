@@ -2,7 +2,7 @@ defmodule Freyja.Effects.FxList do
   @moduledoc """
   Operations in the FxList effect
   """
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(FxMapList, list: [], f: nil)
   def_effect_struct(FxReduceList, list: [], init: nil, f: nil)

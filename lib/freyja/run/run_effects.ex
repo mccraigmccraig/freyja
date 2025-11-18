@@ -9,7 +9,7 @@ defmodule Freyja.Run.RunEffects do
       computation is to be handled
     run_outcome: the scoped computation result
     """
-    use Freyja.Sig.Sendable, sig: Freyja.Run.RunEffects
+    use Freyja.Freer.Sig.Sendable, sig: Freyja.Run.RunEffects
 
     defstruct value: nil, run_outcome: nil
 
@@ -20,7 +20,7 @@ defmodule Freyja.Run.RunEffects do
   end
 
   defmodule ScopedError do
-    use Freyja.Sig.Sendable, sig: Freyja.Run.RunEffects
+    use Freyja.Freer.Sig.Sendable, sig: Freyja.Run.RunEffects
 
     defstruct error: nil, run_outcome: nil
 

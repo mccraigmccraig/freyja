@@ -1,6 +1,6 @@
 defmodule Freyja.Effects.Writer do
   @moduledoc "Operations (Ops) for the Writer effect"
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Tell, val: nil)
 

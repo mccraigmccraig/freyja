@@ -172,7 +172,7 @@ defmodule Freyja.Hefty.Effects.Catch.Algebra do
 
   @behaviour Freyja.Hefty.Algebra
 
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   require Logger
 

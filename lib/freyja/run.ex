@@ -12,7 +12,7 @@ defmodule Freyja.Run do
   alias Freyja.OkResult
   alias Freyja.Freer.Pure
   alias Freyja.Protocols.Result
-  alias Freyja.Sig.ISendable
+  alias Freyja.Freer.Sig.ISendable
   alias Freyja.Run.RunEffects
   alias Freyja.Run.RunEffects.ScopedError
   alias Freyja.Run.RunEffects.ScopedOk

@@ -7,7 +7,7 @@ defmodule Freyja.Freer.Impl do
 
   alias Freyja.Freer
   alias Freyja.Freer.{Pure, Impure}
-  alias Freyja.Sig.ISendable
+  alias Freyja.Freer.Sig.ISendable
 
   @doc """
   add a continuation `mf` to a queue of continuations `q`

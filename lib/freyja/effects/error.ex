@@ -1,6 +1,6 @@
 defmodule Freyja.Effects.Error do
   @moduledoc "Operations (Ops) for the Error effect"
-  import Freyja.Sig.DefEffectStruct
+  import Freyja.Freer.Sig.DefEffectStruct
 
   def_effect_struct(Throw, error: nil)
   def_effect_struct(Catch, computation: nil, handler: nil)

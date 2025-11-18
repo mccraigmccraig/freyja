@@ -10,7 +10,7 @@ defmodule Freyja.Freer do
   require Logger
 
   alias Freyja.Freer
-  alias Freyja.Sig.ISendable
+  alias Freyja.Freer.Sig.ISendable
 
   # Freer values are %Pure{} and %Impure{}
 
@@ -78,15 +78,15 @@ defmodule Freyja.Freer do
   def bind(sendable, k), do: ISendable.send(sendable) |> bind(k)
 end
 
-defimpl Freyja.Sig.ISendable, for: Freyja.Freer.Pure do
+defimpl Freyja.Freer.Sig.ISendable, for: Freyja.Freer.Pure do
   def send(eff), do: eff
 end
 
-defimpl Freyja.Sig.ISendable, for: Freyja.Freer.Impure do
+defimpl Freyja.Freer.Sig.ISendable, for: Freyja.Freer.Impure do
   def send(eff), do: eff
 end
 
-defimpl Freyja.Sig.ISendable, for: Any do
+defimpl Freyja.Freer.Sig.ISendable, for: Any do
   def send(eff) do
     raise ArgumentError,
       message:

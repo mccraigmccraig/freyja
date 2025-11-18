@@ -13,7 +13,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.TaggedWriter.RunListenHandler
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
   alias Freyja.OkResult
 
   describe "listen/1 - basic functionality" do

@@ -159,7 +159,7 @@ defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Freer.Pure do
   (no Lift operation needed for pure values).
   """
 
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
 
   def send_to_hefty(freer_pure) do
     Lift.lift(freer_pure)
@@ -185,7 +185,7 @@ defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Freer.Impure do
       end
   """
 
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
 
   def send_to_hefty(freer_impure) do
     Lift.lift(freer_impure)
@@ -208,7 +208,7 @@ defimpl Freyja.Hefty.Sig.IHeftySendable, for: Any do
   implementation which throws a helpful error: "not Sendable - do you need to return()?"
   """
 
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
   alias Freyja.Freer.Sig.ISendable
 
   def send_to_hefty(value) do

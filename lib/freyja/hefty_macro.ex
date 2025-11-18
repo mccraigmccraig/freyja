@@ -355,7 +355,7 @@ defmodule Freyja.HeftyMacro do
           rewritten_clauses ++
             [
               {:->, [], [[quote(do: __freyja_unhandled_error__)],
-                quote(do: Freyja.Hefty.Effects.Lift.lift(Freyja.Hefty.Effects.HeftyError.throw_error(__freyja_unhandled_error__)))]}
+                quote(do: Freyja.Effects.Lift.lift(Freyja.Hefty.Effects.HeftyError.throw_error(__freyja_unhandled_error__)))]}
             ]
         end
 

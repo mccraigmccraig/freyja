@@ -1,4 +1,4 @@
-defmodule Freyja.Hefty.Effects.Lift do
+defmodule Freyja.Effects.Lift do
   @moduledoc """
   Lift first-order (Freer) effects into Hefty computations.
 
@@ -12,7 +12,7 @@ defmodule Freyja.Hefty.Effects.Lift do
 
   ## Example
 
-      import Freyja.Hefty.Effects.Lift
+      import Freyja.Effects.Lift
 
       hefty do
         # Lift first-order State effect into Hefty
@@ -43,7 +43,7 @@ defmodule Freyja.Hefty.Effects.Lift do
 
   ## See Also
 
-  - `Freyja.Hefty.Effects.Lift.Algebra` - Trivial elaboration algebra
+  - `Freyja.Effects.Lift.Algebra` - Trivial elaboration algebra
   - `Freyja.Freer` - First-order effect computations
   """
 
@@ -106,7 +106,7 @@ defmodule Freyja.Hefty.Effects.Lift do
   end
 end
 
-defmodule Freyja.Hefty.Effects.Lift.Algebra do
+defmodule Freyja.Effects.Lift.Algebra do
   @moduledoc """
   Algebra for elaborating Lift operations.
 
@@ -135,11 +135,11 @@ defmodule Freyja.Hefty.Effects.Lift.Algebra do
 
   @behaviour Freyja.Hefty.Algebra
 
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
   alias Freyja.Freer
 
   @impl true
-  def handles?(sig) when sig == Freyja.Hefty.Effects.Lift, do: true
+  def handles?(sig) when sig == Freyja.Effects.Lift, do: true
   def handles?(_), do: false
 
   @impl true

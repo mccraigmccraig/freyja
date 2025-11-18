@@ -18,7 +18,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.FxList
   alias Freyja.Effects.FxList.FxMap
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
   alias Freyja.Effects.State
   alias Freyja.OkResult
 

@@ -8,7 +8,7 @@ defmodule Freyja.Effects.ScopedTest do
   alias Freyja.ErrorResult
   alias Freyja.Run
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.{Lift, HeftyError}
+  alias Freyja.Effects.{Lift, HeftyError}
   alias Freyja.Effects.Catch
 
   defmodule ScopedFx do

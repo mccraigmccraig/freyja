@@ -7,7 +7,7 @@
 import Freyja.HeftyMacro
 
 alias Freyja.Hefty.Run, as: HeftyRun
-alias Freyja.Hefty.Effects.Lift
+alias Freyja.Effects.Lift
 alias Freyja.Effects.Catch
 alias Freyja.Hefty.Effects.HeftyError
 alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler

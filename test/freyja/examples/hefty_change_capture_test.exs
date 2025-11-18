@@ -3,7 +3,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
 
   alias Freyja.Examples.HeftyChangeCapture
   alias Freyja.Examples.HeftyChangeCapture.Storage
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
   alias Freyja.Effects.{FxList, TaggedWriter, State}
   alias Freyja.Hefty.Run
 

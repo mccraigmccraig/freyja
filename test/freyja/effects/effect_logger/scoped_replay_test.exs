@@ -7,7 +7,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.{Lift, HeftyError}
+  alias Freyja.Effects.{Lift, HeftyError}
   alias Freyja.Effects.{Catch, FxList}
   alias Freyja.Hefty.Effects.HeftyError.Handler, as: HeftyErrorHandler
   alias Freyja.OkResult

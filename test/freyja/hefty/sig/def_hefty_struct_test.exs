@@ -9,7 +9,7 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
   """
 
   alias Freyja.Effects.Catch.Catch
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
   alias Freyja.Hefty.Sig.IHeftySendable
 
   describe "def_hefty_struct" do

@@ -11,7 +11,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   alias Freyja.Effects.Error
   alias Freyja.Run
   alias Freyja.Hefty
-  alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Effects.Lift
 
   # Helper to create Hefty runner for tests with listen
   defp hefty_runner_with_tagged_writer(initial_tw_state \\ %{}, other_handlers \\ []) do

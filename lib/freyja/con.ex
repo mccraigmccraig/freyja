@@ -18,39 +18,20 @@ defmodule Freyja.Con do
       return(a + b + c)
     end
 
-  With catch:
-    import Freyja.Con
-
-    defcon foo(a) do
-      Error.throw_fx(:bad)
-      return(a)
-    catch
-      :bad -> return(:ok)
-    end
+  Note: For exception handling with `catch` clauses, use `defhefty` instead,
+  as catch is a higher-order effect that belongs in Hefty.
   """
   defmacro defcon(call_ast, do: body),
     do: Freyja.Con.Impl.defcon(call_ast, [], body)
 
-  defmacro defcon(call_ast, do: body, catch: else_block),
-    do: Freyja.Con.Impl.defcon(call_ast, [], body, else_block)
-
   defmacro defcon(call_ast, mods_ast, do: body),
     do: Freyja.Con.Impl.defcon(call_ast, mods_ast, body)
-
-  defmacro defcon(call_ast, mods_ast, do: body, catch: else_block),
-    do: Freyja.Con.Impl.defcon(call_ast, mods_ast, body, else_block)
 
   defmacro defconp(call_ast, do: body),
     do: Freyja.Con.Impl.defconp(call_ast, [], body)
 
-  defmacro defconp(call_ast, do: body, catch: else_block),
-    do: Freyja.Con.Impl.defconp(call_ast, [], body, else_block)
-
   defmacro defconp(call_ast, mods_ast, do: body),
     do: Freyja.Con.Impl.defconp(call_ast, mods_ast, body)
-
-  defmacro defconp(call_ast, mods_ast, do: body, catch: else_block),
-    do: Freyja.Con.Impl.defconp(call_ast, mods_ast, body, else_block)
 
   @doc """
   `con` - profitable cheating - and Spanish/Italian `with`
@@ -67,30 +48,12 @@ defmodule Freyja.Con do
     return(a + b)
   end
 
-  there's also a `catch` clause which translates into an `Error`
-  effect `catch_fx` operation
-
-  Freer.con [Error, Writer] do
-    put(:before)
-    throw_fx(:bad)
-    put(:after)
-    return(:nope)
-  catch
-    :bad ->
-      _ <- put({:handled, :bad})
-      return(:ok)
-  end
-
+  Note: For exception handling with `catch` clauses, use `hefty` instead,
+  as catch is a higher-order effect. See `Freyja.HeftyMacro.hefty/1`.
   """
   defmacro con(do: do_block), do: Freyja.Con.Impl.con([], do_block)
 
-  defmacro con(do: do_block, catch: else_block),
-    do: Freyja.Con.Impl.con([], do_block, else_block)
-
   defmacro con(mod_or_mods, do: do_block), do: Freyja.Con.Impl.con(mod_or_mods, do_block)
-
-  defmacro con(mod_or_mods, do: do_block, catch: else_block),
-    do: Freyja.Con.Impl.con(mod_or_mods, do_block, else_block)
 
   defmodule Impl do
     @moduledoc """
@@ -108,15 +71,6 @@ defmodule Freyja.Con do
       end
     end
 
-    def defcon(call_ast, mods_ast, body, else_block) do
-      mods_list = List.wrap(mods_ast)
-
-      quote do
-        def unquote(call_ast) do
-          Freyja.Con.con(unquote(mods_list), do: unquote(body), catch: unquote(else_block))
-        end
-      end
-    end
 
     @doc """
     Private variant of defcon. Defines a defp with a Freer.con body.
@@ -133,15 +87,6 @@ defmodule Freyja.Con do
       end
     end
 
-    def defconp(call_ast, mods_ast, body, catch_block) do
-      mods_list = List.wrap(mods_ast)
-
-      quote do
-        defp unquote(call_ast) do
-          Freyja.Con.con(unquote(mods_list), do: unquote(body), catch: unquote(catch_block))
-        end
-      end
-    end
 
     def con(mod_or_mods, do_block) do
       imports = expand_imports(mod_or_mods)
@@ -152,16 +97,6 @@ defmodule Freyja.Con do
       end
     end
 
-    def con(mod_or_mods, do_block, catch_block) do
-      imports = expand_imports(mod_or_mods)
-      body = rewrite_block(do_block)
-      handler = build_else_handler_fn(catch_block)
-
-      quote do
-        unquote_splicing(imports)
-        Freyja.Effects.Error.catch_fx(unquote(body), unquote(handler))
-      end
-    end
 
     def expand_imports(mod_or_mods) do
       mods = mod_or_mods |> List.wrap()
@@ -207,59 +142,5 @@ defmodule Freyja.Con do
       end
     end
 
-    # Build a multi-clause fn from an catch block with `->` clauses
-    def build_else_handler_fn(else_block) do
-      clauses =
-        case else_block do
-          {:__block__, _, exprs} -> exprs
-          single_list when is_list(single_list) -> single_list
-          single -> [single]
-        end
-
-      built_clauses =
-        Enum.map(clauses, fn
-          {:->, meta, [[pattern], rhs]} ->
-            body_ast =
-              case rhs do
-                {:__block__, _, exprs} -> rewrite_block({:__block__, [], exprs})
-                list when is_list(list) -> rewrite_block({:__block__, [], list})
-                other -> rewrite_block(other)
-              end
-
-            {:->, meta, [[pattern], body_ast]}
-
-          other ->
-            raise ArgumentError,
-                  "Freer.con catch expects `pattern -> expr` clauses, got: #{inspect(other, pretty: true)}"
-        end)
-
-      has_user_default =
-        Enum.any?(clauses, fn
-          {:->, _m, [[pattern], _rhs]} -> underscore_pattern?(pattern)
-          _ -> false
-        end)
-
-      final_clauses =
-        if has_user_default do
-          built_clauses
-        else
-          default_err = Macro.var(:err, nil)
-
-          default_clause =
-            {:->, [],
-             [[default_err], quote(do: Freyja.Effects.Error.throw_fx(unquote(default_err)))]}
-
-          built_clauses ++ [default_clause]
-        end
-
-      {:fn, [], final_clauses}
-    end
-
-    defp underscore_pattern?(ast) do
-      case ast do
-        {:_, _, _} -> true
-        _ -> false
-      end
-    end
   end
 end

@@ -104,7 +104,11 @@ defmodule Freyja.HeftyMacro do
   `Hefty.Run.run/4` or `Hefty.Elaborate.elaborate/2`.
   """
   defmacro defhefty(call_ast, do: body) do
-    Freyja.HeftyMacro.Impl.defhefty(call_ast, body)
+    Freyja.HeftyMacro.Impl.defhefty(call_ast, body, nil)
+  end
+
+  defmacro defhefty(call_ast, do: body, catch: catch_block) do
+    Freyja.HeftyMacro.Impl.defhefty(call_ast, body, catch_block)
   end
 
   @doc """
@@ -113,7 +117,11 @@ defmodule Freyja.HeftyMacro do
   Same as `defhefty` but creates a private function (defp).
   """
   defmacro defheftyp(call_ast, do: body) do
-    Freyja.HeftyMacro.Impl.defheftyp(call_ast, body)
+    Freyja.HeftyMacro.Impl.defheftyp(call_ast, body, nil)
+  end
+
+  defmacro defheftyp(call_ast, do: body, catch: catch_block) do
+    Freyja.HeftyMacro.Impl.defheftyp(call_ast, body, catch_block)
   end
 
   @doc """
@@ -130,6 +138,30 @@ defmodule Freyja.HeftyMacro do
         z <- computation2(y)
         Hefty.pure(x + z)
       end
+
+  ## Catch Clause
+
+  You can add a catch clause for error handling:
+
+      hefty do
+        x <- computation()
+        return(x)
+      catch
+        :specific_error -> return(:handled)
+        other -> return({:error, other})
+      end
+
+  This is syntactic sugar that expands to:
+
+      Catch.catch_hefty(
+        hefty do x <- computation(); return(x) end,
+        fn err ->
+          case err do
+            :specific_error -> return(:handled)
+            other -> return({:error, other})
+          end
+        end
+      )
 
   ## Auto-Lifting
 
@@ -169,9 +201,26 @@ defmodule Freyja.HeftyMacro do
         )
         Hefty.pure(result)
       end
+
+      # Using catch clause syntax
+      hefty do
+        x <- State.get()
+        if x < 0 do
+          HeftyError.throw_error("negative")
+        else
+          Hefty.pure(x * 2)
+        end
+      catch
+        "negative" -> return(0)
+        other -> return({:error, other})
+      end
   """
   defmacro hefty(do: do_block) do
-    Freyja.HeftyMacro.Impl.hefty(do_block)
+    Freyja.HeftyMacro.Impl.hefty(do_block, nil)
+  end
+
+  defmacro hefty(do: do_block, catch: catch_block) do
+    Freyja.HeftyMacro.Impl.hefty(do_block, catch_block)
   end
 
   defmodule Impl do
@@ -181,7 +230,7 @@ defmodule Freyja.HeftyMacro do
     Expands hefty blocks into Hefty.bind calls with automatic return import.
     """
 
-    def defhefty(call_ast, body) do
+    def defhefty(call_ast, body, nil) do
       quote do
         def unquote(call_ast) do
           Freyja.HeftyMacro.hefty do
@@ -191,7 +240,19 @@ defmodule Freyja.HeftyMacro do
       end
     end
 
-    def defheftyp(call_ast, body) do
+    def defhefty(call_ast, body, catch_block) do
+      quote do
+        def unquote(call_ast) do
+          Freyja.HeftyMacro.hefty do
+            unquote(body)
+          catch
+            unquote(catch_block)
+          end
+        end
+      end
+    end
+
+    def defheftyp(call_ast, body, nil) do
       quote do
         defp unquote(call_ast) do
           Freyja.HeftyMacro.hefty do
@@ -201,11 +262,38 @@ defmodule Freyja.HeftyMacro do
       end
     end
 
-    def hefty(do_block) do
+    def defheftyp(call_ast, body, catch_block) do
+      quote do
+        defp unquote(call_ast) do
+          Freyja.HeftyMacro.hefty do
+            unquote(body)
+          catch
+            unquote(catch_block)
+          end
+        end
+      end
+    end
+
+    def hefty(do_block, nil) do
       quote do
         # Import Hefty.return as return for convenience
         import Freyja.Hefty, only: [return: 1]
         unquote(rewrite_block(do_block))
+      end
+    end
+
+    def hefty(do_block, catch_block) do
+      try_comp = rewrite_block(do_block)
+      handler_fn = build_catch_handler_fn(catch_block)
+
+      quote do
+        # Import Hefty.return as return for convenience
+        import Freyja.Hefty, only: [return: 1]
+
+        Freyja.Hefty.Effects.Catch.catch_hefty(
+          unquote(try_comp),
+          unquote(handler_fn)
+        )
       end
     end
 
@@ -242,6 +330,79 @@ defmodule Freyja.HeftyMacro do
         unquote(rhs)
         |> Freyja.Hefty.bind(fn unquote(lhs) -> unquote(body) end)
       end
+    end
+
+    # Build the error handler function from catch block clauses
+    defp build_catch_handler_fn(catch_block) do
+      # Extract clauses from the catch block
+      clauses = extract_catch_clauses(catch_block)
+
+      # Rewrite each clause body using rewrite_block, preserving the pattern structure
+      rewritten_clauses =
+        Enum.map(clauses, fn {:->, meta, [patterns, body]} ->
+          rewritten_body = rewrite_block(body)
+          {:->, meta, [patterns, rewritten_body]}
+        end)
+
+      # Check if there's a catch-all clause
+      has_catch_all = has_catch_all_clause?(clauses)
+
+      # Add a default re-throw clause if user didn't provide catch-all
+      final_clauses =
+        if has_catch_all do
+          rewritten_clauses
+        else
+          rewritten_clauses ++
+            [
+              {:->, [], [[quote(do: __freyja_unhandled_error__)],
+                quote(do: Freyja.Hefty.Effects.Lift.lift(Freyja.Hefty.Effects.HeftyError.throw_error(__freyja_unhandled_error__)))]}
+            ]
+        end
+
+      # Build the function: fn err -> case err do ... end end
+      quote do
+        fn __freyja_error__ ->
+          import Freyja.Hefty, only: [return: 1]
+
+          case __freyja_error__ do
+            unquote(final_clauses)
+          end
+        end
+      end
+    end
+
+    # Extract clauses from catch block
+    # Handles both single clause and multiple clauses
+    defp extract_catch_clauses({:->, _, _} = single_clause) do
+      [single_clause]
+    end
+
+    defp extract_catch_clauses({:__block__, _, clauses}) do
+      clauses
+    end
+
+    defp extract_catch_clauses(clauses) when is_list(clauses) do
+      clauses
+    end
+
+    defp extract_catch_clauses(nil) do
+      []
+    end
+
+    # Check if there's a catch-all clause (variable pattern or _)
+    defp has_catch_all_clause?(clauses) do
+      Enum.any?(clauses, fn
+        {:->, _, [[{var, _, context}], _body]} when is_atom(var) and is_atom(context) and var != :^ ->
+          # Variable pattern (but not pinned)
+          true
+
+        {:->, _, [[{:_, _, _}], _body]} ->
+          # Underscore pattern
+          true
+
+        _ ->
+          false
+      end)
     end
   end
 end

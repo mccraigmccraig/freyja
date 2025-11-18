@@ -336,4 +336,226 @@ defmodule Freyja.HeftyMacroTest do
       assert error.message =~ "do you need to return()"
     end
   end
+
+  describe "hefty macro - catch clause" do
+    test "catch clause with single pattern" do
+      computation =
+        hefty do
+          x <- State.get()
+
+          if x < 0 do
+            HeftyError.throw_error("negative")
+          else
+            Hefty.pure(x * 2)
+          end
+        catch
+          "negative" -> return(0)
+        end
+
+      # Test success case (no error)
+      outcome1 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => 5}
+        )
+
+      assert %OkResult{value: 10} = outcome1.result
+
+      # Test error case (caught)
+      outcome2 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => -3}
+        )
+
+      assert %OkResult{value: 0} = outcome2.result
+    end
+
+    test "catch clause with multiple patterns" do
+      computation =
+        hefty do
+          error_type <- State.get()
+
+          case error_type do
+            :throw_negative -> HeftyError.throw_error("negative")
+            :throw_overflow -> HeftyError.throw_error("overflow")
+            value -> return(value)
+          end
+        catch
+          "negative" -> return(:handled_negative)
+          "overflow" -> return(:handled_overflow)
+        end
+
+      # Test negative error
+      outcome1 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => :throw_negative}
+        )
+
+      assert %OkResult{value: :handled_negative} = outcome1.result
+
+      # Test overflow error
+      outcome2 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => :throw_overflow}
+        )
+
+      assert %OkResult{value: :handled_overflow} = outcome2.result
+
+      # Test success case
+      outcome3 =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => 42}
+        )
+
+      assert %OkResult{value: 42} = outcome3.result
+    end
+
+    test "catch clause with variable pattern (catch-all)" do
+      computation =
+        hefty do
+          State.put(100)
+          HeftyError.throw_error("any error")
+        catch
+          error -> return({:caught, error})
+        end
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => 0}
+        )
+
+      assert %OkResult{value: {:caught, "any error"}} = outcome.result
+    end
+
+    test "catch clause re-throws unmatched errors" do
+      computation =
+        hefty do
+          HeftyError.throw_error("unhandled")
+        catch
+          "handled" -> return(:ok)
+        end
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => 0}
+        )
+
+      # Should propagate error since "unhandled" doesn't match "handled"
+      assert %Freyja.ErrorResult{error: "unhandled"} = outcome.result
+    end
+
+    test "catch clause with bindings in try block" do
+      computation =
+        hefty do
+          x <- State.get()
+          y <- Hefty.pure(10)
+
+          if x < 0 do
+            HeftyError.throw_error({:negative, x})
+          else
+            return(x + y)
+          end
+        catch
+          {:negative, value} -> return({:handled, value})
+        end
+
+      outcome =
+        HeftyRun.run(
+          computation,
+          [Catch.Algebra, Lift.Algebra],
+          [State.Handler, HeftyErrorHandler, Catch.RunCatchingHandler],
+          %{State.Handler => -5}
+        )
+
+      assert %OkResult{value: {:handled, -5}} = outcome.result
+    end
+  end
+
+  describe "defhefty macro - with catch clause" do
+    defhefty safe_divide(a, b) do
+      if b == 0 do
+        HeftyError.throw_error(:division_by_zero)
+      else
+        return(div(a, b))
+      end
+    catch
+      :division_by_zero -> return(:infinity)
+    end
+
+    test "function with catch clause handles errors" do
+      # Success case
+      result1 = safe_divide(10, 2)
+
+      outcome1 =
+        HeftyRun.run(
+          result1,
+          [Catch.Algebra, Lift.Algebra],
+          [HeftyErrorHandler, Catch.RunCatchingHandler]
+        )
+
+      assert %OkResult{value: 5} = outcome1.result
+
+      # Error case
+      result2 = safe_divide(10, 0)
+
+      outcome2 =
+        HeftyRun.run(
+          result2,
+          [Catch.Algebra, Lift.Algebra],
+          [HeftyErrorHandler, Catch.RunCatchingHandler]
+        )
+
+      assert %OkResult{value: :infinity} = outcome2.result
+    end
+  end
+
+  describe "defheftyp macro - with catch clause" do
+    defheftyp private_safe_operation(value) do
+      if value < 0 do
+        HeftyError.throw_error(:invalid_value)
+      else
+        return(value * 2)
+      end
+    catch
+      :invalid_value -> return(0)
+    end
+
+    defhefty public_wrapper(value) do
+      result <- private_safe_operation(value)
+      return(result + 100)
+    end
+
+    test "private function with catch clause" do
+      result = public_wrapper(-5)
+
+      outcome =
+        HeftyRun.run(
+          result,
+          [Catch.Algebra, Lift.Algebra],
+          [HeftyErrorHandler, Catch.RunCatchingHandler]
+        )
+
+      assert %OkResult{value: 100} = outcome.result
+    end
+  end
 end

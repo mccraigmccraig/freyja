@@ -305,43 +305,60 @@ defmodule Freyja.Hefty.Effects.Catch.RunCatchingHandler do
     # Run the computation
     outcome = Run.run(comp, run_state)
 
-    # Inspect the result and wrap it in a tagged tuple
-    # IMPORTANT: We use ScopedOk for ALL cases (success, error, unexpected)
-    # This ensures state changes from outcome.run_state propagate to parent context
-    result_value =
-      case outcome.result do
-        %OkResult{value: value} ->
-          {:ok, value}
+    # Inspect the result
+    # Suspensions pass through unchanged - they bypass the catch entirely
+    # For success/error, wrap in tagged tuple and use ScopedOk to propagate state
+    case outcome.result do
+      %Freyja.SuspendResult{} = suspend ->
+        # Suspensions pass through directly - don't wrap in ScopedOk
+        # Just return the suspend with the continuation
+        {Freyja.Freer.return(suspend), state}
 
-        %ErrorResult{error: err} ->
-          {:error, err}
+      %OkResult{value: value} ->
+        # Success - wrap in {:ok, value} tuple
+        result_value = {:ok, value}
 
-        other ->
-          # Handle unexpected result types (e.g., SuspendResult)
-          {:error, {:unexpected_result, other}}
-      end
+        # IMPORTANT FIX: Run.run returns outcome with run_state pointing to INPUT states,
+        # but outputs pointing to FINAL states. For ScopedOk to work properly, we need
+        # run_state to also have the final states. Reconstruct outcome with updated run_state.
+        corrected_outcome = %RunOutcome{
+          result: outcome.result,
+          outputs: outcome.outputs,
+          run_state: %{outcome.run_state | states: outcome.outputs}
+        }
 
-    # IMPORTANT FIX: Run.run returns outcome with run_state pointing to INPUT states,
-    # but outputs pointing to FINAL states. For ScopedOk to work properly, we need
-    # run_state to also have the final states. Reconstruct outcome with updated run_state.
-    corrected_outcome = %RunOutcome{
-      result: outcome.result,
-      outputs: outcome.outputs,
-      run_state: %{outcome.run_state | states: outcome.outputs}
-    }
+        # Return ScopedOk effect to propagate state changes
+        scoped_ok_effect = %Impure{
+          sig: RunEffects,
+          data: %RunEffects.ScopedOk{
+            value: result_value,
+            run_outcome: corrected_outcome
+          },
+          q: q
+        }
 
-    # Return ScopedOk effect to propagate state changes
-    # The value is the tagged result tuple, and run_outcome contains updated states
-    # We pass through the original q - this is terminal for the scoped operation
-    scoped_ok_effect = %Impure{
-      sig: RunEffects,
-      data: %RunEffects.ScopedOk{
-        value: result_value,
-        run_outcome: corrected_outcome
-      },
-      q: q
-    }
+        {scoped_ok_effect, state}
 
-    {scoped_ok_effect, state}
+      %ErrorResult{error: err} ->
+        # Error - wrap in {:error, err} tuple
+        result_value = {:error, err}
+
+        corrected_outcome = %RunOutcome{
+          result: outcome.result,
+          outputs: outcome.outputs,
+          run_state: %{outcome.run_state | states: outcome.outputs}
+        }
+
+        scoped_ok_effect = %Impure{
+          sig: RunEffects,
+          data: %RunEffects.ScopedOk{
+            value: result_value,
+            run_outcome: corrected_outcome
+          },
+          q: q
+        }
+
+        {scoped_ok_effect, state}
+    end
   end
 end

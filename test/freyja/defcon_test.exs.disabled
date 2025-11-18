@@ -1,6 +1,12 @@
 defmodule Freyja.DefconTest do
   use ExUnit.Case
 
+  # DISABLED (pending migration to defhefty...catch)
+  # This test file uses defcon...catch syntax which has been removed from con macro.
+  # The catch clause now belongs in defhefty (higher-order effects).
+  # See freyja-rdm for catch+suspension issues.
+  @moduletag :skip
+
   alias Freyja.Effects.Reader
   alias Freyja.Effects.Writer
   alias Freyja.Effects.Error

@@ -10,6 +10,7 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
 
   alias Freyja.Hefty.Effects.Catch.Catch
   alias Freyja.Hefty.Effects.Lift
+  alias Freyja.Hefty.Sig.IHeftySendable
 
   describe "def_hefty_struct" do
     test "creates struct module" do
@@ -30,6 +31,15 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
     test "Lift operation uses plain defstruct" do
       # Lift is special - uses plain defstruct
       assert %Lift{} = %Lift{computation: nil}
+    end
+
+    test "higher-order structs ARE IHeftySendable" do
+      # def_hefty_struct automatically implements IHeftySendable
+      catch_struct = %Catch{type: :any}
+
+      # Should implement IHeftySendable and return unchanged
+      result = IHeftySendable.send_to_hefty(catch_struct)
+      assert result == catch_struct
     end
 
     test "higher-order structs are NOT Sendable to Freer" do
@@ -65,14 +75,36 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
       assert %Get{} = %Get{}
     end
 
-    test "higher-order effects use def_hefty_struct and are NOT Sendable" do
+    test "higher-order effects use def_hefty_struct and ARE IHeftySendable" do
       # Catch is defined with def_hefty_struct
 
-      # These effects must go through Hefty.send_hefty
-      assert %Catch{type: :any} = %Catch{type: :any}
+      # These effects implement IHeftySendable (returns unchanged)
+      catch_struct = %Catch{type: :any}
+      assert IHeftySendable.send_to_hefty(catch_struct) == catch_struct
 
-      # The distinction is semantic and documentation-based
-      # Future: Could add Hefty.Sendable protocol for type checking
+      # But they're NOT Freer Sendable - they must go through Hefty.send_hefty
+    end
+  end
+
+  describe "IHeftySendable protocol implementation" do
+    test "Catch struct implements IHeftySendable" do
+      catch_struct = %Catch{type: :specific}
+      result = IHeftySendable.send_to_hefty(catch_struct)
+
+      # Returns unchanged
+      assert result == catch_struct
+      assert %Catch{type: :specific} = result
+    end
+
+    test "multiple Hefty operation types implement IHeftySendable" do
+      alias Freyja.Hefty.Effects.HeftyFxList.FxMap
+
+      # FxMap is also defined with def_hefty_struct
+      fx_map = %FxMap{list: [1, 2, 3], f: & &1}
+      result = IHeftySendable.send_to_hefty(fx_map)
+
+      assert result == fx_map
+      assert %FxMap{} = result
     end
   end
 end

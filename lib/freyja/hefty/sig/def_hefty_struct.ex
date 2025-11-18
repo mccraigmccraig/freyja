@@ -7,9 +7,9 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
   ## Differences from def_effect_struct
 
   - Does NOT implement `Freyja.Sig.Sendable` (higher-order ops can't be sent to Freer)
-  - Creates just the struct definition
+  - DOES implement `Freyja.Hefty.Sig.IHeftySendable` (via `HeftySendable`)
+  - Creates struct definition with automatic protocol implementation
   - Adds documentation marking it as higher-order
-  - Future: Will implement `Freyja.Hefty.Sendable` protocol for send_hefty
 
   ## Usage
 
@@ -29,19 +29,21 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
         end
       end
 
-  ## Future: Hefty.Sendable Protocol
+  ## Protocol Implementation
 
-  In the future, we may add a protocol similar to `Freyja.Sig.Sendable`:
+  The macro automatically adds `use Freyja.Hefty.Sig.HeftySendable` to the
+  struct module, which implements `Freyja.Hefty.Sig.IHeftySendable` protocol.
 
-      defprotocol Freyja.Hefty.Sendable do
-        @doc "Create Hefty.Impure node with forks"
-        def send_hefty(operation, forks)
+  This allows Hefty operation structs to be used directly in `hefty` blocks:
 
-        @doc "Specify computation parameters for this operation"
-        def forks(operation)
+      hefty do
+        # Operation struct can be used directly
+        x <- %Catch{type: :any}
+        Hefty.pure(x)
       end
 
-  This would enable auto-generation of send_hefty functions and type documentation.
+  The protocol implementation returns the operation unchanged, as it's already
+  a valid Hefty operation.
 
   ## See Also
 
@@ -75,6 +77,8 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
         \"\"\"
 
         defstruct [type: :any]
+
+        use Freyja.Hefty.Sig.HeftySendable
       end
   """
   defmacro def_hefty_struct(name, fields) do
@@ -91,6 +95,8 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
         """
 
         defstruct unquote(fields)
+
+        use Freyja.Hefty.Sig.HeftySendable
       end
     end
   end

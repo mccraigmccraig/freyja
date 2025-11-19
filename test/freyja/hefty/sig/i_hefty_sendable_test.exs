@@ -59,7 +59,7 @@ defmodule Freyja.Hefty.Sig.IHeftySendableTest do
       freer =
         con do
           x <- State.get()
-          State.put(x + 10)
+          _ <- State.put(x + 10)
           return(x)
         end
 

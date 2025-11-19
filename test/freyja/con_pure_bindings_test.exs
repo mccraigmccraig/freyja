@@ -47,7 +47,7 @@ defmodule Freyja.ConPureBindingsTest do
         con [State] do
           x <- get()
           doubled = x * 2
-          put(doubled)
+          _ <- put(doubled)
           y <- get()
           halved = y / 2
           return({doubled, y, halved})
@@ -69,7 +69,7 @@ defmodule Freyja.ConPureBindingsTest do
         con [State] do
           x <- get()
           result = pure_fn.(x, 3)
-          put(result)
+          _ <- put(result)
           return(result)
         end
 
@@ -111,7 +111,7 @@ defmodule Freyja.ConPureBindingsTest do
               n -> n * 3
             end
 
-          put(calculated)
+          _ <- put(calculated)
           final <- get()
           return({x, calculated, final})
         end
@@ -132,7 +132,7 @@ defmodule Freyja.ConPureBindingsTest do
           a = x + 10
           b = a * 2
           c = b - 5
-          put(c)
+          _ <- put(c)
           return({a, b, c})
         end
 

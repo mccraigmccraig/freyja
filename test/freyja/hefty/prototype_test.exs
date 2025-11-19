@@ -58,7 +58,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
       freer_comp = con do
         x <- State.get()
-        State.put(x + 10)
+        _ <- State.put(x + 10)
         y <- State.get()
         return(y)
       end
@@ -114,7 +114,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
       try_block = Lift.lift(con do
         x <- State.get()
-        State.put(x * 2)
+        _ <- State.put(x * 2)
         y <- State.get()
         return(y)
       end)
@@ -175,7 +175,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       try_block = Lift.lift(Error.throw_error("error"))
 
       catch_block = Lift.lift(con do
-        State.put(999)
+        _ <- State.put(999)
         State.get()
       end)
 
@@ -277,7 +277,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       import Freyja.Con
 
       try_block = Lift.lift(con do
-        State.put(100)
+        _ <- State.put(100)
         Error.throw_error("after setting state")
       end)
 

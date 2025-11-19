@@ -332,10 +332,10 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     updated_user = Map.delete(user, :email)
 
     # Record the change
-    Storage.change(user, updated_user)
+    _ <- Storage.change(user, updated_user)
 
     # Increment processed count
-    State.update(&(&1 + 1))
+    _ <- State.update(&(&1 + 1))
 
     return(updated_user)
   end
@@ -353,20 +353,20 @@ defmodule Freyja.Examples.HeftyChangeCapture do
       if is_test_email do
         hefty do
           new_user = Map.put(user, :email, nil)
-          Storage.change(user, new_user)
+          _ <- Storage.change(user, new_user)
           # Extra effect: validation logging
-          TaggedWriter.tell(:validations, {:removed_test_email, user.id})
+          _ <- TaggedWriter.tell(:validations, {:removed_test_email, user.id})
           return(new_user)
         end
       else
         hefty do
           # Extra effect: validation logging (different tag)
-          TaggedWriter.tell(:validations, {:kept_email, user.id})
+          _ <- TaggedWriter.tell(:validations, {:kept_email, user.id})
           return(user)
         end
       end
 
-    State.update(&(&1 + 1))
+    _ <- State.update(&(&1 + 1))
     return(updated_user)
   end
 
@@ -381,8 +381,8 @@ defmodule Freyja.Examples.HeftyChangeCapture do
       # email, name removed
     }
 
-    Storage.change(user, anonymized)
-    State.update(&(&1 + 1))
+    _ <- Storage.change(user, anonymized)
+    _ <- State.update(&(&1 + 1))
 
     return(anonymized)
   end
@@ -394,13 +394,13 @@ defmodule Freyja.Examples.HeftyChangeCapture do
   This shows you can pass ANY effectful function to process_users.
   """
   defhefty audit_user(user) do
-    TaggedWriter.tell(:audit, %{
+    _ <- TaggedWriter.tell(:audit, %{
       action: :reviewed,
       user_id: user.id,
       timestamp: System.system_time()
     })
 
-    State.update(&(&1 + 1))
+    _ <- State.update(&(&1 + 1))
 
     return(user)
   end
@@ -417,7 +417,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     anonymized_users = stage1_result.updated_users
     anonymize_changes = stage1_result.all_logs[:changes] || []
 
-    TaggedWriter.tell(:stages, {:anonymization_complete, length(anonymize_changes)})
+    _ <- TaggedWriter.tell(:stages, {:anonymization_complete, length(anonymize_changes)})
 
     # Stage 2: Audit trail (on already-processed users)
     # Notice: We use TaggedWriter.listen directly here to get fresh user list
@@ -425,7 +425,7 @@ defmodule Freyja.Examples.HeftyChangeCapture do
       TaggedWriter.listen(FxList.fx_map(anonymized_users, &audit_user/1))
 
     audit_entries = audit_logs[:audit] || []
-    TaggedWriter.tell(:stages, {:audit_complete, length(audit_entries)})
+    _ <- TaggedWriter.tell(:stages, {:audit_complete, length(audit_entries)})
 
     # Get final counts
     total_processed <- State.get()

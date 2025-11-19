@@ -90,7 +90,7 @@ defmodule Freyja.EffectLoggerTest do
           {:foo, a} <- get()
           b <- number(10)
           x <- return(12)
-          put({:bar, a + b + x})
+          _ <- put({:bar, a + b + x})
           c <- multiply(a, b)
           {:bar, d} <- get()
           subtract(d, c)

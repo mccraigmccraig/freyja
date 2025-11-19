@@ -241,7 +241,7 @@ defmodule Freyja.HeftyMacroTest do
 
     defhefty with_state(initial) do
       # Auto-lifted Freer
-      State.put(initial)
+      _ <- State.put(initial)
       # Auto-lifted Freer
       x <- State.get()
       Hefty.pure(x)
@@ -426,7 +426,7 @@ defmodule Freyja.HeftyMacroTest do
     test "catch clause with variable pattern (catch-all)" do
       computation =
         hefty do
-          State.put(100)
+          _ <- State.put(100)
           Error.throw_error("any error")
         catch
           error -> return({:caught, error})

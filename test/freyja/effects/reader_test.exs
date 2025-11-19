@@ -38,7 +38,7 @@ defmodule Freyja.Effects.ReaderTest do
       multiplier <- ask()
       counter <- get()
       new_value <- return(counter * multiplier)
-      put(new_value)
+      _ <- put(new_value)
       return(new_value)
     end
 

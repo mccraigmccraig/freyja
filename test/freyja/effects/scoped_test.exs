@@ -16,17 +16,17 @@ defmodule Freyja.Effects.ScopedTest do
 
     defcon suspend_twice(a, b), [Coroutine, Writer] do
       first <- yield(a)
-      tell(first)
+      _ <- tell(first)
 
-      if first == "boo", do: Error.throw_error(:boo), else: return(:ok)
+      _ <- if first == "boo", do: Error.throw_error(:boo), else: return(:ok)
 
       second <- yield(b)
-      tell(second)
+      _ <- tell(second)
 
-      if second == "hoo", do: Error.throw_error(:hoo), else: return(:ok)
+      _ <- if second == "hoo", do: Error.throw_error(:hoo), else: return(:ok)
 
       result <- return(%{a: a, b: b, first: first, second: second})
-      tell(result)
+      _ <- tell(result)
       return(result)
     end
 
@@ -34,18 +34,18 @@ defmodule Freyja.Effects.ScopedTest do
     # run inside the scope - now using defhefty with catch clause
     defhefty catch_suspend_twice(a, b) do
       r <- Lift.lift(suspend_twice(a, b))
-      Writer.tell(:completed)
+      _ <- Writer.tell(:completed)
       return(Map.put(r, :extra, "extra!"))
     catch
       :boo ->
-        Writer.tell(:caught)
+        _ <- Writer.tell(:caught)
         return(:oops)
     end
 
     defhefty safe_suspend_twice(a, b) do
-      Writer.tell(:before)
+      _ <- Writer.tell(:before)
       r <- catch_suspend_twice(a, b)
-      Writer.tell(:after)
+      _ <- Writer.tell(:after)
       return(r)
     end
   end

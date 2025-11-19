@@ -35,86 +35,86 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
   # Basic operations
   defcon single_tell_tagged, [TaggedWriter] do
-    tell(:audit, "user logged in")
+    _ <- tell(:audit, "user logged in")
     return(:done)
   end
 
   defcon multiple_tells_same_tag, [TaggedWriter] do
-    tell(:debug, "step 1")
-    tell(:debug, "step 2")
-    tell(:debug, "step 3")
+    _ <- tell(:debug, "step 1")
+    _ <- tell(:debug, "step 2")
+    _ <- tell(:debug, "step 3")
     return(:done)
   end
 
   defcon multiple_tells_different_tags, [TaggedWriter] do
-    tell(:audit, "login")
-    tell(:debug, "processing")
-    tell(:metrics, %{duration: 100})
-    tell(:audit, "logout")
-    tell(:debug, "done")
+    _ <- tell(:audit, "login")
+    _ <- tell(:debug, "processing")
+    _ <- tell(:metrics, %{duration: 100})
+    _ <- tell(:audit, "logout")
+    _ <- tell(:debug, "done")
     return(:done)
   end
 
   # Different value types
   defcon tell_strings, [TaggedWriter] do
-    tell(:log, "hello")
-    tell(:log, "world")
+    _ <- tell(:log, "hello")
+    _ <- tell(:log, "world")
     return(:ok)
   end
 
   defcon tell_numbers, [TaggedWriter] do
-    tell(:counters, 1)
-    tell(:counters, 2)
-    tell(:counters, 3)
+    _ <- tell(:counters, 1)
+    _ <- tell(:counters, 2)
+    _ <- tell(:counters, 3)
     return(:ok)
   end
 
   defcon tell_maps, [TaggedWriter] do
-    tell(:events, %{event: "started", timestamp: 100})
-    tell(:events, %{event: "finished", timestamp: 200})
+    _ <- tell(:events, %{event: "started", timestamp: 100})
+    _ <- tell(:events, %{event: "finished", timestamp: 200})
     return(:ok)
   end
 
   defcon tell_mixed_types, [TaggedWriter] do
-    tell(:mixed, :atom)
-    tell(:mixed, "string")
-    tell(:mixed, 42)
-    tell(:mixed, %{key: "value"})
+    _ <- tell(:mixed, :atom)
+    _ <- tell(:mixed, "string")
+    _ <- tell(:mixed, 42)
+    _ <- tell(:mixed, %{key: "value"})
     return(:ok)
   end
 
   # Composition with other effects
   defcon writer_with_state, [TaggedWriter, State] do
     counter <- State.get()
-    tell(:operations, {:get, counter})
+    _ <- tell(:operations, {:get, counter})
 
-    State.put(counter + 1)
+    _ <- State.put(counter + 1)
     new_counter <- State.get()
-    tell(:operations, {:put, new_counter})
+    _ <- tell(:operations, {:put, new_counter})
 
     return(new_counter)
   end
 
   defcon writer_with_reader, [TaggedWriter, Reader] do
     env <- Reader.ask()
-    tell(:access, {:read_env, env})
+    _ <- tell(:access, {:read_env, env})
     result <- return(env.multiplier * 2)
-    tell(:calculations, {:computed, result})
+    _ <- tell(:calculations, {:computed, result})
     return(result)
   end
 
   defcon success_with_writer, [TaggedWriter, Error] do
-    tell(:trace, "starting")
+    _ <- tell(:trace, "starting")
     result <- return(42)
-    tell(:trace, "succeeded")
+    _ <- tell(:trace, "succeeded")
     return(result)
   end
 
   defcon error_with_writer, [TaggedWriter, Error] do
-    tell(:trace, "starting")
-    tell(:trace, "about to error")
-    Error.throw_error(:boom)
-    tell(:trace, "never logged")
+    _ <- tell(:trace, "starting")
+    _ <- tell(:trace, "about to error")
+    _ <- Error.throw_error(:boom)
+    _ <- tell(:trace, "never logged")
     return(:not_reached)
   end
 
@@ -122,69 +122,69 @@ defmodule Freyja.Effects.TaggedWriterTest do
     multiplier <- Reader.ask()
     counter <- State.get()
 
-    tell(:audit, {:reading, counter})
+    _ <- tell(:audit, {:reading, counter})
 
     result <- return(counter * multiplier)
 
-    tell(:audit, {:computed, result})
-    State.put(result)
+    _ <- tell(:audit, {:computed, result})
+    _ <- State.put(result)
 
     return(result)
   end
 
   # Nested computations
   defcon log_step(tag, msg), [TaggedWriter] do
-    tell(tag, msg)
+    _ <- tell(tag, msg)
     return(:ok)
   end
 
   defcon process_steps, [TaggedWriter] do
-    log_step(:workflow, "step 1")
-    log_step(:workflow, "step 2")
-    log_step(:workflow, "step 3")
+    _ <- log_step(:workflow, "step 1")
+    _ <- log_step(:workflow, "step 2")
+    _ <- log_step(:workflow, "step 3")
     return(:done)
   end
 
   defcon branch_a, [TaggedWriter] do
-    tell(:branches, "branch_a start")
-    tell(:branches, "branch_a end")
+    _ <- tell(:branches, "branch_a start")
+    _ <- tell(:branches, "branch_a end")
     return(:a_done)
   end
 
   defcon branch_b, [TaggedWriter] do
-    tell(:branches, "branch_b start")
-    tell(:branches, "branch_b end")
+    _ <- tell(:branches, "branch_b start")
+    _ <- tell(:branches, "branch_b end")
     return(:b_done)
   end
 
   defcon multi_branch, [TaggedWriter] do
-    tell(:main, "main start")
+    _ <- tell(:main, "main start")
     _a <- branch_a()
     _b <- branch_b()
-    tell(:main, "main end")
+    _ <- tell(:main, "main end")
     return(:all_done)
   end
 
   # Complex scenarios
   defcon audit_trail, [TaggedWriter] do
-    tell(:audit, %{action: :login, user: "alice", timestamp: 1000})
-    tell(:debug, "user alice authenticated")
+    _ <- tell(:audit, %{action: :login, user: "alice", timestamp: 1000})
+    _ <- tell(:debug, "user alice authenticated")
 
-    tell(:audit, %{action: :read, resource: "/docs", timestamp: 1001})
-    tell(:debug, "accessed /docs")
+    _ <- tell(:audit, %{action: :read, resource: "/docs", timestamp: 1001})
+    _ <- tell(:debug, "accessed /docs")
 
-    tell(:audit, %{action: :write, resource: "/docs", timestamp: 1002})
-    tell(:metrics, %{operation: :write, duration_ms: 45})
+    _ <- tell(:audit, %{action: :write, resource: "/docs", timestamp: 1002})
+    _ <- tell(:metrics, %{operation: :write, duration_ms: 45})
 
-    tell(:audit, %{action: :logout, user: "alice", timestamp: 1003})
-    tell(:debug, "user alice logged out")
+    _ <- tell(:audit, %{action: :logout, user: "alice", timestamp: 1003})
+    _ <- tell(:debug, "user alice logged out")
 
     return(:session_complete)
   end
 
   defcon multi_tenant_logs(tenant_id, action), [TaggedWriter] do
-    tell({:tenant, tenant_id}, %{action: action, timestamp: System.system_time(:millisecond)})
-    tell(:global, %{tenant: tenant_id, action: action})
+    _ <- tell({:tenant, tenant_id}, %{action: action, timestamp: System.system_time(:millisecond)})
+    _ <- tell(:global, %{tenant: tenant_id, action: action})
     return(:logged)
   end
 
@@ -195,7 +195,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
   # Conditional logging
   defcon conditional_log(should_log, tag, message), [TaggedWriter] do
-    _ <-
+    _ignored <-
       if should_log do
         tell(tag, message)
       else
@@ -207,50 +207,50 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
   # Initial state
   defcon append_to_existing, [TaggedWriter] do
-    tell(:log, "new entry")
+    _ <- tell(:log, "new entry")
     return(:ok)
   end
 
   # Tag types
   defcon use_atom_tag, [TaggedWriter] do
-    tell(:atom_tag, "value")
+    _ <- tell(:atom_tag, "value")
     return(:ok)
   end
 
   defcon use_string_tag, [TaggedWriter] do
-    tell("string_tag", "value")
+    _ <- tell("string_tag", "value")
     return(:ok)
   end
 
   defcon use_number_tag, [TaggedWriter] do
-    tell(1, "first")
-    tell(2, "second")
+    _ <- tell(1, "first")
+    _ <- tell(2, "second")
     return(:ok)
   end
 
   defcon use_tuple_tag, [TaggedWriter] do
-    tell({:user, 123}, "alice action")
-    tell({:user, 456}, "bob action")
+    _ <- tell({:user, 123}, "alice action")
+    _ <- tell({:user, 456}, "bob action")
     return(:ok)
   end
 
   # Comparison with regular Writer
   defcon use_both_writers, [Writer, TaggedWriter] do
     # Regular writer
-    Writer.tell("global log")
+    _ <- Writer.tell("global log")
 
     # Tagged writer
-    tell(:audit, "audit entry")
-    tell(:debug, "debug entry")
+    _ <- tell(:audit, "audit entry")
+    _ <- tell(:debug, "debug entry")
 
-    Writer.tell("another global log")
-    tell(:audit, "another audit entry")
+    _ <- Writer.tell("another global log")
+    _ <- tell(:audit, "another audit entry")
 
     return(:done)
   end
 
   defcon trigger_error, [TaggedWriter] do
-    tell(:log, "entry")
+    _ <- tell(:log, "entry")
     return(:ok)
   end
 
@@ -258,54 +258,54 @@ defmodule Freyja.Effects.TaggedWriterTest do
   # Listen operations - migrated to Hefty
   defhefty simple_listen do
     TaggedWriter.listen(hefty do
-      TaggedWriter.tell(:audit, "inner1")
-      TaggedWriter.tell(:audit, "inner2")
+      _ <- TaggedWriter.tell(:audit, "inner1")
+      _ <- TaggedWriter.tell(:audit, "inner2")
       return(42)
     end)
   end
 
   defhefty listen_with_outer_logs do
-    TaggedWriter.tell(:audit, "before")
+    _ <- TaggedWriter.tell(:audit, "before")
 
     {result, inner_logs} <- TaggedWriter.listen(hefty do
-      TaggedWriter.tell(:audit, "inner1")
-      TaggedWriter.tell(:audit, "inner2")
+      _ <- TaggedWriter.tell(:audit, "inner1")
+      _ <- TaggedWriter.tell(:audit, "inner2")
       return(100)
     end)
 
-    TaggedWriter.tell(:audit, "after")
+    _ <- TaggedWriter.tell(:audit, "after")
 
     return({result, inner_logs})
   end
 
   defhefty nested_listen do
-    TaggedWriter.tell(:log, "outer start")
+    _ <- TaggedWriter.tell(:log, "outer start")
 
     {r1, logs1} <- TaggedWriter.listen(hefty do
-      TaggedWriter.tell(:log, "level1 start")
+      _ <- TaggedWriter.tell(:log, "level1 start")
 
       {r2, logs2} <- TaggedWriter.listen(hefty do
-        TaggedWriter.tell(:log, "level2")
+        _ <- TaggedWriter.tell(:log, "level2")
         return(2)
       end)
 
-      TaggedWriter.tell(:log, "level1 end")
+      _ <- TaggedWriter.tell(:log, "level1 end")
       return({r2, logs2})
     end)
 
-    TaggedWriter.tell(:log, "outer end")
+    _ <- TaggedWriter.tell(:log, "outer end")
 
     return({r1, logs1})
   end
 
   defhefty listen_multiple_tags do
     {result, all_logs} <- TaggedWriter.listen(hefty do
-      TaggedWriter.tell(:audit, "a1")
-      TaggedWriter.tell(:debug, "d1")
-      TaggedWriter.tell(:audit, "a2")
-      TaggedWriter.tell(:debug, "d2")
-      TaggedWriter.tell(:audit, "a3")
-      TaggedWriter.tell(:debug, "d3")
+      _ <- TaggedWriter.tell(:audit, "a1")
+      _ <- TaggedWriter.tell(:debug, "d1")
+      _ <- TaggedWriter.tell(:audit, "a2")
+      _ <- TaggedWriter.tell(:debug, "d2")
+      _ <- TaggedWriter.tell(:audit, "a3")
+      _ <- TaggedWriter.tell(:debug, "d3")
       return(:done)
     end)
 
@@ -313,16 +313,16 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   defhefty listen_with_state do
-    State.put(0)
+    _ <- State.put(0)
 
     {result, logs} <- TaggedWriter.listen(hefty do
       count1 <- State.get()
-      State.put(count1 + 1)
-      TaggedWriter.tell(:counter, {:count, count1})
+      _ <- State.put(count1 + 1)
+      _ <- TaggedWriter.tell(:counter, {:count, count1})
 
       count2 <- State.get()
-      State.put(count2 + 1)
-      TaggedWriter.tell(:counter, {:count, count2})
+      _ <- State.put(count2 + 1)
+      _ <- TaggedWriter.tell(:counter, {:count, count2})
 
       State.get()
     end)
@@ -336,16 +336,16 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   defcon peek_after_tells, [TaggedWriter] do
-    tell(:log, "first")
-    tell(:log, "second")
+    _ <- tell(:log, "first")
+    _ <- tell(:log, "second")
     logs <- peek(:log)
     return(logs)
   end
 
   defcon peek_multiple_tags, [TaggedWriter] do
-    tell(:audit, "a1")
-    tell(:debug, "d1")
-    tell(:audit, "a2")
+    _ <- tell(:audit, "a1")
+    _ <- tell(:debug, "d1")
+    _ <- tell(:audit, "a2")
 
     audit_logs <- peek(:audit)
     debug_logs <- peek(:debug)
@@ -354,25 +354,25 @@ defmodule Freyja.Effects.TaggedWriterTest do
   end
 
   defcon peek_in_between_tells, [TaggedWriter] do
-    tell(:log, "first")
+    _ <- tell(:log, "first")
     logs1 <- peek(:log)
 
-    tell(:log, "second")
+    _ <- tell(:log, "second")
     logs2 <- peek(:log)
 
-    tell(:log, "third")
+    _ <- tell(:log, "third")
     logs3 <- peek(:log)
 
     return({logs1, logs2, logs3})
   end
 
   defcon conditional_log_based_on_peek, [TaggedWriter] do
-    tell(:errors, "error1")
+    _ <- tell(:errors, "error1")
 
     current_errors <- peek(:errors)
     error_count <- return(length(current_errors))
 
-    _ <- if error_count > 0 do
+    _ignored <- if error_count > 0 do
       tell(:alerts, "Alert: #{error_count} errors occurred")
     else
       return(nil)
@@ -792,10 +792,10 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
       computation = hefty do
         {result, all_logs} <- TaggedWriter.listen(hefty do
-          TaggedWriter.tell(:audit, "audit1")
-          TaggedWriter.tell(:debug, "debug1")
-          TaggedWriter.tell(:audit, "audit2")
-          TaggedWriter.tell(:metrics, "metric1")
+          _ <- TaggedWriter.tell(:audit, "audit1")
+          _ <- TaggedWriter.tell(:debug, "debug1")
+          _ <- TaggedWriter.tell(:audit, "audit2")
+          _ <- TaggedWriter.tell(:metrics, "metric1")
           return(:done)
         end)
 
@@ -865,7 +865,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       runner = Run.with_handlers(tw: {TaggedWriter.Handler, %{}})
 
       computation = con [TaggedWriter] do
-        tell(:log, "entry")
+        _ <- tell(:log, "entry")
         _peek1 <- peek(:log)
         _peek2 <- peek(:log)
         _peek3 <- peek(:log)
@@ -909,12 +909,12 @@ defmodule Freyja.Effects.TaggedWriterTest do
       )
 
       computation = con [TaggedWriter, State] do
-        tell(:log, "start")
+        _ <- tell(:log, "start")
 
         logs <- peek(:log)
-        State.put(length(logs))
+        _ <- State.put(length(logs))
 
-        tell(:log, "end")
+        _ <- tell(:log, "end")
 
         final_count <- State.get()
         return(final_count)

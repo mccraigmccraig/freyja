@@ -45,7 +45,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
     multiplier <- ask(:multiplier)
     counter <- State.get()
     result <- return(counter * multiplier)
-    State.put(result)
+    _ <- State.put(result)
     return(result)
   end
 
@@ -53,8 +53,8 @@ defmodule Freyja.Effects.TaggedReaderTest do
     db_cfg <- ask(:database)
     api_cfg <- ask(:api)
 
-    Writer.tell("Accessing database: #{db_cfg.host}")
-    Writer.tell("Accessing API: #{api_cfg.url}")
+    _ <- Writer.tell("Accessing database: #{db_cfg.host}")
+    _ <- Writer.tell("Accessing API: #{api_cfg.url}")
 
     return({:configured, db_cfg, api_cfg})
   end
@@ -65,9 +65,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
     result <- return(counter * multiplier)
 
-    Writer.tell("Multiplying #{counter} by #{multiplier}")
-    State.put(result)
-    Writer.tell("Result: #{result}")
+    _ <- Writer.tell("Multiplying #{counter} by #{multiplier}")
+    _ <- State.put(result)
+    _ <- Writer.tell("Result: #{result}")
 
     return(result)
   end

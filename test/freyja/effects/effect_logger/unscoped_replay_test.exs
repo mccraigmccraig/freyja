@@ -14,9 +14,9 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       # Define a computation with State effects
       computation =
         con [State] do
-          put(:initial_value)
+          _ <- put(:initial_value)
           a <- get()
-          put(:updated_value)
+          _ <- put(:updated_value)
           b <- get()
           return({a, b})
         end
@@ -52,9 +52,9 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
     test "replays Writer effects from log" do
       computation =
         con [Writer] do
-          tell("first")
-          tell("second")
-          tell("third")
+          _ <- tell("first")
+          _ <- tell("second")
+          _ <- tell("third")
           return(:done)
         end
 
@@ -83,14 +83,14 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
     test "replays mixed State and Writer effects" do
       computation =
         con [State, Writer] do
-          put(0)
-          tell("starting")
+          _ <- put(0)
+          _ <- tell("starting")
           x <- get()
-          put(x + 10)
-          tell("incremented to 10")
+          _ <- put(x + 10)
+          _ <- tell("incremented to 10")
           y <- get()
-          put(y + 20)
-          tell("incremented to 30")
+          _ <- put(y + 20)
+          _ <- tell("incremented to 30")
           z <- get()
           return(z)
         end
@@ -131,9 +131,9 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       # Use strings instead of atoms since JSON doesn't preserve atoms
       computation =
         con [State] do
-          put("value_one")
+          _ <- put("value_one")
           a <- get()
-          put("value_two")
+          _ <- put("value_two")
           b <- get()
           return({a, b})
         end
@@ -178,9 +178,9 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
     test "replays Writer effects from deserialized log" do
       computation =
         con [Writer] do
-          tell("alpha")
-          tell("beta")
-          tell("gamma")
+          _ <- tell("alpha")
+          _ <- tell("beta")
+          _ <- tell("gamma")
           return(:complete)
         end
 

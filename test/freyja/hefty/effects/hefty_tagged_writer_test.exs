@@ -18,8 +18,8 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
   describe "listen/1 - basic functionality" do
     test "captures logs from inner computation" do
       computation = TaggedWriter.listen(hefty do
-        TaggedWriter.tell(:audit, "event 1")
-        TaggedWriter.tell(:audit, "event 2")
+        _ <- TaggedWriter.tell(:audit, "event 1")
+        _ <- TaggedWriter.tell(:audit, "event 2")
         return(:ok)
       end)
 
@@ -36,9 +36,9 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
     test "captures logs from multiple tags" do
       computation = TaggedWriter.listen(hefty do
-        TaggedWriter.tell(:audit, "audit 1")
-        TaggedWriter.tell(:debug, "debug 1")
-        TaggedWriter.tell(:audit, "audit 2")
+        _ <- TaggedWriter.tell(:audit, "audit 1")
+        _ <- TaggedWriter.tell(:debug, "debug 1")
+        _ <- TaggedWriter.tell(:audit, "audit 2")
         return(42)
       end)
 
@@ -72,10 +72,10 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
     test "logs written inside listen also appear in outer state" do
       computation = hefty do
-        TaggedWriter.tell(:audit, "before")
+        _ <- TaggedWriter.tell(:audit, "before")
 
         {_result, captured} <- TaggedWriter.listen(hefty do
-          TaggedWriter.tell(:audit, "inner")
+          _ <- TaggedWriter.tell(:audit, "inner")
           return(:ok)
         end)
 
@@ -102,22 +102,22 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
   describe "listen/1 - nested listen" do
     test "nested listen scopes work correctly" do
       computation = hefty do
-        TaggedWriter.tell(:audit, "outer 1")
+        _ <- TaggedWriter.tell(:audit, "outer 1")
 
         {_r1, outer_captured} <- TaggedWriter.listen(hefty do
-          TaggedWriter.tell(:audit, "middle 1")
+          _ <- TaggedWriter.tell(:audit, "middle 1")
 
           {_r2, inner_captured} <- TaggedWriter.listen(hefty do
-            TaggedWriter.tell(:audit, "inner 1")
-            TaggedWriter.tell(:audit, "inner 2")
+            _ <- TaggedWriter.tell(:audit, "inner 1")
+            _ <- TaggedWriter.tell(:audit, "inner 2")
             return(:inner_done)
           end)
 
-          TaggedWriter.tell(:audit, "middle 2")
+          _ <- TaggedWriter.tell(:audit, "middle 2")
           return({:middle_done, inner_captured})
         end)
 
-        TaggedWriter.tell(:audit, "outer 2")
+        _ <- TaggedWriter.tell(:audit, "outer 2")
         return(outer_captured)
       end
 

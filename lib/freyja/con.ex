@@ -131,10 +131,6 @@ defmodule Freyja.Con do
       binder(lhs, rhs, rewrite_exprs(rest))
     end
 
-    def rewrite_exprs([expr | rest]) do
-      binder(quote(do: _), expr, rewrite_exprs(rest))
-    end
-
     def binder(lhs, rhs, body) do
       quote do
         unquote(rhs)

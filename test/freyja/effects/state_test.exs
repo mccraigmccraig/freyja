@@ -14,13 +14,13 @@ defmodule Freyja.Effects.StateTest do
   # demonstrating composition with effects
   defcon multiply_store(a, b, c), [State] do
     r <- return(a * b * c)
-    put(r)
+    _ <- put(r)
     return(r)
   end
 
   defcon sum_log(a, b, c), [Writer] do
     r <- return(a + b + c)
-    tell(r)
+    _ <- tell(r)
     return(r)
   end
 

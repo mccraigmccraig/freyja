@@ -55,7 +55,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       map_fn = fn x ->
         hefty do
           current <- Lift.lift(State.get())
-          Lift.lift(State.put(current + x))
+          _ <- Lift.lift(State.put(current + x))
           return(x * 2)
         end
       end
@@ -99,7 +99,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       # Add Writer effect inside the mapped function
       map_fn = fn x ->
         hefty do
-          Lift.lift(Writer.tell({:processing, x}))
+          _ <- Lift.lift(Writer.tell({:processing, x}))
           return(x + 5)
         end
       end
@@ -232,9 +232,9 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
     test "replays catch_hefty with State inside" do
       # State effects inside a catch block
       inner_comp = hefty do
-        Lift.lift(State.put(10))
+        _ <- Lift.lift(State.put(10))
         x <- Lift.lift(State.get())
-        Lift.lift(State.put(x + 5))
+        _ <- Lift.lift(State.put(x + 5))
         return({:ok, x})
       end
 
@@ -288,8 +288,8 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       map_fn = fn item ->
         hefty do
           count <- Lift.lift(State.get())
-          Lift.lift(State.put(count + 1))
-          Lift.lift(Writer.tell({:item, item, count}))
+          _ <- Lift.lift(State.put(count + 1))
+          _ <- Lift.lift(Writer.tell({:item, item, count}))
           return({item, count})
         end
       end
@@ -436,7 +436,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         result <- FxList.fx_map(["a", "b", "c"], fn item ->
           hefty do
             count <- Lift.lift(State.get())
-            Lift.lift(State.put(count + 1))
+            _ <- Lift.lift(State.put(count + 1))
             return(%{item => count})
           end
         end)

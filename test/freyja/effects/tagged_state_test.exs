@@ -12,7 +12,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   # Basic operations
   defcon get_and_increment_cache, [TaggedState] do
     val <- get(:cache)
-    put(:cache, val + 10)
+    _ <- put(:cache, val + 10)
     new_val <- get(:cache)
     return(new_val)
   end
@@ -35,8 +35,8 @@ defmodule Freyja.Effects.TaggedStateTest do
     session <- TaggedState.get(:session_id)
 
     # Update multiple tags
-    TaggedState.put(:cache, Map.put(cache, :new_key, "new_value"))
-    TaggedState.put(:session_id, session + 1)
+    _ <- TaggedState.put(:cache, Map.put(cache, :new_key, "new_value"))
+    _ <- TaggedState.put(:session_id, session + 1)
 
     # Read updated values
     new_cache <- TaggedState.get(:cache)
@@ -46,11 +46,11 @@ defmodule Freyja.Effects.TaggedStateTest do
   end
 
   defcon put_different_types, [TaggedState] do
-    TaggedState.put(:number, 42)
-    TaggedState.put(:string, "hello")
-    TaggedState.put(:list, [1, 2, 3])
-    TaggedState.put(:map, %{a: 1})
-    TaggedState.put(:tuple, {:ok, "result"})
+    _ <- TaggedState.put(:number, 42)
+    _ <- TaggedState.put(:string, "hello")
+    _ <- TaggedState.put(:list, [1, 2, 3])
+    _ <- TaggedState.put(:map, %{a: 1})
+    _ <- TaggedState.put(:tuple, {:ok, "result"})
     return(:ok)
   end
 
@@ -59,8 +59,8 @@ defmodule Freyja.Effects.TaggedStateTest do
     regular <- State.get()
     tagged <- TaggedState.get(:cache)
 
-    State.put(regular + 1)
-    TaggedState.put(:cache, tagged + 10)
+    _ <- State.put(regular + 1)
+    _ <- TaggedState.put(:cache, tagged + 10)
 
     new_regular <- State.get()
     new_tagged <- TaggedState.get(:cache)
@@ -74,9 +74,9 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     result <- return(env.multiplier * cache)
 
-    Writer.tell("Computed: #{result}")
-    TaggedState.put(:cache, result)
-    TaggedState.put(:last_result, result)
+    _ <- Writer.tell("Computed: #{result}")
+    _ <- TaggedState.put(:cache, result)
+    _ <- TaggedState.put(:last_result, result)
 
     return(result)
   end
@@ -84,7 +84,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   # Nested computations
   defcon increment_cache, [TaggedState] do
     val <- TaggedState.get(:cache)
-    TaggedState.put(:cache, val + 1)
+    _ <- TaggedState.put(:cache, val + 1)
     return(val + 1)
   end
 
@@ -99,8 +99,8 @@ defmodule Freyja.Effects.TaggedStateTest do
     count <- TaggedState.get(:count)
     total <- TaggedState.get(:total)
 
-    TaggedState.put(:count, count + 1)
-    TaggedState.put(:total, total + count)
+    _ <- TaggedState.put(:count, count + 1)
+    _ <- TaggedState.put(:total, total + count)
 
     return({count, total})
   end
@@ -121,26 +121,26 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   # Tag types
   defcon use_atom_tag, [TaggedState] do
-    TaggedState.put(:atom_tag, "value")
+    _ <- TaggedState.put(:atom_tag, "value")
     TaggedState.get(:atom_tag)
   end
 
   defcon use_string_tag, [TaggedState] do
-    TaggedState.put("string_tag", "value")
+    _ <- TaggedState.put("string_tag", "value")
     TaggedState.get("string_tag")
   end
 
   defcon use_number_tags, [TaggedState] do
-    TaggedState.put(1, "first")
-    TaggedState.put(2, "second")
+    _ <- TaggedState.put(1, "first")
+    _ <- TaggedState.put(2, "second")
     v1 <- TaggedState.get(1)
     v2 <- TaggedState.get(2)
     return({v1, v2})
   end
 
   defcon use_tuple_tags, [TaggedState] do
-    TaggedState.put({:user, 123}, %{name: "Alice"})
-    TaggedState.put({:user, 456}, %{name: "Bob"})
+    _ <- TaggedState.put({:user, 123}, %{name: "Alice"})
+    _ <- TaggedState.put({:user, 456}, %{name: "Bob"})
 
     alice <- TaggedState.get({:user, 123})
     bob <- TaggedState.get({:user, 456})
@@ -160,14 +160,14 @@ defmodule Freyja.Effects.TaggedStateTest do
   end
 
   defcon update_with_map_function, [TaggedState] do
-    TaggedState.update(:cache, fn cache -> Map.put(cache, :updated, true) end)
+    _ <- TaggedState.update(:cache, fn cache -> Map.put(cache, :updated, true) end)
     TaggedState.get(:cache)
   end
 
   defcon update_multiple_tags, [TaggedState] do
-    TaggedState.update(:count, fn c -> c + 1 end)
-    TaggedState.update(:total, fn t -> t + 10 end)
-    TaggedState.update(:count, fn c -> c * 2 end)
+    _ <- TaggedState.update(:count, fn c -> c + 1 end)
+    _ <- TaggedState.update(:total, fn t -> t + 10 end)
+    _ <- TaggedState.update(:count, fn c -> c * 2 end)
 
     count <- TaggedState.get(:count)
     total <- TaggedState.get(:total)
@@ -183,7 +183,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   end
 
   defcon increment_nested, [TaggedState] do
-    TaggedState.update(:counter, fn c -> c + 1 end)
+    _ <- TaggedState.update(:counter, fn c -> c + 1 end)
     TaggedState.get(:counter)
   end
 

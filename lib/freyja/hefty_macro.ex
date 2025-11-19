@@ -319,11 +319,6 @@ defmodule Freyja.HeftyMacro do
       binder(lhs, rhs, rewrite_exprs(rest))
     end
 
-    # Other expression (effect with no binding) - bind and discard result
-    defp rewrite_exprs([expr | rest]) do
-      binder(quote(do: _), expr, rewrite_exprs(rest))
-    end
-
     # Generate Hefty.bind call
     defp binder(lhs, rhs, body) do
       quote do

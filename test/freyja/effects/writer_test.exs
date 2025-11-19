@@ -10,110 +10,110 @@ defmodule Freyja.Effects.WriterTest do
     import Freyja.Con
 
     defcon single_tell, [Writer] do
-      tell("log entry")
+      _ <- tell("log entry")
       return(:done)
     end
 
     defcon multiple_tells, [Writer] do
-      tell("first")
-      tell("second")
-      tell("third")
+      _ <- tell("first")
+      _ <- tell("second")
+      _ <- tell("third")
       return(:done)
     end
 
     defcon tell_strings, [Writer] do
-      tell("hello")
-      tell("world")
+      _ <- tell("hello")
+      _ <- tell("world")
       return(:ok)
     end
 
     defcon tell_numbers, [Writer] do
-      tell(1)
-      tell(2)
-      tell(3)
+      _ <- tell(1)
+      _ <- tell(2)
+      _ <- tell(3)
       return(:sum)
     end
 
     defcon tell_maps, [Writer] do
-      tell(%{event: "started", timestamp: 100})
-      tell(%{event: "finished", timestamp: 200})
+      _ <- tell(%{event: "started", timestamp: 100})
+      _ <- tell(%{event: "finished", timestamp: 200})
       return(:done)
     end
 
     defcon tell_mixed, [Writer] do
-      tell(:atom)
-      tell("string")
-      tell(42)
-      tell(%{key: "value"})
+      _ <- tell(:atom)
+      _ <- tell("string")
+      _ <- tell(42)
+      _ <- tell(%{key: "value"})
       return(:mixed)
     end
 
     defcon writer_with_state, [Writer, State] do
       counter <- get()
-      tell({:count, counter})
-      put(counter + 1)
+      _ <- tell({:count, counter})
+      _ <- put(counter + 1)
       new_counter <- get()
-      tell({:count, new_counter})
+      _ <- tell({:count, new_counter})
       return(new_counter)
     end
 
     defcon success_path, [Writer, Error] do
-      tell("starting")
+      _ <- tell("starting")
       result <- return(42)
-      tell("succeeded")
+      _ <- tell("succeeded")
       return(result)
     end
 
     defcon error_path, [Writer, Error] do
-      tell("starting")
-      tell("about to error")
-      throw_error(:error)
-      tell("this should not be logged")
+      _ <- tell("starting")
+      _ <- tell("about to error")
+      _ <- throw_error(:error)
+      _ <- tell("this should not be logged")
       return(:not_reached)
     end
 
     defcon log_step(msg), [Writer] do
-      tell(msg)
+      _ <- tell(msg)
       return(:ok)
     end
 
     defcon process, [Writer] do
-      log_step("step 1")
-      log_step("step 2")
-      log_step("step 3")
+      _ <- log_step("step 1")
+      _ <- log_step("step 2")
+      _ <- log_step("step 3")
       return(:done)
     end
 
     defcon divide_success(a, b), [Writer] do
-      tell({:dividing, a, b})
+      _ <- tell({:dividing, a, b})
       quotient <- return(Kernel.div(a, b))
-      tell({:result, quotient})
+      _ <- tell({:result, quotient})
       return({:ok, quotient})
     end
 
     defcon divide_error(a, b), [Writer] do
-      tell({:dividing, a, b})
-      tell({:error, :division_by_zero})
+      _ <- tell({:dividing, a, b})
+      _ <- tell({:error, :division_by_zero})
       return({:error, :division_by_zero})
     end
 
     defcon branch_a, [Writer] do
-      tell("branch_a start")
-      tell("branch_a end")
+      _ <- tell("branch_a start")
+      _ <- tell("branch_a end")
       return(:a_done)
     end
 
     defcon branch_b, [Writer] do
-      tell("branch_b start")
-      tell("branch_b end")
+      _ <- tell("branch_b start")
+      _ <- tell("branch_b end")
       return(:b_done)
     end
 
     defcon multi_branch, [Writer] do
-      tell("main start")
+      _ <- tell("main start")
       _a <- branch_a()
       _b <- branch_b()
-      tell("main end")
+      _ <- tell("main end")
       return(:all_done)
     end
 
@@ -122,7 +122,7 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     defcon conditional_log(should_log, message), [Writer] do
-      _ <-
+      _ignored <-
         if should_log do
           tell(message)
         else
@@ -133,10 +133,10 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     defcon audit_trail, [Writer] do
-      tell(%{action: :login, user: "alice", timestamp: 1000})
-      tell(%{action: :read, resource: "/docs", timestamp: 1001})
-      tell(%{action: :write, resource: "/docs", timestamp: 1002})
-      tell(%{action: :logout, user: "alice", timestamp: 1003})
+      _ <- tell(%{action: :login, user: "alice", timestamp: 1000})
+      _ <- tell(%{action: :read, resource: "/docs", timestamp: 1001})
+      _ <- tell(%{action: :write, resource: "/docs", timestamp: 1002})
+      _ <- tell(%{action: :logout, user: "alice", timestamp: 1003})
       return(:session_complete)
     end
   end

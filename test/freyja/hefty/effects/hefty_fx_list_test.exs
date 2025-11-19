@@ -28,7 +28,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
 
     defhefty process_item(x) do
       count <- State.get()
-      State.put(count + 1)
+      _ <- State.put(count + 1)
       return(x * 2)
     end
   end
@@ -111,7 +111,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
             # Auto-lifted
             count <- State.get()
             # Auto-lifted
-            State.put(count + 1)
+            _ <- State.put(count + 1)
             return(x * 2)
           end
         end)
@@ -134,7 +134,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         FxList.fx_map([10, 20, 30], fn x ->
           hefty do
             current <- State.get()
-            State.put(current + x)
+            _ <- State.put(current + x)
             new_val <- State.get()
             return(new_val)
           end
@@ -174,13 +174,13 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
     test "fx_map in hefty block" do
       computation =
         hefty do
-          State.put(0)
+          _ <- State.put(0)
 
           results <-
             FxList.fx_map([1, 2, 3], fn x ->
               hefty do
                 count <- State.get()
-                State.put(count + 1)
+                _ <- State.put(count + 1)
                 return(x * count)
               end
             end)

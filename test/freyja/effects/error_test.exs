@@ -20,7 +20,7 @@ defmodule Freyja.Effects.ErrorTest do
     test "throw without catch propagates error" do
       fv =
         hefty do
-          Lift.lift(Error.throw_error(:oops))
+          _ <- Lift.lift(Error.throw_error(:oops))
           return(:unreachable)
         end
 
@@ -37,7 +37,7 @@ defmodule Freyja.Effects.ErrorTest do
           res <-
             Catch.catch_hefty(
               hefty do
-                Lift.lift(Error.throw_error(:bad))
+                _ <- Lift.lift(Error.throw_error(:bad))
                 return(:nope)
               end,
               fn _err -> Hefty.pure({:recovered, :bad}) end
@@ -72,18 +72,18 @@ defmodule Freyja.Effects.ErrorTest do
     test "writer in successful computation is applied" do
       fv =
         hefty do
-          Lift.lift(Writer.tell(:from_outer_1))
+          _ <- Lift.lift(Writer.tell(:from_outer_1))
 
           res <-
             Catch.catch_hefty(
               hefty do
-                Lift.lift(Writer.tell(:from_inner))
+                _ <- Lift.lift(Writer.tell(:from_inner))
                 return(42)
               end,
               fn _err -> Hefty.pure(0) end
             )
 
-          Lift.lift(Writer.tell(:from_outer_2))
+          _ <- Lift.lift(Writer.tell(:from_outer_2))
 
           return(res)
         end
@@ -99,23 +99,24 @@ defmodule Freyja.Effects.ErrorTest do
     test "writer in throwing computation is PRESERVED (non-transactional)" do
       fv =
         hefty do
-          Lift.lift(Writer.tell(:from_outer_1))
+          _ <- Lift.lift(Writer.tell(:from_outer_1))
 
           res <-
             Catch.catch_hefty(
               hefty do
-                Lift.lift(Writer.tell(:from_inner))
-                Lift.lift(Error.throw_error(:bad))
+                _ <- Lift.lift(Writer.tell(:from_inner))
+                _ <- Lift.lift(Error.throw_error(:bad))
                 return(:nope)
               end,
               fn _err ->
                 hefty do
-                  Lift.lift(Error.throw_error(:also_bad))
+                  _ <- Lift.lift(Error.throw_error(:also_bad))
+                  return(:unreachable)
                 end
               end
             )
 
-          Lift.lift(Writer.tell(:from_outer_2))
+          _ <- Lift.lift(Writer.tell(:from_outer_2))
 
           return(res)
         end
@@ -132,19 +133,19 @@ defmodule Freyja.Effects.ErrorTest do
     test "writer in recovered computation is applied" do
       fv =
         hefty do
-          Lift.lift(Writer.tell(:from_outer_1))
+          _ <- Lift.lift(Writer.tell(:from_outer_1))
 
           res <-
             Catch.catch_hefty(
               hefty do
-                Lift.lift(Writer.tell(:from_inner))
-                Lift.lift(Error.throw_error(:bad))
+                _ <- Lift.lift(Writer.tell(:from_inner))
+                _ <- Lift.lift(Error.throw_error(:bad))
                 return(:nope)
               end,
               fn _err -> Hefty.pure({:recovered, :bad}) end
             )
 
-          Lift.lift(Writer.tell(:from_outer_2))
+          _ <- Lift.lift(Writer.tell(:from_outer_2))
 
           return(res)
         end
@@ -160,20 +161,20 @@ defmodule Freyja.Effects.ErrorTest do
     test "state in successful computation is applied" do
       fv =
         hefty do
-          Lift.lift(State.put(5))
+          _ <- Lift.lift(State.put(5))
 
           res <-
             Catch.catch_hefty(
               hefty do
                 a <- Lift.lift(State.get())
-                Lift.lift(State.put(a + 5))
+                _ <- Lift.lift(State.put(a + 5))
                 return(42)
               end,
               fn _err -> Hefty.pure(0) end
             )
 
           b <- Lift.lift(State.get())
-          Lift.lift(State.put(b + 5))
+          _ <- Lift.lift(State.put(b + 5))
 
           return(res)
         end
@@ -189,25 +190,26 @@ defmodule Freyja.Effects.ErrorTest do
     test "state in failed computation is PRESERVED (non-transactional)" do
       fv =
         hefty do
-          Lift.lift(State.put(5))
+          _ <- Lift.lift(State.put(5))
 
           res <-
             Catch.catch_hefty(
               hefty do
                 a <- Lift.lift(State.get())
-                Lift.lift(State.put(a + 5))
-                Lift.lift(Error.throw_error(:bad))
+                _ <- Lift.lift(State.put(a + 5))
+                _ <- Lift.lift(Error.throw_error(:bad))
                 return(:nope)
               end,
               fn _err ->
                 hefty do
-                  Lift.lift(Error.throw_error(:also_bad))
+                  _ <- Lift.lift(Error.throw_error(:also_bad))
+                  return(:unreachable)
                 end
               end
             )
 
           b <- Lift.lift(State.get())
-          Lift.lift(State.put(b + 5))
+          _ <- Lift.lift(State.put(b + 5))
 
           return(res)
         end
@@ -225,14 +227,14 @@ defmodule Freyja.Effects.ErrorTest do
     test "state in reocvered computation is applied" do
       fv =
         hefty do
-          Lift.lift(State.put(5))
+          _ <- Lift.lift(State.put(5))
 
           res <-
             Catch.catch_hefty(
               hefty do
                 a <- Lift.lift(State.get())
-                Lift.lift(State.put(a + 5))
-                Lift.lift(Error.throw_error(:bad))
+                _ <- Lift.lift(State.put(a + 5))
+                _ <- Lift.lift(Error.throw_error(:bad))
                 return(:nope)
               end,
               fn _err -> Hefty.pure({:recovered, :bad}) end
@@ -240,7 +242,7 @@ defmodule Freyja.Effects.ErrorTest do
 
           b <- Lift.lift(State.get())
           c <- return(b + 5)
-          Lift.lift(State.put(c))
+          _ <- Lift.lift(State.put(c))
 
           return(res)
         end

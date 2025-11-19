@@ -11,7 +11,7 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(Error.throw_error({:invalid, 3}))
+        _ <- Lift.lift(Error.throw_error({:invalid, 3}))
         return(:unreachable)
       catch
         {:invalid, n} -> return({:fixed, n + 1})
@@ -30,7 +30,7 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(Error.throw_error(:nope))
+        _ <- Lift.lift(Error.throw_error(:nope))
         return(:unreachable)
       catch
         :other -> return(:ok)
@@ -48,11 +48,11 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(Error.throw_error(:bad))
+        _ <- Lift.lift(Error.throw_error(:bad))
         return(:nope)
       catch
         :bad ->
-          Writer.tell({:handled, :bad})
+          _ <- Writer.tell({:handled, :bad})
           return(:ok)
       end
 
@@ -71,7 +71,7 @@ defmodule Freyja.ConElseErrorTest do
       import Freyja.HeftyMacro
 
       fv = hefty do
-        Lift.lift(Error.throw_error(:anything))
+        _ <- Lift.lift(Error.throw_error(:anything))
         return(:unreachable)
       catch
         _ -> return(:handled)

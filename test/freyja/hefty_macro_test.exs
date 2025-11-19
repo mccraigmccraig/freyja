@@ -10,7 +10,6 @@ defmodule Freyja.HeftyMacroTest do
   alias Freyja.Effects.Error
   alias Freyja.Effects.Error.Handler, as: ErrorHandler
   alias Freyja.Effects.State
-  alias Freyja.OkResult
 
   # Test struct that doesn't implement IHeftySendable
   defmodule CustomStruct do

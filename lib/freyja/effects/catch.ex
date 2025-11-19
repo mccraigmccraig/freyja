@@ -281,8 +281,6 @@ defmodule Freyja.Effects.Catch.RunCatchingHandler do
   alias Freyja.Run
   alias Freyja.Run.RunState
   alias Freyja.Run.RunEffects
-  alias Freyja.OkResult
-  alias Freyja.ErrorResult
 
   @impl true
   def handles?(%Impure{sig: sig}, _state) do

@@ -8,9 +8,7 @@ defmodule Freyja.Run do
   alias Freyja.Freer
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
-  alias Freyja.OkResult
   alias Freyja.Freer.Pure
-  alias Freyja.Protocols.Result
   alias Freyja.Freer.Sig.ISendable
   alias Freyja.Run.RunEffects
   alias Freyja.Run.RunEffects.ScopedOk

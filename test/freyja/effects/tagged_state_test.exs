@@ -204,7 +204,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(get_and_increment_cache(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 15}
+      assert outcome.result == 15
       assert outcome.outputs.ts == %{cache: 15}
     end
 
@@ -216,7 +216,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(put_and_return_old(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 42}
+      assert outcome.result == 42
       assert outcome.outputs.ts == %{counter: 100}
     end
 
@@ -228,7 +228,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(get_missing_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: nil}
+      assert outcome.result == nil
     end
   end
 
@@ -245,13 +245,11 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(manage_multiple_states(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: %{
+      assert outcome.result == %{
           cache: %{new_key: "new_value"},
           config: %{host: "localhost", port: 8080},
           session: 101
         }
-      }
 
       assert outcome.outputs.ts == %{
         cache: %{new_key: "new_value"},
@@ -268,7 +266,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(put_different_types(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :ok}
+      assert outcome.result == :ok
       assert outcome.outputs.ts == %{
         number: 42,
         string: "hello",
@@ -289,7 +287,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(use_state_and_tagged_state(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: %{regular: 6, tagged: 110}}
+      assert outcome.result == %{regular: 6, tagged: 110}
       assert outcome.outputs.s == 6
       assert outcome.outputs.ts == %{cache: 110}
     end
@@ -304,7 +302,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(use_reader_writer_tagged(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 30}
+      assert outcome.result == 30
       assert outcome.outputs.w == ["Computed: 30"]
       assert outcome.outputs.ts == %{cache: 30, last_result: 30}
     end
@@ -319,7 +317,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(call_increment_three_times(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: [1, 2, 3]}
+      assert outcome.result == [1, 2, 3]
       assert outcome.outputs.ts == %{cache: 3}
     end
 
@@ -331,12 +329,10 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(call_update_stats_three_times(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: %{
+      assert outcome.result == %{
           steps: [{0, 0}, {1, 0}, {2, 1}],
           final: {3, 3}
         }
-      }
 
       assert outcome.outputs.ts == %{count: 3, total: 3}
     end
@@ -360,30 +356,28 @@ defmodule Freyja.Effects.TaggedStateTest do
       runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
       outcome = Run.run(use_atom_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: "value"}
+      assert outcome.result == "value"
     end
 
     test "supports string tags" do
       runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
       outcome = Run.run(use_string_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: "value"}
+      assert outcome.result == "value"
     end
 
     test "supports number tags" do
       runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
       outcome = Run.run(use_number_tags(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: {"first", "second"}}
+      assert outcome.result == {"first", "second"}
     end
 
     test "supports tuple tags" do
       runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
       outcome = Run.run(use_tuple_tags(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: {%{name: "Alice"}, %{name: "Bob"}}
-      }
+      assert outcome.result == {%{name: "Alice"}, %{name: "Bob"}}
     end
   end
 
@@ -396,7 +390,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(update_counter(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: {5, 6}}
+      assert outcome.result == {5, 6}
       assert outcome.outputs.ts == %{counter: 6}
     end
 
@@ -408,9 +402,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(update_with_map_function(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: %{existing: "value", updated: true}
-      }
+      assert outcome.result == %{existing: "value", updated: true}
       assert outcome.outputs.ts == %{cache: %{existing: "value", updated: true}}
     end
 
@@ -424,7 +416,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       # count: 1 -> 2 (+ 1) -> 4 (* 2)
       # total: 0 -> 10 (+ 10)
-      assert outcome.result == %Freyja.OkResult{value: {4, 10}}
+      assert outcome.result == {4, 10}
       assert outcome.outputs.ts == %{count: 4, total: 10}
     end
 
@@ -436,7 +428,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(update_missing_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: {nil, 1}}
+      assert outcome.result == {nil, 1}
       assert outcome.outputs.ts == %{missing: 1}
     end
 
@@ -448,7 +440,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
       outcome = Run.run(call_increment_nested_three_times(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: [1, 2, 3]}
+      assert outcome.result == [1, 2, 3]
       assert outcome.outputs.ts == %{counter: 3}
     end
   end

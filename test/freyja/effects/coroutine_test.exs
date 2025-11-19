@@ -10,8 +10,6 @@ defmodule Freyja.Effects.CoroutineTest do
   alias Freyja.Freer
   alias Freyja.RunOutcome
   alias Freyja.Run
-  alias Freyja.SuspendResult
-  alias Freyja.OkResult
 
   describe "basic coroutine operations" do
     test "simple yield and resume" do
@@ -26,10 +24,10 @@ defmodule Freyja.Effects.CoroutineTest do
         Run.with_handlers(c: Coroutine.Handler)
 
       outcome = Run.run(computation, runner)
-      assert %RunOutcome{result: %SuspendResult{value: 42}} = outcome
+      assert %RunOutcome{result: {:suspend, 42, _k}} = outcome
 
       outcome2 = Run.resume(outcome, 100)
-      assert %Freyja.RunOutcome{result: %OkResult{value: "finished: 100"}} = outcome2
+      assert %Freyja.RunOutcome{result: "finished: 100"} = outcome2
     end
 
     test "multiple yields" do
@@ -51,19 +49,19 @@ defmodule Freyja.Effects.CoroutineTest do
         )
 
       outcome = Run.run(computation, runner)
-      assert %RunOutcome{result: %SuspendResult{value: "first"}} = outcome
+      assert %RunOutcome{result: {:suspend, "first", _k}} = outcome
 
       # looks like I needd to encode the difference between "rerunning" and
       # "resuming" after suspend... "resuming" after suspend should have the
       # log in its partially consumed state, while "rerunning" will follow
       # the computation from the beginning
       outcome2 = Run.resume(outcome, 100)
-      assert %Freyja.RunOutcome{result: %SuspendResult{value: "second: 100"}} = outcome2
+      assert %Freyja.RunOutcome{result: {:suspend, "second: 100", _k2}} = outcome2
 
       # Logger.error("#{__MODULE__}.outcome2\n#{inspect(outcome2, pretty: true)}")
 
       outcome3 = Run.resume(outcome2, 50)
-      assert %Freyja.RunOutcome{result: %OkResult{value: "final: 150"}} = outcome3
+      assert %Freyja.RunOutcome{result: "final: 150"} = outcome3
 
       # Logger.error("#{__MODULE__}.outcome3\n#{inspect(outcome3, pretty: true)}")
     end

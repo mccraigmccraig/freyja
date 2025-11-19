@@ -86,16 +86,18 @@ defmodule Freyja.Freer.Interpose do
   alias Freyja.Freer.Impl
 
   @doc """
-  Interpose on a specific effect signature in a Freer computation.
+  Interpose on effects in a Freer computation, intercepting those that match a predicate.
 
   Recursively walks the computation tree and intercepts operations matching
-  `target_sig`, rewriting them using the `handler` function. Non-matching
+  the `matcher`, rewriting them using the `handler` function. Non-matching
   operations are reconstructed with continuations that preserve the interposition.
 
   ## Parameters
 
   - `computation` - The Freer computation to transform
-  - `target_sig` - Effect signature module to intercept (e.g., `Freyja.Effects.Error`)
+  - `matcher` - Either:
+    - An atom (effect signature module) to match all operations of that signature
+    - A function `(sig, data) -> boolean` to match specific operations
   - `handler` - Handler function: `(effect_data, continuation) -> Freer.t()`
     - `effect_data` - The operation data (e.g., `%Error.Throw{error: err}`)
     - `continuation` - Wrapped continuation that preserves interposition
@@ -103,9 +105,25 @@ defmodule Freyja.Freer.Interpose do
 
   ## Returns
 
-  A transformed Freer computation where all operations matching `target_sig`
+  A transformed Freer computation where all operations matching the `matcher`
   have been rewritten by calling `handler`. Non-matching operations are
   reconstructed with wrapped continuations.
+
+  ## Matcher
+
+  The matcher can be:
+
+  1. **An atom** - matches all operations with that signature:
+     ```elixir
+     Freyja.Effects.Error  # Matches all Error operations
+     ```
+
+  2. **A predicate function** - matches operations where `(sig, data)` returns `true`:
+     ```elixir
+     fn sig, data ->
+       sig == Freyja.Effects.Error and match?(%Error.Throw{}, data)
+     end
+     ```
 
   ## Handler Function
 
@@ -132,34 +150,58 @@ defmodule Freyja.Freer.Interpose do
   end
   ```
 
-  ## Example
+  ## Examples
 
-      # Intercept all Error.Throw and replace with default value
+      # Match all operations of a signature
       interpose(
         computation,
         Freyja.Effects.Error,
         fn %Error.Throw{}, _k -> Freer.pure(:default_value) end
       )
 
-      # Intercept State.Get and add logging
+      # Match only specific operations using a predicate
       interpose(
         computation,
-        Freyja.Effects.State,
-        fn
-          %State.Get{}, k ->
-            # Still call original continuation, just add logging
-            Logger.info("Getting state")
-            k.(current_state)
+        fn sig, data ->
+          sig == Freyja.Effects.Error and match?(%Error.Throw{}, data)
+        end,
+        fn %Error.Throw{error: err}, k ->
+          # Only intercept Throw, let other Error ops pass through
+          handle_error(err) |> Freer.bind(k)
+        end
+      )
+
+      # Match based on operation data
+      interpose(
+        computation,
+        fn sig, %State.Get{tag: tag} ->
+          sig == Freyja.Effects.State and tag == :critical
+        end,
+        fn %State.Get{}, k ->
+          Logger.warn("Critical state access!")
+          k.(current_state)
         end
       )
   """
   @spec interpose(
           Freer.t(),
-          atom,
+          atom | (atom, any -> boolean),
           (any, (any -> Freer.t()) -> Freer.t()),
           (any -> Freer.t())
         ) :: Freer.t()
-  def interpose(computation, target_sig, handler, value_handler \\ &Freer.pure/1) do
+  def interpose(computation, matcher, handler, value_handler \\ &Freer.pure/1) do
+    # Convert matcher to a predicate function for uniform handling
+    predicate =
+      case matcher do
+        m when is_atom(m) ->
+          # Simple signature matching
+          fn sig, _data -> sig == m end
+
+        m when is_function(m, 2) ->
+          # Already a predicate function
+          m
+      end
+
     # Define the recursive loop as a self-referential function
     # We need to pass loop_fn to itself so it can call itself recursively
     loop = fn comp, loop_fn ->
@@ -185,8 +227,8 @@ defmodule Freyja.Freer.Interpose do
             loop_fn.(next_comp, loop_fn)
           end
 
-          # Check if this operation matches our target signature
-          if sig == target_sig do
+          # Check if this operation matches using the predicate
+          if predicate.(sig, u) do
             # Match! Call the handler with the effect data and wrapped continuation
             # The handler decides what to do - might call k, might not
             handler.(u, k)
@@ -214,21 +256,38 @@ defmodule Freyja.Freer.Interpose do
   This is the most common case - you want to intercept and rewrite specific
   effects, but leave final Pure values unchanged.
 
-  ## Example
+  ## Parameters
 
-      # Intercept all throws and replace with default
+  - `computation` - The Freer computation to transform
+  - `matcher` - Either an atom (signature) or a predicate function `(sig, data) -> boolean`
+  - `handler` - Handler function: `(effect_data, continuation) -> Freer.t()`
+
+  ## Examples
+
+      # Intercept all Error operations
       interpose_with(
         computation,
         Freyja.Effects.Error,
         fn %Error.Throw{}, _k -> Freer.pure(:caught) end
       )
+
+      # Intercept only specific Error.Throw operations
+      interpose_with(
+        computation,
+        fn sig, data ->
+          sig == Freyja.Effects.Error and match?(%Error.Throw{}, data)
+        end,
+        fn %Error.Throw{error: err}, k ->
+          handle_throw(err) |> Freer.bind(k)
+        end
+      )
   """
   @spec interpose_with(
           Freer.t(),
-          atom,
+          atom | (atom, any -> boolean),
           (any, (any -> Freer.t()) -> Freer.t())
         ) :: Freer.t()
-  def interpose_with(computation, target_sig, handler) do
-    interpose(computation, target_sig, handler, &Freer.pure/1)
+  def interpose_with(computation, matcher, handler) do
+    interpose(computation, matcher, handler, &Freer.pure/1)
   end
 end

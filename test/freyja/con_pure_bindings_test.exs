@@ -4,7 +4,6 @@ defmodule Freyja.ConPureBindingsTest do
   import Freyja.Con
 
   alias Freyja.Effects.State
-  alias Freyja.OkResult
   alias Freyja.Run
   alias Freyja.RunOutcome
 
@@ -21,7 +20,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: 20}
+               result: 20
              } = outcome
     end
 
@@ -39,7 +38,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: 25}
+               result: 25
              } = outcome
     end
 
@@ -58,7 +57,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: {20, 20, 10.0}},
+               result: {20, 20, 10.0},
                outputs: %{s: 20}
              } = outcome
     end
@@ -78,7 +77,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: 121},
+               result: 121,
                outputs: %{s: 121}
              } = outcome
     end
@@ -96,7 +95,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: 20}
+               result: 20
              } = outcome
     end
 
@@ -121,7 +120,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: {5, 15, 15}},
+               result: {5, 15, 15},
                outputs: %{s: 15}
              } = outcome
     end
@@ -141,7 +140,7 @@ defmodule Freyja.ConPureBindingsTest do
       outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: {15, 30, 25}},
+               result: {15, 30, 25},
                outputs: %{s: 25}
              } = outcome
     end

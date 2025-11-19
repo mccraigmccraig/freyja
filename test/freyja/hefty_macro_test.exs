@@ -160,7 +160,7 @@ defmodule Freyja.HeftyMacroTest do
 
       outcome = HeftyRun.run_simple(computation, [])
 
-      assert %OkResult{value: 15} = outcome.result
+      assert 15 = outcome.result
     end
 
     test "executes with auto-lifted State" do
@@ -179,7 +179,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => 21}
         )
 
-      assert %OkResult{value: 42} = outcome.result
+      assert 42 = outcome.result
     end
 
     test "executes with Catch and auto-lifted effects" do
@@ -213,7 +213,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => 5}
         )
 
-      assert %OkResult{value: 10} = outcome1.result
+      assert 10 = outcome1.result
 
       # With negative state
       outcome2 =
@@ -224,7 +224,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => -3}
         )
 
-      assert %OkResult{value: 0} = outcome2.result
+      assert 0 = outcome2.result
     end
   end
 
@@ -282,7 +282,7 @@ defmodule Freyja.HeftyMacroTest do
           [ErrorHandler, Catch.RunCatchingHandler]
         )
 
-      assert %OkResult{value: 10} = outcome1.result
+      assert 10 = outcome1.result
 
       # Error case
       result2 = with_catch(-3)
@@ -294,7 +294,7 @@ defmodule Freyja.HeftyMacroTest do
           [ErrorHandler, Catch.RunCatchingHandler]
         )
 
-      assert %OkResult{value: 0} = outcome2.result
+      assert 0 = outcome2.result
     end
   end
 
@@ -361,7 +361,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => 5}
         )
 
-      assert %OkResult{value: 10} = outcome1.result
+      assert 10 = outcome1.result
 
       # Test error case (caught)
       outcome2 =
@@ -372,7 +372,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => -3}
         )
 
-      assert %OkResult{value: 0} = outcome2.result
+      assert 0 = outcome2.result
     end
 
     test "catch clause with multiple patterns" do
@@ -399,7 +399,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => :throw_negative}
         )
 
-      assert %OkResult{value: :handled_negative} = outcome1.result
+      assert :handled_negative = outcome1.result
 
       # Test overflow error
       outcome2 =
@@ -410,7 +410,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => :throw_overflow}
         )
 
-      assert %OkResult{value: :handled_overflow} = outcome2.result
+      assert :handled_overflow = outcome2.result
 
       # Test success case
       outcome3 =
@@ -421,7 +421,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => 42}
         )
 
-      assert %OkResult{value: 42} = outcome3.result
+      assert 42 = outcome3.result
     end
 
     test "catch clause with variable pattern (catch-all)" do
@@ -441,7 +441,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => 0}
         )
 
-      assert %OkResult{value: {:caught, "any error"}} = outcome.result
+      assert {:caught, "any error"} = outcome.result
     end
 
     test "catch clause re-throws unmatched errors" do
@@ -461,7 +461,7 @@ defmodule Freyja.HeftyMacroTest do
         )
 
       # Should propagate error since "unhandled" doesn't match "handled"
-      assert %Freyja.ErrorResult{error: "unhandled"} = outcome.result
+      assert {:error, "unhandled"} = outcome.result
     end
 
     test "catch clause with bindings in try block" do
@@ -487,7 +487,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => -5}
         )
 
-      assert %OkResult{value: {:handled, -5}} = outcome.result
+      assert {:handled, -5} = outcome.result
     end
   end
 
@@ -513,7 +513,7 @@ defmodule Freyja.HeftyMacroTest do
           [ErrorHandler, Catch.RunCatchingHandler]
         )
 
-      assert %OkResult{value: 5} = outcome1.result
+      assert 5 = outcome1.result
 
       # Error case
       result2 = safe_divide(10, 0)
@@ -525,7 +525,7 @@ defmodule Freyja.HeftyMacroTest do
           [ErrorHandler, Catch.RunCatchingHandler]
         )
 
-      assert %OkResult{value: :infinity} = outcome2.result
+      assert :infinity = outcome2.result
     end
   end
 
@@ -555,7 +555,7 @@ defmodule Freyja.HeftyMacroTest do
           [ErrorHandler, Catch.RunCatchingHandler]
         )
 
-      assert %OkResult{value: 100} = outcome.result
+      assert 100 = outcome.result
     end
   end
 end

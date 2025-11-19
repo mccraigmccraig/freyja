@@ -23,8 +23,7 @@ defmodule Freyja.ConElseErrorTest do
 
       %Freyja.RunOutcome{result: res, outputs: _out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
 
-      assert Freyja.Protocols.Result.type(res) == Freyja.OkResult
-      assert Freyja.Protocols.Result.value(res) == {:fixed, 4}
+      assert res == {:fixed, 4}
     end
 
     test "no matching clause rethrows" do
@@ -42,8 +41,7 @@ defmodule Freyja.ConElseErrorTest do
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res} = Hefty.Run.run(fv, algebras, handlers, initial_states)
-      assert Freyja.Protocols.Result.type(res) == Freyja.ErrorResult
-      assert Freyja.Protocols.Result.value(res) == :nope
+      assert res == {:error, :nope}
     end
 
     test "handler clause can perform effects" do
@@ -64,8 +62,7 @@ defmodule Freyja.ConElseErrorTest do
 
       %Freyja.RunOutcome{result: res, outputs: out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
 
-      assert Freyja.Protocols.Result.type(res) == Freyja.OkResult
-      assert Freyja.Protocols.Result.value(res) == :ok
+      assert res == :ok
       # Writer output is in reverse order (most recent first)
       assert out[Writer.Handler] == [{:handled, :bad}]
     end
@@ -86,8 +83,7 @@ defmodule Freyja.ConElseErrorTest do
 
       %Freyja.RunOutcome{result: res, outputs: _out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
 
-      assert Freyja.Protocols.Result.type(res) == Freyja.OkResult
-      assert Freyja.Protocols.Result.value(res) == :handled
+      assert res == :handled
     end
   end
 end

@@ -271,6 +271,7 @@ defmodule Freyja.Hefty.ElaborateTest do
   describe "elaborate/2 - multiple algebras" do
     test "dispatches to correct algebra based on signature" do
       identity_op = Hefty.send_hefty(:Identity, %{data: 42}, %{})
+
       combine_op =
         Hefty.send_hefty(
           :Combine,
@@ -417,6 +418,7 @@ defmodule Freyja.Hefty.ElaborateTest do
       # Create nested structure: outer(inner1, inner2)
       inner1 = Hefty.send_hefty(:Track, %{id: :inner1}, %{})
       inner2 = Hefty.send_hefty(:Track, %{id: :inner2}, %{})
+
       outer =
         Hefty.send_hefty(
           :Track,

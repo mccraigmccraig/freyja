@@ -111,9 +111,10 @@ defmodule Freyja.HeftyTest do
     end
 
     test "continuation can return Impure" do
-      result = Hefty.bind(Hefty.pure(5), fn x ->
-        Hefty.send_hefty(:Test, %{val: x}, %{})
-      end)
+      result =
+        Hefty.bind(Hefty.pure(5), fn x ->
+          Hefty.send_hefty(:Test, %{val: x}, %{})
+        end)
 
       assert %Impure{data: %{val: 5}} = result
     end
@@ -170,9 +171,10 @@ defmodule Freyja.HeftyTest do
     test "continuation can return Impure, creating nested structure" do
       op1 = Hefty.send_hefty(:Op1, %{}, %{})
 
-      result = Hefty.bind(op1, fn x ->
-        Hefty.send_hefty(:Op2, %{val: x}, %{})
-      end)
+      result =
+        Hefty.bind(op1, fn x ->
+          Hefty.send_hefty(:Op2, %{val: x}, %{})
+        end)
 
       assert %Impure{sig: :Op1, k: k} = result
 

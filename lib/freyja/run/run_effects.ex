@@ -19,7 +19,6 @@ defmodule Freyja.Run.RunEffects do
           }
   end
 
-
   @doc """
   A privileged operation used by Hefty algebras to propagate state changes
   from child computations (forks) to the parent's RunState.

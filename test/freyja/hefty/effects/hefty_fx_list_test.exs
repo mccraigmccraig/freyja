@@ -257,5 +257,4 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
       assert [2, 4, 6] = outcome.result
     end
   end
-
 end

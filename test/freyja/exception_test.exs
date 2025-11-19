@@ -6,6 +6,7 @@ defmodule Freyja.ExceptionTest do
   describe "to_serializable/3" do
     test "converts ArithmeticError to serializable map" do
       exception = %ArithmeticError{message: "bad argument in arithmetic expression"}
+
       stacktrace = [
         {MyModule, :my_function, 2, [file: ~c"lib/my_module.ex", line: 42]},
         {:erlang, :div, [10, 0], []}
@@ -32,6 +33,7 @@ defmodule Freyja.ExceptionTest do
 
     test "formats stacktrace with arity (integer)" do
       exception = %RuntimeError{message: "test"}
+
       stacktrace = [
         {MyModule, :my_function, 2, [file: ~c"lib/my_module.ex", line: 42]}
       ]
@@ -47,6 +49,7 @@ defmodule Freyja.ExceptionTest do
 
     test "formats stacktrace with args (list)" do
       exception = %RuntimeError{message: "test"}
+
       stacktrace = [
         {MyModule, :my_function, [:arg1, :arg2], [file: ~c"lib/my_module.ex", line: 10]}
       ]
@@ -62,6 +65,7 @@ defmodule Freyja.ExceptionTest do
 
     test "handles erlang module stacktrace entries" do
       exception = %ArithmeticError{message: "test"}
+
       stacktrace = [
         {:erlang, :div, [10, 0], []}
       ]
@@ -77,9 +81,11 @@ defmodule Freyja.ExceptionTest do
 
     test "limits stacktrace to specified limit" do
       exception = %RuntimeError{message: "test"}
-      stacktrace = Enum.map(1..20, fn i ->
-        {MyModule, :function, i, [file: ~c"test.ex", line: i]}
-      end)
+
+      stacktrace =
+        Enum.map(1..20, fn i ->
+          {MyModule, :function, i, [file: ~c"test.ex", line: i]}
+        end)
 
       result = FException.to_serializable(exception, stacktrace, stacktrace_limit: 5)
 
@@ -88,9 +94,11 @@ defmodule Freyja.ExceptionTest do
 
     test "uses default stacktrace limit of 10" do
       exception = %RuntimeError{message: "test"}
-      stacktrace = Enum.map(1..20, fn i ->
-        {MyModule, :function, i, [file: ~c"test.ex", line: i]}
-      end)
+
+      stacktrace =
+        Enum.map(1..20, fn i ->
+          {MyModule, :function, i, [file: ~c"test.ex", line: i]}
+        end)
 
       result = FException.to_serializable(exception, stacktrace)
 
@@ -99,6 +107,7 @@ defmodule Freyja.ExceptionTest do
 
     test "can exclude stacktrace with include_stacktrace: false" do
       exception = %RuntimeError{message: "test"}
+
       stacktrace = [
         {MyModule, :my_function, 2, [file: ~c"lib/my_module.ex", line: 42]}
       ]
@@ -112,6 +121,7 @@ defmodule Freyja.ExceptionTest do
 
     test "handles missing file and line in stacktrace" do
       exception = %RuntimeError{message: "test"}
+
       stacktrace = [
         {MyModule, :my_function, 2, []}
       ]
@@ -125,6 +135,7 @@ defmodule Freyja.ExceptionTest do
 
     test "result is JSON serializable" do
       exception = %ArgumentError{message: "test error"}
+
       stacktrace = [
         {MyModule, :test, 1, [file: ~c"test.ex", line: 10]}
       ]
@@ -202,9 +213,9 @@ defmodule Freyja.ExceptionTest do
       assert is_list(result["stacktrace"])
       # Should have at least the :erlang.div call
       assert Enum.any?(result["stacktrace"], fn frame ->
-        String.contains?(frame["module"], "erlang") &&
-          String.contains?(frame["function"], "div")
-      end)
+               String.contains?(frame["module"], "erlang") &&
+                 String.contains?(frame["function"], "div")
+             end)
     end
 
     test "captures real ArgumentError" do

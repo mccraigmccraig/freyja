@@ -177,11 +177,13 @@ defmodule Freyja.Hefty.Elaborate do
     elaborated_psi =
       Map.new(psi, fn {key, comp} ->
         # Convert to Hefty if needed (handles bare structs)
-        hefty_comp = case comp do
-          %Hefty.Pure{} -> comp
-          %Hefty.Impure{} -> comp
-          other -> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
-        end
+        hefty_comp =
+          case comp do
+            %Hefty.Pure{} -> comp
+            %Hefty.Impure{} -> comp
+            other -> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
+          end
+
         {key, do_elaborate(hefty_comp, algebras)}
       end)
 
@@ -191,11 +193,13 @@ defmodule Freyja.Hefty.Elaborate do
     elaborated_k = fn x ->
       result = k.(x)
       # Convert to Hefty if needed (handles bare structs)
-      hefty_result = case result do
-        %Hefty.Pure{} -> result
-        %Hefty.Impure{} -> result
-        other -> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
-      end
+      hefty_result =
+        case result do
+          %Hefty.Pure{} -> result
+          %Hefty.Impure{} -> result
+          other -> Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(other)
+        end
+
       do_elaborate(hefty_result, algebras)
     end
 

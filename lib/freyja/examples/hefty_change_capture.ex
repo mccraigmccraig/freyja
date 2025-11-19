@@ -394,11 +394,12 @@ defmodule Freyja.Examples.HeftyChangeCapture do
   This shows you can pass ANY effectful function to process_users.
   """
   defhefty audit_user(user) do
-    _ <- TaggedWriter.tell(:audit, %{
-      action: :reviewed,
-      user_id: user.id,
-      timestamp: System.system_time()
-    })
+    _ <-
+      TaggedWriter.tell(:audit, %{
+        action: :reviewed,
+        user_id: user.id,
+        timestamp: System.system_time()
+      })
 
     _ <- State.update(&(&1 + 1))
 

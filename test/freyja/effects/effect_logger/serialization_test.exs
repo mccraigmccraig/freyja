@@ -49,12 +49,14 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
     end
 
     test "encodes ScopedLogs" do
-      log1 = Log.new()
+      log1 =
+        Log.new()
         |> Log.log_effect(%Impure{sig: :test1, data: "data1"})
         |> Log.log_interpreted_effect_value(:result1)
         |> Log.prepare_for_retrace()
 
-      log2 = Log.new()
+      log2 =
+        Log.new()
         |> Log.log_effect(%Impure{sig: :test2, data: "data2"})
         |> Log.log_interpreted_effect_value(:result2)
         |> Log.prepare_for_retrace()
@@ -117,7 +119,8 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
     end
 
     test "from_json handles ScopedLogs" do
-      log1 = Log.new()
+      log1 =
+        Log.new()
         |> Log.log_effect(%Impure{sig: :test1, data: "data1"})
         |> Log.log_interpreted_effect_value(:result1)
 

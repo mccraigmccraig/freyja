@@ -198,9 +198,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   describe "basic tagged state operations" do
     test "get and put with single tag" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{cache: 5}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{cache: 5}})
 
       outcome = Run.run(get_and_increment_cache(), runner)
 
@@ -210,9 +208,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "put returns old value" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{counter: 42}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{counter: 42}})
 
       outcome = Run.run(put_and_return_old(), runner)
 
@@ -222,9 +218,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "get returns nil for missing tag" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{}})
 
       outcome = Run.run(get_missing_tag(), runner)
 
@@ -236,44 +230,45 @@ defmodule Freyja.Effects.TaggedStateTest do
     test "manage multiple independent states" do
       runner =
         Run.with_handlers(
-          ts: {TaggedState.Handler, %{
-            cache: %{},
-            config: %{host: "localhost", port: 8080},
-            session_id: 100
-          }}
+          ts:
+            {TaggedState.Handler,
+             %{
+               cache: %{},
+               config: %{host: "localhost", port: 8080},
+               session_id: 100
+             }}
         )
 
       outcome = Run.run(manage_multiple_states(), runner)
 
       assert outcome.result == %{
-          cache: %{new_key: "new_value"},
-          config: %{host: "localhost", port: 8080},
-          session: 101
-        }
+               cache: %{new_key: "new_value"},
+               config: %{host: "localhost", port: 8080},
+               session: 101
+             }
 
       assert outcome.outputs.ts == %{
-        cache: %{new_key: "new_value"},
-        config: %{host: "localhost", port: 8080},
-        session_id: 101
-      }
+               cache: %{new_key: "new_value"},
+               config: %{host: "localhost", port: 8080},
+               session_id: 101
+             }
     end
 
     test "different value types per tag" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{}})
 
       outcome = Run.run(put_different_types(), runner)
 
       assert outcome.result == :ok
+
       assert outcome.outputs.ts == %{
-        number: 42,
-        string: "hello",
-        list: [1, 2, 3],
-        map: %{a: 1},
-        tuple: {:ok, "result"}
-      }
+               number: 42,
+               string: "hello",
+               list: [1, 2, 3],
+               map: %{a: 1},
+               tuple: {:ok, "result"}
+             }
     end
   end
 
@@ -311,9 +306,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   describe "nested computations" do
     test "nested functions using TaggedState" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{cache: 0}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{cache: 0}})
 
       outcome = Run.run(call_increment_three_times(), runner)
 
@@ -323,16 +316,14 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "multiple tags in nested computations" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{count: 0, total: 0}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{count: 0, total: 0}})
 
       outcome = Run.run(call_update_stats_three_times(), runner)
 
       assert outcome.result == %{
-          steps: [{0, 0}, {1, 0}, {2, 1}],
-          final: {3, 3}
-        }
+               steps: [{0, 0}, {1, 0}, {2, 1}],
+               final: {3, 3}
+             }
 
       assert outcome.outputs.ts == %{count: 3, total: 3}
     end
@@ -341,9 +332,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   describe "error handling" do
     test "raises ArgumentError if handler state is not a map" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, "not a map"}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, "not a map"})
 
       assert_raise ArgumentError, ~r/TaggedState.Handler state must be a map/, fn ->
         Run.run(trigger_error(), runner)
@@ -384,9 +373,7 @@ defmodule Freyja.Effects.TaggedStateTest do
   describe "update operation" do
     test "updates a counter and returns old value" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{counter: 5}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{counter: 5}})
 
       outcome = Run.run(update_counter(), runner)
 
@@ -396,9 +383,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "updates with map function" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{cache: %{existing: "value"}}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{cache: %{existing: "value"}}})
 
       outcome = Run.run(update_with_map_function(), runner)
 
@@ -408,9 +393,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "updates multiple tags" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{count: 1, total: 0}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{count: 1, total: 0}})
 
       outcome = Run.run(update_multiple_tags(), runner)
 
@@ -422,9 +405,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "updates missing tag (nil case)" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{}})
 
       outcome = Run.run(update_missing_tag(), runner)
 
@@ -434,9 +415,7 @@ defmodule Freyja.Effects.TaggedStateTest do
 
     test "nested update computations" do
       runner =
-        Run.with_handlers(
-          ts: {TaggedState.Handler, %{counter: 0}}
-        )
+        Run.with_handlers(ts: {TaggedState.Handler, %{counter: 0}})
 
       outcome = Run.run(call_increment_nested_three_times(), runner)
 

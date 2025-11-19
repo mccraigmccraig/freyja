@@ -50,16 +50,17 @@ defmodule Freyja.Hefty.Sig.DefHeftyStructTest do
       # It would fail because Catch is not Sendable
 
       # Instead, use Hefty.send_hefty:
-      catch_op = Freyja.Hefty.send_hefty(
-        Freyja.Hefty.Effects.Catch,
-        %Catch{type: :any},
-        %{try: Freyja.Hefty.pure(42), catch: Freyja.Hefty.pure(0)}
-      )
+      catch_op =
+        Freyja.Hefty.send_hefty(
+          Freyja.Hefty.Effects.Catch,
+          %Catch{type: :any},
+          %{try: Freyja.Hefty.pure(42), catch: Freyja.Hefty.pure(0)}
+        )
 
       assert %Freyja.Hefty.Impure{
-        sig: Freyja.Hefty.Effects.Catch,
-        data: %Catch{type: :any}
-      } = catch_op
+               sig: Freyja.Hefty.Effects.Catch,
+               data: %Catch{type: :any}
+             } = catch_op
     end
   end
 

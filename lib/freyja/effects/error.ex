@@ -87,10 +87,12 @@ defmodule Freyja.Effects.Error.Handler do
   def finalize(%Pure{val: val}, _key, state, _run_state) do
     # Wrap completed values in {:ok, _}
     # Errors already return {:error, _}, so this creates Either-style tuples
-    wrapped_val = case val do
-      {:error, _} = err -> err
-      value -> {:ok, value}
-    end
+    wrapped_val =
+      case val do
+        {:error, _} = err -> err
+        value -> {:ok, value}
+      end
+
     {%Pure{val: wrapped_val}, state}
   end
 end

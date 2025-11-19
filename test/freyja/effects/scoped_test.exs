@@ -63,7 +63,9 @@ defmodule Freyja.Effects.ScopedTest do
       handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
-      outcome_one = Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+      outcome_one =
+        Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "two")
 
@@ -89,7 +91,8 @@ defmodule Freyja.Effects.ScopedTest do
       handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
-      outcome_one = Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+      outcome_one =
+        Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
 
       # Logger.error("#{__MODULE__}.outcome_one: #{inspect(outcome_one, pretty: true)}")
 
@@ -108,7 +111,9 @@ defmodule Freyja.Effects.ScopedTest do
       handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
-      outcome_one = Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+      outcome_one =
+        Hefty.Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "hoo")
 

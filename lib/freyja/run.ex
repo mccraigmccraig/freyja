@@ -314,7 +314,6 @@ defmodule Freyja.Run do
     interpreted
   end
 
-
   def interpret_one(
         %Impure{sig: _sig, data: _u, q: _q} = effect,
         %RunState{handlers: handlers} = run_state

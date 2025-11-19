@@ -151,9 +151,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "basic tagged reader operations" do
     test "simple ask operation" do
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, %{database: %{host: "localhost"}}}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, %{database: %{host: "localhost"}}})
 
       outcome = Run.run(simple_ask_tagged(), runner)
 
@@ -163,27 +161,27 @@ defmodule Freyja.Effects.TaggedReaderTest do
     test "ask multiple tags" do
       runner =
         Run.with_handlers(
-          tr: {TaggedReader.Handler, %{
-            database: %{host: "db.example.com"},
-            api: %{url: "https://api.example.com"},
-            environment: :production
-          }}
+          tr:
+            {TaggedReader.Handler,
+             %{
+               database: %{host: "db.example.com"},
+               api: %{url: "https://api.example.com"},
+               environment: :production
+             }}
         )
 
       outcome = Run.run(ask_multiple_tags(), runner)
 
       assert outcome.result == %{
-          db: %{host: "db.example.com"},
-          api: %{url: "https://api.example.com"},
-          env: :production
-        }
+               db: %{host: "db.example.com"},
+               api: %{url: "https://api.example.com"},
+               env: :production
+             }
     end
 
     test "ask returns nil for missing tag" do
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, %{}}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, %{}})
 
       outcome = Run.run(ask_missing_tag(), runner)
 
@@ -194,9 +192,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "read-only behavior" do
     test "asking twice returns same value" do
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, %{config: %{setting: "value"}}}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, %{config: %{setting: "value"}}})
 
       outcome = Run.run(ask_twice_same_tag(), runner)
 
@@ -208,10 +204,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
     test "environment is truly read-only" do
       original = %{value: 42}
+
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, %{data: original}}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, %{data: original}})
 
       outcome = Run.run(modify_and_ask_again(), runner)
 
@@ -239,20 +234,23 @@ defmodule Freyja.Effects.TaggedReaderTest do
     test "TaggedReader with Writer" do
       runner =
         Run.with_handlers(
-          tr: {TaggedReader.Handler, %{
-            database: %{host: "db.local"},
-            api: %{url: "https://api.local"}
-          }},
+          tr:
+            {TaggedReader.Handler,
+             %{
+               database: %{host: "db.local"},
+               api: %{url: "https://api.local"}
+             }},
           w: {Writer.Handler, []}
         )
 
       outcome = Run.run(reader_writer_composition(), runner)
 
       assert outcome.result == {:configured, %{host: "db.local"}, %{url: "https://api.local"}}
+
       assert outcome.outputs.w == [
-        "Accessing API: https://api.local",
-        "Accessing database: db.local"
-      ]
+               "Accessing API: https://api.local",
+               "Accessing database: db.local"
+             ]
     end
 
     test "TaggedReader with State and Writer" do
@@ -267,29 +265,32 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       assert outcome.result == 28
       assert outcome.outputs.s == 28
+
       assert outcome.outputs.w == [
-        "Result: 28",
-        "Multiplying 7 by 4"
-      ]
+               "Result: 28",
+               "Multiplying 7 by 4"
+             ]
     end
 
     test "TaggedReader with regular Reader" do
       runner =
         Run.with_handlers(
           r: {Reader.Handler, %{global: "config"}},
-          tr: {TaggedReader.Handler, %{
-            database: %{host: "db.example.com"},
-            api: %{url: "https://api.example.com"}
-          }}
+          tr:
+            {TaggedReader.Handler,
+             %{
+               database: %{host: "db.example.com"},
+               api: %{url: "https://api.example.com"}
+             }}
         )
 
       outcome = Run.run(use_both_readers(), runner)
 
       assert outcome.result == %{
-          regular: %{global: "config"},
-          database: %{host: "db.example.com"},
-          api: %{url: "https://api.example.com"}
-        }
+               regular: %{global: "config"},
+               database: %{host: "db.example.com"},
+               api: %{url: "https://api.example.com"}
+             }
     end
   end
 
@@ -297,25 +298,25 @@ defmodule Freyja.Effects.TaggedReaderTest do
     test "nested function calls" do
       runner =
         Run.with_handlers(
-          tr: {TaggedReader.Handler, %{
-            database: %{host: "nested.db"},
-            api: %{url: "https://nested.api"}
-          }}
+          tr:
+            {TaggedReader.Handler,
+             %{
+               database: %{host: "nested.db"},
+               api: %{url: "https://nested.api"}
+             }}
         )
 
       outcome = Run.run(nested_config_fetch(), runner)
 
       assert outcome.result == %{
-          database: %{host: "nested.db"},
-          api: %{url: "https://nested.api"}
-        }
+               database: %{host: "nested.db"},
+               api: %{url: "https://nested.api"}
+             }
     end
 
     test "deep nesting propagates environment" do
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, %{deep: :deeply_nested_value}}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, %{deep: :deeply_nested_value}})
 
       outcome = Run.run(level1(), runner)
 
@@ -331,9 +332,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }
 
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, %{config: config}}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, %{config: config}})
 
       outcome = Run.run(complex_nested_env(), runner)
 
@@ -364,10 +363,16 @@ defmodule Freyja.Effects.TaggedReaderTest do
     end
 
     test "supports tuple tags" do
-      runner = Run.with_handlers(tr: {TaggedReader.Handler, %{
-        {:user, 123} => %{name: "Alice"},
-        {:user, 456} => %{name: "Bob"}
-      }})
+      runner =
+        Run.with_handlers(
+          tr:
+            {TaggedReader.Handler,
+             %{
+               {:user, 123} => %{name: "Alice"},
+               {:user, 456} => %{name: "Bob"}
+             }}
+        )
+
       outcome = Run.run(use_tuple_tag(), runner)
 
       assert outcome.result == {%{name: "Alice"}, %{name: "Bob"}}
@@ -377,9 +382,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "error handling" do
     test "raises ArgumentError if handler state is not a map" do
       runner =
-        Run.with_handlers(
-          tr: {TaggedReader.Handler, "not a map"}
-        )
+        Run.with_handlers(tr: {TaggedReader.Handler, "not a map"})
 
       assert_raise ArgumentError, ~r/TaggedReader.Handler state must be a map/, fn ->
         Run.run(trigger_error(), runner)

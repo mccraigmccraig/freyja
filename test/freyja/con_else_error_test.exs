@@ -10,18 +10,20 @@ defmodule Freyja.ConElseErrorTest do
     test "matches a pattern and recovers" do
       import Freyja.HeftyMacro
 
-      fv = hefty do
-        _ <- Lift.lift(Error.throw_error({:invalid, 3}))
-        return(:unreachable)
-      catch
-        {:invalid, n} -> return({:fixed, n + 1})
-      end
+      fv =
+        hefty do
+          _ <- Lift.lift(Error.throw_error({:invalid, 3}))
+          return(:unreachable)
+        catch
+          {:invalid, n} -> return({:fixed, n + 1})
+        end
 
       algebras = [Lift.Algebra, Catch.Algebra]
       handlers = [Error.Handler, Catch.RunCatchingHandler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res, outputs: _out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
+      %Freyja.RunOutcome{result: res, outputs: _out} =
+        Hefty.Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:fixed, 4}
     end
@@ -29,12 +31,13 @@ defmodule Freyja.ConElseErrorTest do
     test "no matching clause rethrows" do
       import Freyja.HeftyMacro
 
-      fv = hefty do
-        _ <- Lift.lift(Error.throw_error(:nope))
-        return(:unreachable)
-      catch
-        :other -> return(:ok)
-      end
+      fv =
+        hefty do
+          _ <- Lift.lift(Error.throw_error(:nope))
+          return(:unreachable)
+        catch
+          :other -> return(:ok)
+        end
 
       algebras = [Lift.Algebra, Catch.Algebra]
       handlers = [Error.Handler, Catch.RunCatchingHandler]
@@ -47,20 +50,22 @@ defmodule Freyja.ConElseErrorTest do
     test "handler clause can perform effects" do
       import Freyja.HeftyMacro
 
-      fv = hefty do
-        _ <- Lift.lift(Error.throw_error(:bad))
-        return(:nope)
-      catch
-        :bad ->
-          _ <- Writer.tell({:handled, :bad})
-          return(:ok)
-      end
+      fv =
+        hefty do
+          _ <- Lift.lift(Error.throw_error(:bad))
+          return(:nope)
+        catch
+          :bad ->
+            _ <- Writer.tell({:handled, :bad})
+            return(:ok)
+        end
 
       algebras = [Lift.Algebra, Catch.Algebra]
       handlers = [Error.Handler, Catch.RunCatchingHandler, Writer.Handler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res, outputs: out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
+      %Freyja.RunOutcome{result: res, outputs: out} =
+        Hefty.Run.run(fv, algebras, handlers, initial_states)
 
       assert res == :ok
       # Writer output is in reverse order (most recent first)
@@ -70,18 +75,20 @@ defmodule Freyja.ConElseErrorTest do
     test "user-supplied default catch clause handles all and prevents rethrow" do
       import Freyja.HeftyMacro
 
-      fv = hefty do
-        _ <- Lift.lift(Error.throw_error(:anything))
-        return(:unreachable)
-      catch
-        _ -> return(:handled)
-      end
+      fv =
+        hefty do
+          _ <- Lift.lift(Error.throw_error(:anything))
+          return(:unreachable)
+        catch
+          _ -> return(:handled)
+        end
 
       algebras = [Lift.Algebra, Catch.Algebra]
       handlers = [Error.Handler, Catch.RunCatchingHandler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res, outputs: _out} = Hefty.Run.run(fv, algebras, handlers, initial_states)
+      %Freyja.RunOutcome{result: res, outputs: _out} =
+        Hefty.Run.run(fv, algebras, handlers, initial_states)
 
       assert res == :handled
     end

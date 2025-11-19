@@ -71,7 +71,6 @@ defmodule Freyja.Con do
       end
     end
 
-
     @doc """
     Private variant of defcon. Defines a defp with a Freer.con body.
     """
@@ -87,7 +86,6 @@ defmodule Freyja.Con do
       end
     end
 
-
     def con(mod_or_mods, do_block) do
       imports = expand_imports(mod_or_mods)
 
@@ -96,7 +94,6 @@ defmodule Freyja.Con do
         unquote(rewrite_block(do_block))
       end
     end
-
 
     def expand_imports(mod_or_mods) do
       mods = mod_or_mods |> List.wrap()
@@ -137,6 +134,5 @@ defmodule Freyja.Con do
         |> Freyja.Freer.bind(fn unquote(lhs) -> unquote(body) end)
       end
     end
-
   end
 end

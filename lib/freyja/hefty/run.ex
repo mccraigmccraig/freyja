@@ -170,10 +170,11 @@ defmodule Freyja.Hefty.Run do
 
     # Phase 2: Interpret first-order effects using existing infrastructure
     # Build handler specs from handlers list and initial_states map
-    handler_specs = Enum.map(handlers, fn handler_mod ->
-      state = Map.get(initial_states, handler_mod)
-      {handler_mod, {handler_mod, state}}
-    end)
+    handler_specs =
+      Enum.map(handlers, fn handler_mod ->
+        state = Map.get(initial_states, handler_mod)
+        {handler_mod, {handler_mod, state}}
+      end)
 
     run_state = Run.with_handlers(handler_specs)
     Run.run(freer_computation, run_state)

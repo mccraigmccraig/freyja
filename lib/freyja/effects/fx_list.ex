@@ -122,7 +122,6 @@ defmodule Freyja.Effects.FxList do
       forks
     )
   end
-
 end
 
 defmodule Freyja.Effects.FxList.Algebra do

@@ -349,8 +349,16 @@ defmodule Freyja.HeftyMacro do
         else
           rewritten_clauses ++
             [
-              {:->, [], [[quote(do: __freyja_unhandled_error__)],
-                quote(do: Freyja.Effects.Lift.lift(Freyja.Effects.Error.throw_error(__freyja_unhandled_error__)))]}
+              {:->, [],
+               [
+                 [quote(do: __freyja_unhandled_error__)],
+                 quote(
+                   do:
+                     Freyja.Effects.Lift.lift(
+                       Freyja.Effects.Error.throw_error(__freyja_unhandled_error__)
+                     )
+                 )
+               ]}
             ]
         end
 
@@ -387,7 +395,8 @@ defmodule Freyja.HeftyMacro do
     # Check if there's a catch-all clause (variable pattern or _)
     defp has_catch_all_clause?(clauses) do
       Enum.any?(clauses, fn
-        {:->, _, [[{var, _, context}], _body]} when is_atom(var) and is_atom(context) and var != :^ ->
+        {:->, _, [[{var, _, context}], _body]}
+        when is_atom(var) and is_atom(context) and var != :^ ->
           # Variable pattern (but not pinned)
           true
 

@@ -50,6 +50,7 @@ defmodule Freyja.Effects.Error.Handler do
 
   alias Freyja.Freer
   alias Freyja.Freer.Impure
+  alias Freyja.Freer.Pure
   alias Freyja.Effects.Error
   alias Freyja.Effects.Error.Throw
 
@@ -74,5 +75,22 @@ defmodule Freyja.Effects.Error.Handler do
     # Throw short-circuits - discards queue
     # Return plain {:error, reason} tuple
     {Freer.return({:error, err}), nil}
+  end
+
+  @doc """
+  Wrap completed computations in {:ok, value}.
+
+  Errors are already {:error, _} tuples from throw_error, so this creates
+  Either-style results when Error.Handler is in the stack.
+  """
+  @impl Freyja.EffectHandler
+  def finalize(%Pure{val: val}, _key, state, _run_state) do
+    # Wrap completed values in {:ok, _}
+    # Errors already return {:error, _}, so this creates Either-style tuples
+    wrapped_val = case val do
+      {:error, _} = err -> err
+      value -> {:ok, value}
+    end
+    {%Pure{val: wrapped_val}, state}
   end
 end

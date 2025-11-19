@@ -109,7 +109,7 @@ defmodule Freyja.EffectLoggerTest do
       result = fv |> Run.run(runner)
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{value: _final_val},
+               result: _final_val,
                outputs: %{
                  s: {:bar, 34},
                  l: %Freyja.Effects.EffectLogger.Log{

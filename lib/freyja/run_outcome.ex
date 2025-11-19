@@ -2,7 +2,10 @@ defmodule Freyja.RunOutcome do
   @moduledoc """
   Unified run outcome envelope for Freyja interpreters.
 
-  - `result`: the primary computation value
+  - `result`: the primary computation result, which can be:
+    - Any value for successful completion
+    - `{:error, reason}` for errors
+    - `{:suspend, value, continuation}` for suspended coroutines
   - `outputs`: flat map for effect-specific outputs (e.g., state, writer, logs)
   """
 

@@ -64,7 +64,7 @@ defmodule Freyja.Run do
   """
   def resume(
         %RunOutcome{
-          result: %Freyja.SuspendResult{continuation: k},
+          result: {:suspend, _value, k},
           run_state: run_state
         },
         input
@@ -103,6 +103,19 @@ defmodule Freyja.Run do
   computation runner
   """
   @spec do_run(Freer.freer(), RunState.t()) :: RunOutcome.t()
+  def do_run(
+        %Pure{val: %Freyja.Effects.Coroutine.Suspend{value: val, continuation: k}} = _computation,
+        %RunState{} = run_state
+      ) do
+    # Suspensions bypass finalize - continuation captures rest of computation including finalization
+    # Convert Coroutine.Suspend (private protocol) to {:suspend, _, _} tuple (public API)
+    %RunOutcome{
+      result: {:suspend, val, k},
+      outputs: run_state.states,
+      run_state: run_state
+    }
+  end
+
   def do_run(
         %Pure{} = computation,
         %RunState{} = run_state
@@ -159,15 +172,13 @@ defmodule Freyja.Run do
   # its state and the result value
   @spec finalize(Pure.t(), RunState.t()) :: {Pure.t(), RunState.t()}
   defp finalize(
-         %Pure{val: val} = computation,
+         %Pure{} = computation,
          %RunState{
            handlers: handlers
          } = run_state
        ) do
-    # if we get to the finalize phase and no effect has decided upon
-    # what type of output it's going to be, then it's an OkResult,
-    # signalling a normal completion
-    computation = if !Result.type(val), do: %Pure{val: %OkResult{value: val}}, else: computation
+    # Plain values pass through unchanged - no automatic OkResult wrapping
+    # Handlers return {:error, _} or other special values explicitly when needed
 
     handlers
     |> Enum.reduce({computation, run_state}, fn {key, mod}, {pure, run_state} ->
@@ -229,13 +240,11 @@ defmodule Freyja.Run do
   """
   @spec interpret(Freer.freer(), RunState.t()) :: {Pure.t(), RunState.t()}
   def interpret(
-        %Pure{val: val} = computation,
+        %Pure{} = computation,
         %RunState{} = run_state
       ) do
-    # if we get to the finalize phase and no effect has decided upon
-    # what type of output it's going to be, then it's an OkResult,
-    # signalling a normal completion
-    computation = if !Result.type(val), do: %Pure{val: %OkResult{value: val}}, else: computation
+    # Plain values pass through unchanged - no automatic OkResult wrapping
+    # Handlers return {:error, _} or other special values explicitly when needed
 
     {computation, run_state}
   end

@@ -10,6 +10,17 @@ defmodule Freyja.Effects.Coroutine do
 
   def yield(value), do: %Yield{value: value}
   def scoped_yield(value), do: %ScopedYield{value: value}
+
+  defmodule Suspend do
+    @moduledoc """
+    Internal marker struct used by Coroutine.Handler to communicate suspension to Run.
+    This is part of the private protocol between Coroutine handler and Run.do_run.
+    Run converts this to {:suspend, value, continuation} in RunOutcome.result.
+    """
+    defstruct value: nil, continuation: nil
+
+    @type t :: %__MODULE__{value: any, continuation: (any -> Freyja.Freer.t())}
+  end
 end
 
 defmodule Freyja.Effects.Coroutine.Handler do
@@ -25,10 +36,10 @@ defmodule Freyja.Effects.Coroutine.Handler do
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Effects.Coroutine
+  alias Freyja.Effects.Coroutine.Suspend
   alias Freyja.Effects.Coroutine.Yield
   alias Freyja.Effects.Coroutine.ScopedYield
   alias Freyja.Run.RunState
-  alias Freyja.SuspendResult
 
   @behaviour Freyja.EffectHandler
 
@@ -39,6 +50,7 @@ defmodule Freyja.Effects.Coroutine.Handler do
 
   @doc """
   Interpret a coroutine and report its status.
+  Returns Suspend struct which Run.do_run converts to {:suspend, value, continuation}.
   """
   @impl Freyja.EffectHandler
   def interpret(
@@ -48,16 +60,16 @@ defmodule Freyja.Effects.Coroutine.Handler do
         %RunState{}
       ) do
     case u do
-      # shoft-circuit - discard queue - it lives on in k
+      # short-circuit - discard queue - it lives on in k
       %Yield{value: val} ->
         k = fn v -> Impl.q_apply(q, v) end
-        {SuspendResult.yield(val, k) |> Freer.return(), nil}
+        {Freer.return(%Suspend{value: val, continuation: k}), nil}
 
       # identical behaviour to Yield, but it marks the effect
       # as resulting from a scoped execution
       %ScopedYield{value: val} ->
         k = fn v -> Impl.q_apply(q, v) end
-        {SuspendResult.yield(val, k) |> Freer.return(), nil}
+        {Freer.return(%Suspend{value: val, continuation: k}), nil}
     end
   end
 end

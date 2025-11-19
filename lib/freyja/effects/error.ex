@@ -48,7 +48,6 @@ defmodule Freyja.Effects.Error.Handler do
   - `Freyja.Effects.Catch` - For the higher-order catch operation
   """
 
-  alias Freyja.ErrorResult
   alias Freyja.Freer
   alias Freyja.Freer.Impure
   alias Freyja.Effects.Error
@@ -61,7 +60,10 @@ defmodule Freyja.Effects.Error.Handler do
     sig == Error
   end
 
-  @doc "Interpret an Error throw operation"
+  @doc """
+  Interpret an Error throw operation.
+  Returns {:error, reason} tuple instead of wrapped ErrorResult struct.
+  """
   @impl Freyja.EffectHandler
   def interpret(
         %Impure{sig: Error, data: %Throw{error: err}},
@@ -70,6 +72,7 @@ defmodule Freyja.Effects.Error.Handler do
         _run_state
       ) do
     # Throw short-circuits - discards queue
-    {ErrorResult.error(err) |> Freer.return(), nil}
+    # Return plain {:error, reason} tuple
+    {Freer.return({:error, err}), nil}
   end
 end

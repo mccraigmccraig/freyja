@@ -305,18 +305,18 @@ defmodule Freyja.Effects.Catch.RunCatchingHandler do
     # Run the computation
     outcome = Run.run(comp, run_state)
 
-    # Inspect the result
+    # Inspect the result - now using plain tuples instead of Result structs
     # Suspensions pass through unchanged - they bypass the catch entirely
     # For success/error, wrap in tagged tuple and use ScopedOk to propagate state
     case outcome.result do
-      %Freyja.SuspendResult{} = suspend ->
+      {:suspend, _, _} = suspend ->
         # Suspensions pass through directly - don't wrap in ScopedOk
         # Just return the suspend with the continuation
         {Freyja.Freer.return(suspend), state}
 
-      %OkResult{value: value} ->
-        # Success - wrap in {:ok, value} tuple
-        result_value = {:ok, value}
+      {:error, err} ->
+        # Error - wrap in {:error, err} tuple (already in correct format)
+        result_value = {:error, err}
 
         # IMPORTANT FIX: Run.run returns outcome with run_state pointing to INPUT states,
         # but outputs pointing to FINAL states. For ScopedOk to work properly, we need
@@ -327,7 +327,6 @@ defmodule Freyja.Effects.Catch.RunCatchingHandler do
           run_state: %{outcome.run_state | states: outcome.outputs}
         }
 
-        # Return ScopedOk effect to propagate state changes
         scoped_ok_effect = %Impure{
           sig: RunEffects,
           data: %RunEffects.ScopedOk{
@@ -339,9 +338,9 @@ defmodule Freyja.Effects.Catch.RunCatchingHandler do
 
         {scoped_ok_effect, state}
 
-      %ErrorResult{error: err} ->
-        # Error - wrap in {:error, err} tuple
-        result_value = {:error, err}
+      value ->
+        # Success - wrap in {:ok, value} tuple
+        result_value = {:ok, value}
 
         corrected_outcome = %RunOutcome{
           result: outcome.result,
@@ -349,6 +348,7 @@ defmodule Freyja.Effects.Catch.RunCatchingHandler do
           run_state: %{outcome.run_state | states: outcome.outputs}
         }
 
+        # Return ScopedOk effect to propagate state changes
         scoped_ok_effect = %Impure{
           sig: RunEffects,
           data: %RunEffects.ScopedOk{

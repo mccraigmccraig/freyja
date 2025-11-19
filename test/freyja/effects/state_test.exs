@@ -45,7 +45,7 @@ defmodule Freyja.Effects.StateTest do
 
       outcome = Run.run(calc(10), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: %{sum: 22, product: 350}}
+      assert outcome.result == %{sum: 22, product: 350}
       assert outcome.outputs.s == 350
       assert outcome.outputs.w == [22]
 

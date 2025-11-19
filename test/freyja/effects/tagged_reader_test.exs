@@ -157,7 +157,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(simple_ask_tagged(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: %{host: "localhost"}}
+      assert outcome.result == %{host: "localhost"}
     end
 
     test "ask multiple tags" do
@@ -172,13 +172,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(ask_multiple_tags(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: %{
+      assert outcome.result == %{
           db: %{host: "db.example.com"},
           api: %{url: "https://api.example.com"},
           env: :production
         }
-      }
     end
 
     test "ask returns nil for missing tag" do
@@ -189,7 +187,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(ask_missing_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: nil}
+      assert outcome.result == nil
     end
   end
 
@@ -202,7 +200,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(ask_twice_same_tag(), runner)
 
-      {val1, val2} = outcome.result.value
+      {val1, val2} = outcome.result
       assert val1 == %{setting: "value"}
       assert val2 == %{setting: "value"}
       assert val1 == val2
@@ -217,7 +215,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(modify_and_ask_again(), runner)
 
-      {env1, env2} = outcome.result.value
+      {env1, env2} = outcome.result
       assert env1 == original
       assert env2 == original
       assert env1 == env2
@@ -234,7 +232,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(reader_state_composition(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 15}
+      assert outcome.result == 15
       assert outcome.outputs.s == 15
     end
 
@@ -250,9 +248,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(reader_writer_composition(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: {:configured, %{host: "db.local"}, %{url: "https://api.local"}}
-      }
+      assert outcome.result == {:configured, %{host: "db.local"}, %{url: "https://api.local"}}
       assert outcome.outputs.w == [
         "Accessing API: https://api.local",
         "Accessing database: db.local"
@@ -269,7 +265,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(all_effects_composition(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 28}
+      assert outcome.result == 28
       assert outcome.outputs.s == 28
       assert outcome.outputs.w == [
         "Result: 28",
@@ -289,13 +285,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(use_both_readers(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: %{
+      assert outcome.result == %{
           regular: %{global: "config"},
           database: %{host: "db.example.com"},
           api: %{url: "https://api.example.com"}
         }
-      }
     end
   end
 
@@ -311,12 +305,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(nested_config_fetch(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: %{
+      assert outcome.result == %{
           database: %{host: "nested.db"},
           api: %{url: "https://nested.api"}
         }
-      }
     end
 
     test "deep nesting propagates environment" do
@@ -327,7 +319,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(level1(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :deeply_nested_value}
+      assert outcome.result == :deeply_nested_value
     end
   end
 
@@ -345,9 +337,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       outcome = Run.run(complex_nested_env(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: "db: complex.db:5432, api: https://complex.api"
-      }
+      assert outcome.result == "db: complex.db:5432, api: https://complex.api"
     end
   end
 
@@ -356,21 +346,21 @@ defmodule Freyja.Effects.TaggedReaderTest do
       runner = Run.with_handlers(tr: {TaggedReader.Handler, %{atom_tag: :atom_value}})
       outcome = Run.run(use_atom_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :atom_value}
+      assert outcome.result == :atom_value
     end
 
     test "supports string tags" do
       runner = Run.with_handlers(tr: {TaggedReader.Handler, %{"string_tag" => "string_value"}})
       outcome = Run.run(use_string_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: "string_value"}
+      assert outcome.result == "string_value"
     end
 
     test "supports number tags" do
       runner = Run.with_handlers(tr: {TaggedReader.Handler, %{1 => "first", 2 => "second"}})
       outcome = Run.run(use_number_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: {"first", "second"}}
+      assert outcome.result == {"first", "second"}
     end
 
     test "supports tuple tags" do
@@ -380,9 +370,7 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }})
       outcome = Run.run(use_tuple_tag(), runner)
 
-      assert outcome.result == %Freyja.OkResult{
-        value: {%{name: "Alice"}, %{name: "Bob"}}
-      }
+      assert outcome.result == {%{name: "Alice"}, %{name: "Bob"}}
     end
   end
 

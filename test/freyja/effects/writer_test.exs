@@ -146,7 +146,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.single_tell(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :done}
+      assert outcome.result == :done
       # Note: Writer accumulates in reverse order (most recent first)
       assert outcome.outputs.w == ["log entry"]
     end
@@ -155,7 +155,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.multiple_tells(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :done}
+      assert outcome.result == :done
       # Most recent first (reverse chronological order)
       assert outcome.outputs.w == ["third", "second", "first"]
     end
@@ -200,7 +200,7 @@ defmodule Freyja.Effects.WriterTest do
 
       outcome = Run.run(WriterExamples.writer_with_state(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 1}
+      assert outcome.result == 1
       assert outcome.outputs.s == 1
       assert outcome.outputs.w == [{:count, 1}, {:count, 0}]
     end
@@ -209,7 +209,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.success_path(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: 42}
+      assert outcome.result == 42
       assert outcome.outputs.w == ["succeeded", "starting"]
     end
 
@@ -217,7 +217,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []}, e: Error.Handler)
       outcome = Run.run(WriterExamples.error_path(), runner)
 
-      assert outcome.result == %Freyja.ErrorResult{error: :error}
+      assert outcome.result == {:error, :error}
       # Only logs before the error are captured
       assert outcome.outputs.w == ["about to error", "starting"]
     end
@@ -226,7 +226,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.process(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :done}
+      assert outcome.result == :done
       assert outcome.outputs.w == ["step 3", "step 2", "step 1"]
     end
 
@@ -234,7 +234,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.divide_success(10, 2), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: {:ok, 5}}
+      assert outcome.result == {:ok, 5}
       assert outcome.outputs.w == [{:result, 5}, {:dividing, 10, 2}]
     end
 
@@ -242,7 +242,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.divide_error(10, 0), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: {:error, :division_by_zero}}
+      assert outcome.result == {:error, :division_by_zero}
 
       assert outcome.outputs.w == [
                {:error, :division_by_zero},
@@ -254,7 +254,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.multi_branch(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :all_done}
+      assert outcome.result == :all_done
 
       assert outcome.outputs.w == [
                "main end",
@@ -271,7 +271,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, ["existing1", "existing2"]})
       outcome = Run.run(WriterExamples.single_tell(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :done}
+      assert outcome.result == :done
       # New entries are prepended (most recent first)
       assert outcome.outputs.w == ["log entry", "existing1", "existing2"]
     end
@@ -280,7 +280,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.no_tells(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :no_logs}
+      assert outcome.result == :no_logs
       assert outcome.outputs.w == []
     end
 
@@ -288,7 +288,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.conditional_log(true, "logged"), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :done}
+      assert outcome.result == :done
       assert outcome.outputs.w == ["logged"]
     end
 
@@ -296,7 +296,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.conditional_log(false, "not logged"), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :done}
+      assert outcome.result == :done
       assert outcome.outputs.w == []
     end
 
@@ -304,7 +304,7 @@ defmodule Freyja.Effects.WriterTest do
       runner = Run.with_handlers(w: {Writer.Handler, []})
       outcome = Run.run(WriterExamples.audit_trail(), runner)
 
-      assert outcome.result == %Freyja.OkResult{value: :session_complete}
+      assert outcome.result == :session_complete
 
       assert outcome.outputs.w == [
                %{action: :logout, user: "alice", timestamp: 1003},

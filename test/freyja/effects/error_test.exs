@@ -15,7 +15,6 @@ defmodule Freyja.Effects.ErrorTest do
   alias Freyja.Effects.Writer
   alias Freyja.Effects.State
   alias Freyja.RunOutcome
-  alias Freyja.ErrorResult
 
   describe "throw/catch basics" do
     test "throw without catch propagates error" do
@@ -27,7 +26,7 @@ defmodule Freyja.Effects.ErrorTest do
 
       outcome = HeftyRun.run(fv, [Lift.Algebra], [ErrorHandler])
 
-      assert %RunOutcome{result: %ErrorResult{error: :oops}} = outcome
+      assert %RunOutcome{result: {:error, :oops}} = outcome
     end
   end
 
@@ -50,7 +49,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{value: {:recovered, :bad}}
+               result: {:recovered, :bad}
              } = outcome
     end
   end
@@ -65,7 +64,7 @@ defmodule Freyja.Effects.ErrorTest do
 
       outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler, Catch.RunCatchingHandler])
 
-      assert %Freyja.RunOutcome{result: %Freyja.OkResult{value: 42}} = outcome
+      assert %Freyja.RunOutcome{result: 42} = outcome
     end
   end
 
@@ -92,9 +91,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler, Writer.Handler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{
-                 value: 42
-               },
+               result: 42,
                outputs: %{Writer.Handler => [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
@@ -127,7 +124,7 @@ defmodule Freyja.Effects.ErrorTest do
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
       assert %Freyja.RunOutcome{
-               result: %Freyja.ErrorResult{error: :also_bad},
+               result: {:error, :also_bad},
                outputs: %{Writer.Handler => [:from_inner, :from_outer_1]}
              } = outcome
     end
@@ -155,7 +152,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler, Writer.Handler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{value: {:recovered, :bad}},
+               result: {:recovered, :bad},
                outputs: %{Writer.Handler => [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
@@ -184,9 +181,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome = HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [State.Handler, ErrorHandler, Catch.RunCatchingHandler])
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{
-                 value: 42
-               },
+               result: 42,
                outputs: %{State.Handler => 15}
              } = outcome
     end
@@ -222,7 +217,7 @@ defmodule Freyja.Effects.ErrorTest do
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
       # Initial state: nil -> put(5) = 5 -> put(10) in try block = 10
       assert %Freyja.RunOutcome{
-               result: %Freyja.ErrorResult{error: :also_bad},
+               result: {:error, :also_bad},
                outputs: %{State.Handler => 10}
              } = outcome
     end
@@ -257,7 +252,7 @@ defmodule Freyja.Effects.ErrorTest do
       )
 
       assert %Freyja.RunOutcome{
-               result: %Freyja.OkResult{value: {:recovered, :bad}},
+               result: {:recovered, :bad},
                outputs: %{State.Handler => 15}
              } = outcome
 

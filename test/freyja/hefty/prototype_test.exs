@@ -22,7 +22,6 @@ defmodule Freyja.Hefty.PrototypeTest do
   alias Freyja.Effects.Error
   alias Freyja.Effects.Error.Handler, as: ErrorHandler
   alias Freyja.Effects.State
-  alias Freyja.OkResult
 
   # Silence warning - RunCatchingHandler is passed as atom in handler lists
   _ = RunCatchingHandler
@@ -38,7 +37,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         []
       )
 
-      assert %OkResult{value: 42} = outcome.result
+      assert 42 = outcome.result
     end
 
     test "lifts State.get" do
@@ -51,7 +50,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 100}
       )
 
-      assert %OkResult{value: 100} = outcome.result
+      assert 100 = outcome.result
     end
 
     test "lifts State operations and chains them" do
@@ -73,7 +72,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 5}
       )
 
-      assert %OkResult{value: 15} = outcome.result
+      assert 15 = outcome.result
       assert outcome.outputs[State.Handler] == 15
     end
   end
@@ -91,7 +90,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         [ErrorHandler, Catch.RunCatchingHandler]
       )
 
-      assert %OkResult{value: 42} = outcome.result
+      assert 42 = outcome.result
     end
 
     test "executes try block with State effect" do
@@ -107,7 +106,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 42}
       )
 
-      assert %OkResult{value: 42} = outcome.result
+      assert 42 = outcome.result
     end
 
     test "chains multiple operations in try block" do
@@ -131,7 +130,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 5}
       )
 
-      assert %OkResult{value: 10} = outcome.result
+      assert 10 = outcome.result
       # Note: State changes within RunCatching scope don't propagate out (yet)
       # This is a scoping question for full implementation
     end
@@ -150,7 +149,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         [ErrorHandler, Catch.RunCatchingHandler]
       )
 
-      assert %OkResult{value: :recovered} = outcome.result
+      assert :recovered = outcome.result
     end
 
     test "executes catch block with State effect" do
@@ -167,7 +166,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 99}
       )
 
-      assert %OkResult{value: 99} = outcome.result
+      assert 99 = outcome.result
     end
 
     test "catch block can modify state" do
@@ -189,7 +188,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 0}
       )
 
-      assert %OkResult{value: 999} = outcome.result
+      assert 999 = outcome.result
       assert outcome.outputs[State.Handler] == 999
     end
   end
@@ -217,7 +216,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 5}
       )
 
-      assert %OkResult{value: 10} = outcome1.result
+      assert 10 = outcome1.result
 
       # With negative state - caught error
       outcome2 = HeftyRun.run(
@@ -227,7 +226,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => -3}
       )
 
-      assert %OkResult{value: 0} = outcome2.result
+      assert 0 = outcome2.result
     end
 
     test "nested Catch operations" do
@@ -248,7 +247,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       )
 
       # Inner catch should handle the error
-      assert %OkResult{value: :inner_recovered} = outcome.result
+      assert :inner_recovered = outcome.result
     end
 
     test "catch with continuation after" do
@@ -271,7 +270,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       )
 
       # Catch returns 10, continuation doubles it
-      assert %OkResult{value: 20} = outcome.result
+      assert 20 = outcome.result
     end
 
     test "State modifications visible across catch boundary" do
@@ -297,7 +296,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       # The try block sets State=100, then throws
       # The catch block sees State=100 (not the initial state of 0)
       # This matches Heftia's default behavior
-      assert %OkResult{value: 100} = outcome.result
+      assert 100 = outcome.result
       assert outcome.outputs[State.Handler] == 100
     end
   end
@@ -319,7 +318,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       )
 
       # (5 + 1) * 2 = 12
-      assert %OkResult{value: 12} = outcome.result
+      assert 12 = outcome.result
     end
 
     test "bind with Lift in continuation" do
@@ -342,7 +341,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 999}
       )
 
-      assert %OkResult{value: 5} = outcome.result
+      assert 5 = outcome.result
       assert outcome.outputs[State.Handler] == 5
     end
   end
@@ -371,7 +370,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       ])
       outcome = Freyja.Run.run(freer_tree, run_state)
 
-      assert %OkResult{value: :fallback} = outcome.result
+      assert :fallback = outcome.result
     end
 
     test "algebras are applied before interpretation" do
@@ -388,7 +387,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         %{State.Handler => 42}
       )
 
-      assert %OkResult{value: 42} = outcome.result
+      assert 42 = outcome.result
     end
 
     test "run_simple convenience function" do
@@ -401,7 +400,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         []  # No algebras needed for pure
       )
 
-      assert %OkResult{value: 100} = outcome.result
+      assert 100 = outcome.result
     end
   end
 

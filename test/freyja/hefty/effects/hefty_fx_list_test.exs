@@ -20,7 +20,6 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
   alias Freyja.Effects.FxList.FxMap
   alias Freyja.Effects.Lift
   alias Freyja.Effects.State
-  alias Freyja.OkResult
 
   # Helper for comparison test
   defmodule ComparisonHelper do
@@ -48,7 +47,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
           []
         )
 
-      assert %OkResult{value: [2, 4, 6]} = outcome.result
+      assert [2, 4, 6] = outcome.result
     end
 
     test "maps over empty list" do
@@ -64,7 +63,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
           []
         )
 
-      assert %OkResult{value: []} = outcome.result
+      assert [] = outcome.result
     end
 
     test "maps over single element" do
@@ -80,7 +79,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
           []
         )
 
-      assert %OkResult{value: [43]} = outcome.result
+      assert [43] = outcome.result
     end
 
     test "function can use hefty blocks" do
@@ -100,7 +99,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
           []
         )
 
-      assert %OkResult{value: [3, 5, 7]} = outcome.result
+      assert [3, 5, 7] = outcome.result
     end
   end
 
@@ -125,7 +124,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
           %{State.Handler => 0}
         )
 
-      assert %OkResult{value: [2, 4, 6]} = outcome.result
+      assert [2, 4, 6] = outcome.result
       # State should be incremented 3 times
       assert outcome.outputs[State.Handler] == 3
     end
@@ -150,7 +149,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         )
 
       # 0 + 10 = 10, 10 + 20 = 30, 30 + 30 = 60
-      assert %OkResult{value: [10, 30, 60]} = outcome.result
+      assert [10, 30, 60] = outcome.result
       assert outcome.outputs[State.Handler] == 60
     end
   end
@@ -169,7 +168,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         )
 
       # [2, 4, 6] → sum = 12
-      assert %OkResult{value: 12} = outcome.result
+      assert 12 = outcome.result
     end
 
     test "fx_map in hefty block" do
@@ -199,7 +198,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         )
 
       # count: 0, 1, 2 → results: [0, 2, 6]
-      assert %OkResult{value: {[0, 2, 6], 3}} = outcome.result
+      assert {[0, 2, 6], 3} = outcome.result
     end
 
     test "nested fx_map" do
@@ -218,7 +217,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         )
 
       # [[11, 21], [12, 22]]
-      assert %OkResult{value: [[11, 21], [12, 22]]} = outcome.result
+      assert [[11, 21], [12, 22]] = outcome.result
     end
   end
 
@@ -255,7 +254,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
       # Run it
       outcome = Freyja.Run.run(freer_tree, Freyja.Run.with_handlers([]))
 
-      assert %OkResult{value: [2, 4, 6]} = outcome.result
+      assert [2, 4, 6] = outcome.result
     end
   end
 

@@ -5,7 +5,6 @@ defmodule Freyja.EffectLoggerTest do
 
   import Freyja.Con
 
-  alias Freyja.ErrorResult
   alias Freyja.Freer
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
@@ -77,7 +76,7 @@ defmodule Freyja.EffectLoggerTest do
             end
 
           {:error, err} ->
-            Freer.return(ErrorResult.error(err))
+            Freer.return({:error, err})
         end
 
       {next, nil}

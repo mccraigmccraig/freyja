@@ -289,7 +289,6 @@ defmodule Freyja.Effects.TaggedWriter.RunListenHandler do
   alias Freyja.Run.RunState
   alias Freyja.Run.RunEffects
   alias Freyja.RunOutcome
-  alias Freyja.OkResult
   alias Freyja.Effects.TaggedWriter
 
   @impl true
@@ -320,13 +319,8 @@ defmodule Freyja.Effects.TaggedWriter.RunListenHandler do
     # Calculate captured logs: what was added during the computation
     captured_logs = calculate_captured_logs(initial_tw_state, final_tw_state)
 
-    # Extract the result value
-    result_value =
-      case outcome.result do
-        %OkResult{value: val} -> val
-        # Propagate errors as-is
-        other -> other
-      end
+    # Extract the result value (now plain values, no wrapping)
+    result_value = outcome.result
 
     # Return tuple of result and captured logs
     result_tuple = {result_value, captured_logs}

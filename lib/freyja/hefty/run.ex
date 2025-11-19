@@ -98,7 +98,7 @@ defmodule Freyja.Hefty.Run do
   ## Returns
 
   `RunOutcome.t()` - Same structure as Freyja.Run.run/2:
-  - `result` - OkResult, ErrorResult, or SuspendResult
+  - `result` - any value, {:error, reason}, or {:suspend, value, continuation}
   - `states` - Final handler states
   - `outputs` - Handler outputs
 
@@ -161,7 +161,7 @@ defmodule Freyja.Hefty.Run do
   - No algebra handles a higher-order effect signature
   - An algebra module doesn't implement the behavior correctly
 
-  Runtime errors from handlers are returned in ErrorResult as usual.
+  Runtime errors from handlers are returned as {:error, reason} tuples as usual.
   """
   @spec run(Hefty.t(), [module], [module], map) :: Run.RunOutcome.t()
   def run(hefty_tree, algebras, handlers, initial_states \\ %{}) do

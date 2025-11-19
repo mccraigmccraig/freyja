@@ -5,7 +5,6 @@ defmodule Freyja.Effects.ScopedTest do
 
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Writer
-  alias Freyja.ErrorResult
   alias Freyja.Run
   alias Freyja.Hefty
   alias Freyja.Effects.{Lift, Error}
@@ -98,9 +97,9 @@ defmodule Freyja.Effects.ScopedTest do
 
       # BUG (freyja-rdm): Catch scope is lost after suspension/resume
       # Expected: catch handler catches :boo, returns :oops
-      # Actual: :boo propagates as ErrorResult (catch scope not preserved)
+      # Actual: :boo propagates as {:error, :boo} (catch scope not preserved)
       # This test will be re-enabled after freyja-rdm is fixed
-      assert %ErrorResult{error: :boo} == outcome_two.result
+      assert {:error, :boo} == outcome_two.result
     end
 
     @tag :skip
@@ -113,7 +112,7 @@ defmodule Freyja.Effects.ScopedTest do
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "hoo")
 
-      assert %ErrorResult{error: :hoo} == outcome_three.result
+      assert {:error, :hoo} == outcome_three.result
 
       # With Hefty non-transactional semantics, state changes persist
       # Check that writer has some output

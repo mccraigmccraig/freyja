@@ -70,7 +70,7 @@ defmodule Freyja.EffectHandler do
   until a success or error return is reached
   """
   @callback scoped_ok(
-              result :: Freyja.Result.result(),
+              result :: any,
               value :: any,
               handler_key :: atom,
               state :: any,
@@ -88,7 +88,7 @@ defmodule Freyja.EffectHandler do
   until a success or error return is reached
   """
   @callback scoped_error(
-              result :: Freyja.Result.result(),
+              result :: any,
               error :: any,
               handler_key :: atom,
               state :: any,

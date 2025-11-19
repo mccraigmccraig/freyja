@@ -14,7 +14,6 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.TaggedWriter.RunListenHandler
   alias Freyja.Effects.Lift
-  alias Freyja.OkResult
 
   describe "listen/1 - basic functionality" do
     test "captures logs from inner computation" do
@@ -31,7 +30,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         %{TaggedWriter.Handler => %{}}
       )
 
-      assert %OkResult{value: {:ok, captured}} = outcome.result
+      assert {:ok, captured} = outcome.result
       assert captured[:audit] == ["event 2", "event 1"]
     end
 
@@ -50,7 +49,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         %{TaggedWriter.Handler => %{}}
       )
 
-      assert %OkResult{value: {42, captured}} = outcome.result
+      assert {42, captured} = outcome.result
       assert captured[:audit] == ["audit 2", "audit 1"]
       assert captured[:debug] == ["debug 1"]
     end
@@ -67,7 +66,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         %{TaggedWriter.Handler => %{}}
       )
 
-      assert %OkResult{value: {:done, captured}} = outcome.result
+      assert {:done, captured} = outcome.result
       assert captured == %{}
     end
 
@@ -92,7 +91,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         %{TaggedWriter.Handler => %{}}
       )
 
-      assert %OkResult{value: {captured, all_logs}} = outcome.result
+      assert {captured, all_logs} = outcome.result
       # Captured only has the inner log
       assert captured[:audit] == ["inner"]
       # All logs has both (reverse chronological)
@@ -129,7 +128,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         %{TaggedWriter.Handler => %{}}
       )
 
-      assert %OkResult{value: outer_captured} = outcome.result
+      assert outer_captured = outcome.result
       # Outer captured should have middle 1, inner 1, inner 2, middle 2
       assert outer_captured[:audit] == ["middle 2", "inner 2", "inner 1", "middle 1"]
 

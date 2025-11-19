@@ -45,7 +45,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         initial_states
       )
 
-      result = outcome.result.value
+      result = outcome.result
 
       # Should have updated 3 users
       assert result.updated_users == [
@@ -85,7 +85,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         initial_states
       )
 
-      result = outcome.result.value
+      result = outcome.result
 
       assert result.updated_users == []
       assert result.all_logs[:changes] == nil || result.all_logs[:changes] == []
@@ -119,7 +119,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         initial_states
       )
 
-      result = outcome.result.value
+      result = outcome.result
 
       # Alice and Charlie should have email removed, Bob should keep his
       assert result.updated_users == [
@@ -169,7 +169,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         initial_states
       )
 
-      result = outcome.result.value
+      result = outcome.result
 
       # User unchanged (audit doesn't modify)
       assert result.updated_users == [
@@ -208,7 +208,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
 
       outcome = Run.run(HeftyChangeCapture.multi_stage_process([1, 2]), algebras, handlers, initial_states)
 
-      result = outcome.result.value
+      result = outcome.result
 
       # Should have anonymized 2 users
       assert result.anonymized == 2
@@ -259,7 +259,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         initial_states
       )
 
-      result = outcome.result.value
+      result = outcome.result
 
       # Same capabilities as old ChangeCapture
       assert Map.has_key?(result, :updated_users)

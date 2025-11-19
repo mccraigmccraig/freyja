@@ -6,7 +6,6 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
-  alias Freyja.OkResult
   alias Freyja.Run
   alias Freyja.RunOutcome
 
@@ -32,7 +31,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       first_outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: {:initial_value, :updated_value}},
+               result: {:initial_value, :updated_value},
                outputs: %{l: _log}
              } = first_outcome
 
@@ -41,7 +40,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       # Should get the same result
       assert %RunOutcome{
-               result: %OkResult{value: {:initial_value, :updated_value}}
+               result: {:initial_value, :updated_value}
              } = second_outcome
 
       # The log should be consumed (moved to stack) during replay
@@ -68,7 +67,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       first_outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: :done},
+               result: :done,
                outputs: %{l: _log, w: ["third", "second", "first"]}
              } = first_outcome
 
@@ -76,7 +75,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       second_outcome = Run.rerun(computation, first_outcome)
 
       assert %RunOutcome{
-               result: %OkResult{value: :done},
+               result: :done,
                outputs: %{w: ["third", "second", "first"]}
              } = second_outcome
     end
@@ -106,7 +105,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       first_outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: 30},
+               result: 30,
                outputs: %{
                  l: _log,
                  s: 30,
@@ -118,7 +117,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       second_outcome = Run.rerun(computation, first_outcome)
 
       assert %RunOutcome{
-               result: %OkResult{value: 30},
+               result: 30,
                outputs: %{
                  s: 30,
                  w: ["incremented to 30", "incremented to 10", "starting"]
@@ -148,7 +147,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       first_outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: {"value_one", "value_two"}},
+               result: {"value_one", "value_two"},
                outputs: %{l: log, s: state}
              } = first_outcome
 
@@ -172,7 +171,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       # Should get the same result
       assert %RunOutcome{
-               result: %OkResult{value: {"value_one", "value_two"}}
+               result: {"value_one", "value_two"}
              } = second_outcome
     end
 
@@ -194,7 +193,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       first_outcome = computation |> Run.run(runner)
 
       assert %RunOutcome{
-               result: %OkResult{value: :complete},
+               result: :complete,
                outputs: %{l: log, w: writer_output}
              } = first_outcome
 
@@ -215,7 +214,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       second_outcome = Run.rerun(computation, deserialized_outcome)
 
       assert %RunOutcome{
-               result: %OkResult{value: :complete},
+               result: :complete,
                outputs: %{w: ["gamma", "beta", "alpha"]}
              } = second_outcome
     end

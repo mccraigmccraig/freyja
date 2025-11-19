@@ -35,6 +35,7 @@ defmodule Freyja.Effects.Coroutine.Handler do
   alias Freyja.Freer
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
+  alias Freyja.Freer.Pure
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Coroutine.Suspend
   alias Freyja.Effects.Coroutine.Yield
@@ -71,5 +72,18 @@ defmodule Freyja.Effects.Coroutine.Handler do
         k = fn v -> Impl.q_apply(q, v) end
         {Freer.return(%Suspend{value: val, continuation: k}), nil}
     end
+  end
+
+  @doc """
+  Wrap completed computations in {:done, value}.
+
+  Suspensions bypass finalize (via Run.do_run), so only completed values reach here.
+  This creates a consistent result shape when Coroutine is in the handler stack.
+  """
+  @impl Freyja.EffectHandler
+  def finalize(%Pure{val: val}, _key, state, _run_state) do
+    # Wrap completed values in {:done, _}
+    # Suspensions already bypass finalize, so they stay as {:suspend, _, _}
+    {%Pure{val: {:done, val}}, state}
   end
 end

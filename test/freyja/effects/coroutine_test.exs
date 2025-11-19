@@ -27,7 +27,7 @@ defmodule Freyja.Effects.CoroutineTest do
       assert %RunOutcome{result: {:suspend, 42, _k}} = outcome
 
       outcome2 = Run.resume(outcome, 100)
-      assert %Freyja.RunOutcome{result: "finished: 100"} = outcome2
+      assert %Freyja.RunOutcome{result: {:done, "finished: 100"}} = outcome2
     end
 
     test "multiple yields" do
@@ -61,7 +61,7 @@ defmodule Freyja.Effects.CoroutineTest do
       # Logger.error("#{__MODULE__}.outcome2\n#{inspect(outcome2, pretty: true)}")
 
       outcome3 = Run.resume(outcome2, 50)
-      assert %Freyja.RunOutcome{result: "final: 150"} = outcome3
+      assert %Freyja.RunOutcome{result: {:done, "final: 150"}} = outcome3
 
       # Logger.error("#{__MODULE__}.outcome3\n#{inspect(outcome3, pretty: true)}")
     end

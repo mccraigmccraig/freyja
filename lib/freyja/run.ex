@@ -6,12 +6,9 @@ defmodule Freyja.Run do
   EffectHandlers are structs implementing the EffectHandler behaviour
   """
   alias Freyja.Freer
-  alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Pure
   alias Freyja.Freer.Sig.ISendable
-  alias Freyja.Run.RunEffects
-  alias Freyja.Run.RunEffects.ScopedOk
   alias Freyja.Run.RunState
   alias Freyja.RunOutcome
 
@@ -190,47 +187,6 @@ defmodule Freyja.Run do
     end)
   end
 
-  # use the EffectHandler.scoped_ok function to update each of the
-  # effect states after a scoped handler returns
-  #
-  # returns: an updated Map of effect states
-  @spec scoped_ok_effect_states(RunState.t(), ScopedOk.t()) :: map
-  defp scoped_ok_effect_states(
-         %RunState{handlers: handlers, states: effect_states},
-         %ScopedOk{
-           value: value,
-           run_outcome:
-             %RunOutcome{
-               result: scoped_effect_result,
-               run_state: %RunState{states: scoped_effect_states}
-             } = scoped_run_outcome
-         }
-       ) do
-    handlers
-    |> Enum.reduce(effect_states, fn {key, mod}, effect_states ->
-      if function_exported?(mod, :scoped_ok, 6) do
-        updated_effect_state =
-          mod.scoped_ok(
-            scoped_effect_result,
-            value,
-            key,
-            Map.get(effect_states, key),
-            Map.get(scoped_effect_states, key),
-            scoped_run_outcome
-          )
-
-        Map.put(effect_states, key, updated_effect_state)
-      else
-        # default - accept the scoped state
-        Map.put(effect_states, key, Map.get(scoped_effect_states, key))
-      end
-    end)
-  end
-
-  # use the EffectHandler.scoped_error function to update each of the
-  # effect states after a scoped handler returns
-  #
-
   @doc """
   Interpret effects until there is only %Pure{} remaining - does not finalize.
   Useful for Effect handlers which want to run a sub-computation and control
@@ -271,47 +227,6 @@ defmodule Freyja.Run do
         %RunState{} = run_state
       ) do
     {computation, run_state}
-  end
-
-  # blessed handler for ScopedOks - it must be handled here, because
-  # the EffectHandler behaviour does not support effects which can
-  # change other effect's state - instead, the optional
-  # EffectHandler.scoped_return funciton is offered, which allows
-  # handlers to override their own scoped_return action, and this
-  # blessed interpreter can call that function for every EffectHandler
-  # (which implements it)
-  def interpret_one(
-        %Impure{
-          sig: RunEffects,
-          data:
-            %ScopedOk{
-              value: val,
-              run_outcome: %RunOutcome{result: _scoped_result}
-            } = scoped_return,
-          q: q
-        } = _computation,
-        %RunState{} = run_state
-      ) do
-    # Logger.error(
-    #   "#{__MODULE__} ScopedOk\n" <>
-    #     "effect: #{inspect(computation, pretty: true)}" <>
-    #     "run_state: #{inspect(run_state, pretty: true)}\n"
-    # )
-
-    updated_effect_states = scoped_ok_effect_states(run_state, scoped_return)
-
-    interpreted = {
-      Impl.q_apply(q, val),
-      %{run_state | states: updated_effect_states}
-    }
-
-    # Logger.error(
-    #   "#{__MODULE__} ScopedOk OUT\n" <>
-    #     "effect: #{inspect(elem(interpreted, 0), pretty: true)}" <>
-    #     "run_state: #{inspect(elem(interpreted, 1), pretty: true)}\n"
-    # )
-
-    interpreted
   end
 
   def interpret_one(

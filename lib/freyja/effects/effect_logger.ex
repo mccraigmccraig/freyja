@@ -191,22 +191,6 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   end
 
   @impl Freyja.EffectHandler
-  def scoped_ok(
-        _result,
-        _value,
-        handler_key,
-        state,
-        _scoped_state,
-        %RunOutcome{} = scoped_run_outcome
-      ) do
-    scoped_log = Map.get(scoped_run_outcome.outputs, handler_key)
-    prepared_scoped_log = ScopedLogs.prepare_scoped_logs_for_retrace(scoped_log)
-    updated_state = ILog.set_scoped_logs(state, prepared_scoped_log)
-    # Logger.error("#{__MODULE__}.scoped_ok #{inspect(updated_state, pretty: true)}")
-    updated_state
-  end
-
-  @impl Freyja.EffectHandler
   def scoped_error(
         _result,
         _error,

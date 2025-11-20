@@ -149,11 +149,10 @@ defmodule Freyja.Effects.Catch.Algebra do
 
   ## State Propagation
 
-  The `RunCatchingHandler` uses `ScopedOk` to propagate state changes from the
-  inner computation back to the parent context. This implements non-transactional
-  semantics by default - state changes persist even when errors occur.
-
-  See `RunCatchingHandler` documentation for details on state propagation.
+  With interposition-based elaboration, state propagates naturally through the
+  single top-level interpreter. No special state propagation mechanism needed.
+  This implements non-transactional semantics by default - state changes persist
+  even when errors occur.
 
   ## Key Insight
 

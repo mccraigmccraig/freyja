@@ -1,7 +1,7 @@
 defmodule Freyja.Effects.TaggedStateTest do
   use ExUnit.Case
 
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.TaggedState
   alias Freyja.Effects.State
@@ -197,14 +197,20 @@ defmodule Freyja.Effects.TaggedStateTest do
   # Tests
   describe "basic tagged state operations" do
     test "get and put with single tag" do
-      outcome = Run.run(get_and_increment_cache(), [TaggedState.Handler], %{TaggedState.Handler => %{cache: 5}})
+      outcome =
+        Run.run(get_and_increment_cache(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{cache: 5}
+        })
 
       assert outcome.result == 15
       assert outcome.outputs[TaggedState.Handler] == %{cache: 15}
     end
 
     test "put returns old value" do
-      outcome = Run.run(put_and_return_old(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 42}})
+      outcome =
+        Run.run(put_and_return_old(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{counter: 42}
+        })
 
       assert outcome.result == 42
       assert outcome.outputs[TaggedState.Handler] == %{counter: 100}
@@ -219,13 +225,14 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "multiple tagged states" do
     test "manage multiple independent states" do
-      outcome = Run.run(manage_multiple_states(), [TaggedState.Handler], %{
-        TaggedState.Handler => %{
-          cache: %{},
-          config: %{host: "localhost", port: 8080},
-          session_id: 100
-        }
-      })
+      outcome =
+        Run.run(manage_multiple_states(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{
+            cache: %{},
+            config: %{host: "localhost", port: 8080},
+            session_id: 100
+          }
+        })
 
       assert outcome.result == %{
                cache: %{new_key: "new_value"},
@@ -241,7 +248,8 @@ defmodule Freyja.Effects.TaggedStateTest do
     end
 
     test "different value types per tag" do
-      outcome = Run.run(put_different_types(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
+      outcome =
+        Run.run(put_different_types(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == :ok
 
@@ -257,10 +265,11 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "composition with other effects" do
     test "TaggedState with regular State" do
-      outcome = Run.run(use_state_and_tagged_state(), [State.Handler, TaggedState.Handler], %{
-        State.Handler => 5,
-        TaggedState.Handler => %{cache: 100}
-      })
+      outcome =
+        Run.run(use_state_and_tagged_state(), [State.Handler, TaggedState.Handler], %{
+          State.Handler => 5,
+          TaggedState.Handler => %{cache: 100}
+        })
 
       assert outcome.result == %{regular: 6, tagged: 110}
       assert outcome.outputs[State.Handler] == 6
@@ -268,11 +277,16 @@ defmodule Freyja.Effects.TaggedStateTest do
     end
 
     test "TaggedState with Reader and Writer" do
-      outcome = Run.run(use_reader_writer_tagged(), [Reader.Handler, Writer.Handler, TaggedState.Handler], %{
-        Reader.Handler => %{multiplier: 3},
-        Writer.Handler => [],
-        TaggedState.Handler => %{cache: 10}
-      })
+      outcome =
+        Run.run(
+          use_reader_writer_tagged(),
+          [Reader.Handler, Writer.Handler, TaggedState.Handler],
+          %{
+            Reader.Handler => %{multiplier: 3},
+            Writer.Handler => [],
+            TaggedState.Handler => %{cache: 10}
+          }
+        )
 
       assert outcome.result == 30
       assert outcome.outputs[Writer.Handler] == ["Computed: 30"]
@@ -282,14 +296,20 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "nested computations" do
     test "nested functions using TaggedState" do
-      outcome = Run.run(call_increment_three_times(), [TaggedState.Handler], %{TaggedState.Handler => %{cache: 0}})
+      outcome =
+        Run.run(call_increment_three_times(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{cache: 0}
+        })
 
       assert outcome.result == [1, 2, 3]
       assert outcome.outputs[TaggedState.Handler] == %{cache: 3}
     end
 
     test "multiple tags in nested computations" do
-      outcome = Run.run(call_update_stats_three_times(), [TaggedState.Handler], %{TaggedState.Handler => %{count: 0, total: 0}})
+      outcome =
+        Run.run(call_update_stats_three_times(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{count: 0, total: 0}
+        })
 
       assert outcome.result == %{
                steps: [{0, 0}, {1, 0}, {2, 1}],
@@ -336,21 +356,28 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "update operation" do
     test "updates a counter and returns old value" do
-      outcome = Run.run(update_counter(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 5}})
+      outcome =
+        Run.run(update_counter(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 5}})
 
       assert outcome.result == {5, 6}
       assert outcome.outputs[TaggedState.Handler] == %{counter: 6}
     end
 
     test "updates with map function" do
-      outcome = Run.run(update_with_map_function(), [TaggedState.Handler], %{TaggedState.Handler => %{cache: %{existing: "value"}}})
+      outcome =
+        Run.run(update_with_map_function(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{cache: %{existing: "value"}}
+        })
 
       assert outcome.result == %{existing: "value", updated: true}
       assert outcome.outputs[TaggedState.Handler] == %{cache: %{existing: "value", updated: true}}
     end
 
     test "updates multiple tags" do
-      outcome = Run.run(update_multiple_tags(), [TaggedState.Handler], %{TaggedState.Handler => %{count: 1, total: 0}})
+      outcome =
+        Run.run(update_multiple_tags(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{count: 1, total: 0}
+        })
 
       # count: 1 -> 2 (+ 1) -> 4 (* 2)
       # total: 0 -> 10 (+ 10)
@@ -359,14 +386,18 @@ defmodule Freyja.Effects.TaggedStateTest do
     end
 
     test "updates missing tag (nil case)" do
-      outcome = Run.run(update_missing_tag(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
+      outcome =
+        Run.run(update_missing_tag(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == {nil, 1}
       assert outcome.outputs[TaggedState.Handler] == %{missing: 1}
     end
 
     test "nested update computations" do
-      outcome = Run.run(call_increment_nested_three_times(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 0}})
+      outcome =
+        Run.run(call_increment_nested_three_times(), [TaggedState.Handler], %{
+          TaggedState.Handler => %{counter: 0}
+        })
 
       assert outcome.result == [1, 2, 3]
       assert outcome.outputs[TaggedState.Handler] == %{counter: 3}

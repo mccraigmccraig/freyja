@@ -50,16 +50,12 @@ defmodule Freyja.Effects.ScopedTest do
     end
   end
 
-  # THESE TESTS ARE DISABLED (freyja-rdm)
-  # The interaction between Catch and Coroutine suspensions needs to be fixed.
-  # When a computation suspends inside a catch block, the catch scope is lost on resume.
-  # The old Throw.Handler had special resume_catch_k logic to preserve the scope.
-  # The old RunCatchingHandler didn't preserve catch scope across suspensions.
-  # See ticket freyja-rdm for proposed solutions.
+  # These tests verify that catch scope is preserved across coroutine suspensions.
+  # With the new interposition-based approach, the catch interception is baked into
+  # the computation structure, so it IS preserved across suspensions.
   describe "suspending a scoped effect" do
-    @tag :skip
     test "it suspends" do
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
@@ -69,13 +65,15 @@ defmodule Freyja.Effects.ScopedTest do
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "two")
 
-      assert %{
-               a: 10,
-               b: 20,
-               first: "one",
-               second: "two",
-               extra: "extra!"
-             } == outcome_three.result.value
+      assert {:done,
+              {:ok,
+               %{
+                 a: 10,
+                 b: 20,
+                 first: "one",
+                 second: "two",
+                 extra: "extra!"
+               }}} == outcome_three.result
 
       writer_output = outcome_three.outputs[Writer.Handler]
       assert :before in writer_output
@@ -85,9 +83,8 @@ defmodule Freyja.Effects.ScopedTest do
       assert "two" in writer_output
     end
 
-    @tag :skip
     test "the scope is still in effect after resume" do
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
@@ -98,16 +95,13 @@ defmodule Freyja.Effects.ScopedTest do
 
       outcome_two = Run.resume(outcome_one, "boo")
 
-      # BUG (freyja-rdm): Catch scope is lost after suspension/resume
-      # Expected: catch handler catches :boo, returns :oops
-      # Actual: :boo propagates as {:error, :boo} (catch scope not preserved)
-      # This test will be re-enabled after freyja-rdm is fixed
-      assert {:error, :boo} == outcome_two.result
+      # With interposition, catch scope IS preserved after suspension/resume!
+      # The catch handler catches :boo and returns :oops (wrapped in {:ok, } and {:done, })
+      assert {:done, {:ok, :oops}} == outcome_two.result
     end
 
-    @tag :skip
     test "uncaught errors propagate out" do
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
@@ -117,7 +111,7 @@ defmodule Freyja.Effects.ScopedTest do
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "hoo")
 
-      assert {:error, :hoo} == outcome_three.result
+      assert {:done, {:error, :hoo}} == outcome_three.result
 
       # With Hefty non-transactional semantics, state changes persist
       # Check that writer has some output

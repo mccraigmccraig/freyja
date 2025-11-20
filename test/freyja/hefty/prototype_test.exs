@@ -14,6 +14,8 @@ defmodule Freyja.Hefty.PrototypeTest do
   - Control flow encoding in elaborated Freer
   """
 
+  import Freyja.Freer.FreerBlock
+
   alias Freyja.Hefty
   alias Freyja.Run
   alias Freyja.Effects.Catch
@@ -21,7 +23,6 @@ defmodule Freyja.Hefty.PrototypeTest do
   alias Freyja.Effects.Throw
   alias Freyja.Effects.Throw.Handler, as: ThrowHandler
   alias Freyja.Effects.State
-
 
   describe "Lift effect" do
     test "lifts simple Freer computation" do
@@ -53,8 +54,6 @@ defmodule Freyja.Hefty.PrototypeTest do
     end
 
     test "lifts State operations and chains them" do
-      import Freyja.Con
-
       freer_comp =
         con do
           x <- State.get()
@@ -114,8 +113,6 @@ defmodule Freyja.Hefty.PrototypeTest do
     end
 
     test "chains multiple operations in try block" do
-      import Freyja.Con
-
       try_block =
         Lift.lift(
           con do
@@ -180,8 +177,6 @@ defmodule Freyja.Hefty.PrototypeTest do
     end
 
     test "catch block can modify state" do
-      import Freyja.Con
-
       try_block = Lift.lift(Throw.throw_error("error"))
 
       catch_block =
@@ -209,8 +204,6 @@ defmodule Freyja.Hefty.PrototypeTest do
 
   describe "Catch effect - complex scenarios" do
     test "conditional error based on State" do
-      import Freyja.Con
-
       try_block =
         Lift.lift(
           con do
@@ -250,8 +243,6 @@ defmodule Freyja.Hefty.PrototypeTest do
     end
 
     test "nested Catch operations" do
-      import Freyja.Con
-
       inner_try = Lift.lift(Throw.throw_error("inner error"))
       inner_catch = Hefty.pure(:inner_recovered)
       inner = Catch.catch_hefty(inner_try, fn _err -> inner_catch end)
@@ -272,8 +263,6 @@ defmodule Freyja.Hefty.PrototypeTest do
     end
 
     test "catch with continuation after" do
-      import Freyja.Con
-
       computation =
         Catch.catch_hefty(
           Lift.lift(Throw.throw_error("error")),
@@ -296,8 +285,6 @@ defmodule Freyja.Hefty.PrototypeTest do
     end
 
     test "State modifications visible across catch boundary" do
-      import Freyja.Con
-
       try_block =
         Lift.lift(
           con do

@@ -3,7 +3,7 @@ defmodule Freyja.EffectLoggerTest do
 
   require Logger
 
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   alias Freyja.Freer
   alias Freyja.Freer.Impl
@@ -96,7 +96,11 @@ defmodule Freyja.EffectLoggerTest do
           subtract(d, c)
         end
 
-      result = fv |> Run.run([EffectLogger.Handler, Numbers.Handler, State.Handler], %{State.Handler => {:foo, 12}})
+      result =
+        fv
+        |> Run.run([EffectLogger.Handler, Numbers.Handler, State.Handler], %{
+          State.Handler => {:foo, 12}
+        })
 
       assert %Freyja.RunOutcome{
                result: _final_val,

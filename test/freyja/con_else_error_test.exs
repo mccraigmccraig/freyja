@@ -22,7 +22,7 @@ defmodule Freyja.ConElseErrorTest do
       handlers = [Throw.Handler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res, outputs: _out} =
+      %Freyja.Run.RunOutcome{result: res, outputs: _out} =
         Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:ok, {:fixed, 4}}
@@ -43,7 +43,7 @@ defmodule Freyja.ConElseErrorTest do
       handlers = [Throw.Handler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res} = Run.run(fv, algebras, handlers, initial_states)
+      %Freyja.Run.RunOutcome{result: res} = Run.run(fv, algebras, handlers, initial_states)
       assert res == {:error, :nope}
     end
 
@@ -64,7 +64,7 @@ defmodule Freyja.ConElseErrorTest do
       handlers = [Throw.Handler, Writer.Handler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res, outputs: out} =
+      %Freyja.Run.RunOutcome{result: res, outputs: out} =
         Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:ok, :ok}
@@ -87,7 +87,7 @@ defmodule Freyja.ConElseErrorTest do
       handlers = [Throw.Handler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res, outputs: _out} =
+      %Freyja.Run.RunOutcome{result: res, outputs: _out} =
         Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:ok, :handled}

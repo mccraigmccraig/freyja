@@ -102,7 +102,7 @@ defmodule Freyja.EffectLoggerTest do
           State.Handler => {:foo, 12}
         })
 
-      assert %Freyja.RunOutcome{
+      assert %Freyja.Run.RunOutcome{
                result: _final_val,
                outputs: %{
                  State.Handler => {:bar, 34},

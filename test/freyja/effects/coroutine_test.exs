@@ -8,7 +8,7 @@ defmodule Freyja.Effects.CoroutineTest do
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.Coroutine
   alias Freyja.Freer
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
   alias Freyja.Run
 
   describe "basic coroutine operations" do
@@ -24,7 +24,7 @@ defmodule Freyja.Effects.CoroutineTest do
       assert %RunOutcome{result: {:suspend, 42, _k}} = outcome
 
       outcome2 = Run.resume(outcome, 100)
-      assert %Freyja.RunOutcome{result: {:done, "finished: 100"}} = outcome2
+      assert %Freyja.Run.RunOutcome{result: {:done, "finished: 100"}} = outcome2
     end
 
     test "multiple yields" do
@@ -47,12 +47,12 @@ defmodule Freyja.Effects.CoroutineTest do
       # log in its partially consumed state, while "rerunning" will follow
       # the computation from the beginning
       outcome2 = Run.resume(outcome, 100)
-      assert %Freyja.RunOutcome{result: {:suspend, "second: 100", _k2}} = outcome2
+      assert %Freyja.Run.RunOutcome{result: {:suspend, "second: 100", _k2}} = outcome2
 
       # Logger.error("#{__MODULE__}.outcome2\n#{inspect(outcome2, pretty: true)}")
 
       outcome3 = Run.resume(outcome2, 50)
-      assert %Freyja.RunOutcome{result: {:done, "final: 150"}} = outcome3
+      assert %Freyja.Run.RunOutcome{result: {:done, "final: 150"}} = outcome3
 
       # Logger.error("#{__MODULE__}.outcome3\n#{inspect(outcome3, pretty: true)}")
     end

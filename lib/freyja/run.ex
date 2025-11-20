@@ -54,7 +54,7 @@ defmodule Freyja.Run do
   alias Freyja.Hefty.Elaborate
   alias Freyja.Hefty.Sig.IHeftySendable
   alias Freyja.Run.RunState
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
 
   require Logger
 

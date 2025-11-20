@@ -11,7 +11,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   alias Freyja.Effects.{Lift, Throw}
   alias Freyja.Effects.{Catch, FxList}
   alias Freyja.Effects.Throw.Handler, as: ThrowHandler
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
 
   describe "simple scoped effect replay - FxList.fx_map" do
     test "replays simple FxList.fx_map with no other effects" do

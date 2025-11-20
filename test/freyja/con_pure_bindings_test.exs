@@ -5,7 +5,7 @@ defmodule Freyja.ConPureBindingsTest do
 
   alias Freyja.Effects.State
   alias Freyja.Run
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
 
   describe "pure variable bindings with =" do
     test "simple pure binding" do

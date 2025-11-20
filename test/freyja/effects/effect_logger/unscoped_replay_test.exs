@@ -7,7 +7,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
   alias Freyja.Run
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
 
   describe "unscoped effect replay without serialization" do
     test "replays State effects from log" do

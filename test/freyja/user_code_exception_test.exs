@@ -84,7 +84,7 @@ defmodule Freyja.UserCodeExceptionTest do
       outcome =
         Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
 
-      assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, error_data}} = outcome
 
       # Verify error data structure
       assert is_map(error_data)
@@ -99,7 +99,7 @@ defmodule Freyja.UserCodeExceptionTest do
           Reader.Handler => %{foo: 1}
         })
 
-      assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, error_data}} = outcome
 
       assert is_map(error_data)
       assert error_data["type"] == "KeyError"
@@ -113,7 +113,7 @@ defmodule Freyja.UserCodeExceptionTest do
           State.Handler => 123
         })
 
-      assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, error_data}} = outcome
 
       assert is_map(error_data)
       assert error_data["type"] == "FunctionClauseError"
@@ -131,7 +131,7 @@ defmodule Freyja.UserCodeExceptionTest do
           }
         )
 
-      assert %Freyja.RunOutcome{result: {:error, _error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, _error_data}} = outcome
 
       # State before error should be preserved
       assert outcome.outputs[State.Handler] == 0
@@ -147,7 +147,7 @@ defmodule Freyja.UserCodeExceptionTest do
 
       outcome = Run.run(Examples.caught_exception(0), algebras, handlers, initial_states)
 
-      assert %Freyja.RunOutcome{result: {:ok, {:caught, error_data}}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:ok, {:caught, error_data}}} = outcome
 
       # Verify the caught error is the serialized exception
       assert is_map(error_data)
@@ -161,7 +161,7 @@ defmodule Freyja.UserCodeExceptionTest do
           State.Handler => 5
         })
 
-      assert %Freyja.RunOutcome{result: {:ok, 10}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:ok, 10}} = outcome
       assert outcome.outputs[State.Handler] == 10
     end
 
@@ -169,7 +169,7 @@ defmodule Freyja.UserCodeExceptionTest do
       outcome =
         Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
 
-      assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, error_data}} = outcome
 
       # Should be able to encode and decode
       assert {:ok, json} = Jason.encode(error_data)
@@ -181,7 +181,7 @@ defmodule Freyja.UserCodeExceptionTest do
       outcome =
         Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
 
-      assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, error_data}} = outcome
 
       # Should have stacktrace frames
       assert length(error_data["stacktrace"]) > 0
@@ -223,7 +223,7 @@ defmodule Freyja.UserCodeExceptionTest do
     test "successful computations work without Throw handler" do
       outcome = Run.run(Examples.successful_computation(), [State.Handler], %{State.Handler => 5})
 
-      assert %Freyja.RunOutcome{result: 10} = outcome
+      assert %Freyja.Run.RunOutcome{result: 10} = outcome
       assert outcome.outputs[State.Handler] == 10
     end
   end
@@ -271,7 +271,7 @@ defmodule Freyja.UserCodeExceptionTest do
 
       outcome = Run.run(NestedExamples.outer_catches_inner(0), algebras, handlers, initial_states)
 
-      assert %Freyja.RunOutcome{result: {:ok, {:outer_caught, error_data}}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:ok, {:outer_caught, error_data}}} = outcome
       assert is_map(error_data)
       assert error_data["type"] == "ArithmeticError"
     end
@@ -282,7 +282,7 @@ defmodule Freyja.UserCodeExceptionTest do
           State.Handler => 0
         })
 
-      assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
+      assert %Freyja.Run.RunOutcome{result: {:error, error_data}} = outcome
       assert is_map(error_data)
       assert error_data["type"] == "ArithmeticError"
     end

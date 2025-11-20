@@ -1,4 +1,4 @@
-defmodule Freyja.RunOutcome do
+defmodule Freyja.Run.RunOutcome do
   @moduledoc """
   Unified run outcome envelope for Freyja interpreters.
 

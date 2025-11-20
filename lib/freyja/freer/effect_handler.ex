@@ -9,7 +9,7 @@ defmodule Freyja.Freer.EffectHandler do
   """
 
   alias Freyja.Freer
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
   alias Freyja.Run.RunState
 
   @doc """

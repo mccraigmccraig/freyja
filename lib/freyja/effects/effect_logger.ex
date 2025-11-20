@@ -30,7 +30,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   alias Freyja.Effects.EffectLogger.LogInterpretedEffectValue
   alias Freyja.Effects.EffectLogger.StepLogEntry
   alias Freyja.Run.RunState
-  alias Freyja.RunOutcome
+  alias Freyja.Run.RunOutcome
 
   @behaviour Freyja.Freer.EffectHandler
 

@@ -37,20 +37,23 @@ defmodule Freyja.Effects.ErrorTest do
           res <-
             Catch.catch_hefty(
               hefty do
-                _ <- Lift.lift(Throw.throw_error(:bad))
+                _ <- Throw.throw_error(:bad)
                 return(:nope)
               end,
-              fn _err -> Hefty.pure({:recovered, :bad}) end
+              fn _err -> return({:recovered, :bad}) end
             )
 
           return(res)
         end
 
+      # note: we don't need the ThrowHandler because the Catch
+      # elaboration catches all possible Throws
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ThrowHandler])
+        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [])
 
+      # no Throw.Handler means no {:ok, ...} wrapper
       assert %Freyja.RunOutcome{
-               result: {:ok, {:recovered, :bad}}
+               result: {:recovered, :bad}
              } = outcome
     end
   end
@@ -64,9 +67,9 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ThrowHandler])
+        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [])
 
-      assert %Freyja.RunOutcome{result: {:ok, 42}} = outcome
+      assert %Freyja.RunOutcome{result: 42} = outcome
     end
   end
 
@@ -74,30 +77,29 @@ defmodule Freyja.Effects.ErrorTest do
     test "writer in successful computation is applied" do
       fv =
         hefty do
-          _ <- Lift.lift(Writer.tell(:from_outer_1))
+          _ <- Writer.tell(:from_outer_1)
 
           res <-
             Catch.catch_hefty(
               hefty do
-                _ <- Lift.lift(Writer.tell(:from_inner))
+                _ <- Writer.tell(:from_inner)
                 return(42)
               end,
               fn _err -> Hefty.pure(0) end
             )
 
-          _ <- Lift.lift(Writer.tell(:from_outer_2))
+          _ <- Writer.tell(:from_outer_2)
 
           return(res)
         end
 
       outcome =
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
-          ThrowHandler,
-          Writer.Handler,
+          Writer.Handler
         ])
 
       assert %Freyja.RunOutcome{
-               result: {:ok, 42},
+               result: 42,
                outputs: %{Writer.Handler => [:from_outer_2, :from_inner, :from_outer_1]}
              } = outcome
     end
@@ -105,32 +107,34 @@ defmodule Freyja.Effects.ErrorTest do
     test "writer in throwing computation is PRESERVED (non-transactional)" do
       fv =
         hefty do
-          _ <- Lift.lift(Writer.tell(:from_outer_1))
+          _ <- Writer.tell(:from_outer_1)
 
           res <-
             Catch.catch_hefty(
               hefty do
-                _ <- Lift.lift(Writer.tell(:from_inner))
-                _ <- Lift.lift(Throw.throw_error(:bad))
+                _ <- Writer.tell(:from_inner)
+                _ <- Throw.throw_error(:bad)
                 return(:nope)
               end,
               fn _err ->
                 hefty do
-                  _ <- Lift.lift(Throw.throw_error(:also_bad))
+                  _ <- Throw.throw_error(:also_bad)
                   return(:unreachable)
                 end
               end
             )
 
-          _ <- Lift.lift(Writer.tell(:from_outer_2))
+          _ <- Writer.tell(:from_outer_2)
 
           return(res)
         end
 
+      # we do need the Throw.Handler here, because
+      # throws bubble outside the Catch scope
       outcome =
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           ThrowHandler,
-          Writer.Handler,
+          Writer.Handler
         ])
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
@@ -163,7 +167,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome =
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           ThrowHandler,
-          Writer.Handler,
+          Writer.Handler
         ])
 
       assert %Freyja.RunOutcome{
@@ -196,7 +200,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome =
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           State.Handler,
-          ThrowHandler,
+          ThrowHandler
         ])
 
       assert %Freyja.RunOutcome{
@@ -235,7 +239,7 @@ defmodule Freyja.Effects.ErrorTest do
       outcome =
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           State.Handler,
-          ThrowHandler,
+          ThrowHandler
         ])
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error

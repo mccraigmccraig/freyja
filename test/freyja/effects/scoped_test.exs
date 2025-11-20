@@ -3,6 +3,8 @@ defmodule Freyja.Effects.ScopedTest do
 
   require Logger
 
+  use Freyja.Syntax
+
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Writer
   alias Freyja.Run
@@ -10,9 +12,6 @@ defmodule Freyja.Effects.ScopedTest do
   alias Freyja.Effects.Catch
 
   defmodule ScopedFx do
-    import Freyja.Con
-    import Freyja.HeftyMacro
-
     defcon suspend_twice(a, b), [Coroutine, Writer] do
       first <- yield(a)
       _ <- tell(first)

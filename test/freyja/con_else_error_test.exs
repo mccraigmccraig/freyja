@@ -8,7 +8,7 @@ defmodule Freyja.ConElseErrorTest do
 
   describe "hefty ... catch error handling" do
     test "matches a pattern and recovers" do
-      import Freyja.HeftyMacro
+      use Freyja.Syntax
 
       fv =
         hefty do
@@ -29,7 +29,7 @@ defmodule Freyja.ConElseErrorTest do
     end
 
     test "no matching clause rethrows" do
-      import Freyja.HeftyMacro
+      use Freyja.Syntax
 
       fv =
         hefty do
@@ -48,7 +48,7 @@ defmodule Freyja.ConElseErrorTest do
     end
 
     test "handler clause can perform effects" do
-      import Freyja.HeftyMacro
+      use Freyja.Syntax
 
       fv =
         hefty do
@@ -73,7 +73,7 @@ defmodule Freyja.ConElseErrorTest do
     end
 
     test "user-supplied default catch clause handles all and prevents rethrow" do
-      import Freyja.HeftyMacro
+      use Freyja.Syntax
 
       fv =
         hefty do

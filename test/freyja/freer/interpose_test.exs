@@ -299,6 +299,127 @@ defmodule Freyja.Freer.InterposeTest do
       # But it shows interposition can be composed
       assert %Pure{} = result2
     end
+
+    test "multiple interpositions on different effects compose correctly" do
+      # Create computation with 3 different effects:
+      # A(1) >>= (\x -> B(x + 10) >>= (\y -> C(y + 100, :test) >>= pure))
+      comp =
+        Freer.send_effect(%TestEffectA{value: 1}, __MODULE__)
+        |> Freer.bind(fn x ->
+          Freer.send_effect(%TestEffectB{value: x + 10}, TestEffectB)
+          |> Freer.bind(fn y ->
+            Freer.send_effect(%TestEffectC{value: y + 100, tag: :test}, TestEffectC)
+            |> Freer.bind(&Freer.pure/1)
+          end)
+        end)
+
+      # Apply two nested interpositions:
+      # 1. Intercept A and double its value
+      # 2. Intercept B and add 1000
+      # 3. Leave C to bubble out
+      result =
+        comp
+        |> Interpose.interpose_with(
+          __MODULE__,
+          fn %TestEffectA{value: v}, k -> k.(v * 2) end
+        )
+        |> Interpose.interpose_with(
+          TestEffectB,
+          fn %TestEffectB{value: v}, k -> k.(v + 1000) end
+        )
+
+      # After two interpositions:
+      # - A(1) intercepted -> 2
+      # - B(2 + 10 = 12) intercepted -> 1012
+      # - C(1012 + 100, :test) should bubble out
+      assert %Impure{
+               sig: TestEffectC,
+               data: %TestEffectC{value: 1112, tag: :test},
+               q: [k]
+             } = result
+
+      # Now manually call the continuation to complete the computation
+      final = k.(1112)
+      assert %Pure{val: 1112} = final
+    end
+
+    test "interposition order matters for overlapping effects" do
+      # Create: A(10) >>= (\x -> A(x + 5))
+      comp =
+        Freer.send_effect(%TestEffectA{value: 10}, __MODULE__)
+        |> Freer.bind(fn x ->
+          Freer.send_effect(%TestEffectA{value: x + 5}, __MODULE__)
+        end)
+
+      # Apply interposition 1: multiply by 2
+      result1 =
+        comp
+        |> Interpose.interpose_with(__MODULE__, fn %TestEffectA{value: v}, k -> k.(v * 2) end)
+
+      # After first interposition, all A's are processed: A(10) -> 20, A(25) -> 50
+      assert %Pure{val: 50} = result1
+
+      # Now apply second interposition to original comp: add 100
+      result2 =
+        comp
+        |> Interpose.interpose_with(__MODULE__, fn %TestEffectA{value: v}, k -> k.(v + 100) end)
+
+      # A(10) -> 110, A(115) -> 215
+      assert %Pure{val: 215} = result2
+
+      # Apply both interpositions in sequence (inner then outer)
+      result3 =
+        comp
+        |> Interpose.interpose_with(__MODULE__, fn %TestEffectA{value: v}, k -> k.(v * 2) end)
+        |> Interpose.interpose_with(__MODULE__, fn %TestEffectA{value: v}, k -> k.(v + 100) end)
+
+      # First interposition already processed everything to Pure, so second does nothing
+      assert %Pure{val: 50} = result3
+    end
+
+    test "three different effects with selective interposition" do
+      # Create: A(1) >>= (\a -> B(a) >>= (\b -> C(b, :x) >>= (\c -> A(c) >>= pure)))
+      comp =
+        Freer.send_effect(%TestEffectA{value: 1}, __MODULE__)
+        |> Freer.bind(fn a ->
+          Freer.send_effect(%TestEffectB{value: a}, TestEffectB)
+          |> Freer.bind(fn b ->
+            Freer.send_effect(%TestEffectC{value: b, tag: :x}, TestEffectC)
+            |> Freer.bind(fn c ->
+              Freer.send_effect(%TestEffectA{value: c}, __MODULE__)
+              |> Freer.bind(&Freer.pure/1)
+            end)
+          end)
+        end)
+
+      # Intercept only B, leave A and C to bubble out
+      result =
+        Interpose.interpose_with(
+          comp,
+          TestEffectB,
+          fn %TestEffectB{value: v}, k -> k.(v + 1000) end
+        )
+
+      # First A should bubble out
+      assert %Impure{sig: __MODULE__, data: %TestEffectA{value: 1}, q: [k1]} = result
+
+      # Continue with A's value
+      after_a = k1.(1)
+
+      # B was intercepted (1 + 1000 = 1001), now C should bubble out
+      assert %Impure{sig: TestEffectC, data: %TestEffectC{value: 1001, tag: :x}, q: [k2]} =
+               after_a
+
+      # Continue with C's value
+      after_c = k2.(1001)
+
+      # Second A should bubble out
+      assert %Impure{sig: __MODULE__, data: %TestEffectA{value: 1001}, q: [k3]} = after_c
+
+      # Complete with final A's value
+      final = k3.(1001)
+      assert %Pure{val: 1001} = final
+    end
   end
 
   describe "interpose/4 - custom value handler" do

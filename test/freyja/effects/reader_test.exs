@@ -91,64 +91,51 @@ defmodule Freyja.Effects.ReaderTest do
 
   describe "Reader effect" do
     test "simple ask operation" do
-      runner = Run.with_handlers(r: {Reader.Handler, %{config: "test"}})
-      outcome = Run.run(ReaderExamples.simple_ask(), runner)
+      outcome = Run.run(ReaderExamples.simple_ask(), [Reader.Handler], %{Reader.Handler => %{config: "test"}})
 
       assert outcome.result == %{config: "test"}
     end
 
     test "nested ask calls return same environment" do
-      runner = Run.with_handlers(r: {Reader.Handler, :test_env})
-      outcome = Run.run(ReaderExamples.nested_ask(), runner)
+      outcome = Run.run(ReaderExamples.nested_ask(), [Reader.Handler], %{Reader.Handler => :test_env})
 
       assert outcome.result == {:test_env, :test_env}
     end
 
     test "ask with different environment types - map" do
-      runner = Run.with_handlers(r: {Reader.Handler, %{host: "localhost", port: 8080}})
-      outcome = Run.run(ReaderExamples.ask_map(), runner)
+      outcome = Run.run(ReaderExamples.ask_map(), [Reader.Handler], %{Reader.Handler => %{host: "localhost", port: 8080}})
 
       assert outcome.result == "localhost:8080"
     end
 
     test "ask with different environment types - atom" do
-      runner = Run.with_handlers(r: {Reader.Handler, :production})
-      outcome = Run.run(ReaderExamples.ask_atom(), runner)
+      outcome = Run.run(ReaderExamples.ask_atom(), [Reader.Handler], %{Reader.Handler => :production})
 
       assert outcome.result == {:got, :production}
     end
 
     test "ask with different environment types - string" do
-      runner = Run.with_handlers(r: {Reader.Handler, "World"})
-      outcome = Run.run(ReaderExamples.ask_string(), runner)
+      outcome = Run.run(ReaderExamples.ask_string(), [Reader.Handler], %{Reader.Handler => "World"})
 
       assert outcome.result == "Hello, World!"
     end
 
     test "Reader with State effect" do
-      runner =
-        Run.with_handlers(
-          r: {Reader.Handler, 3},
-          s: {State.Handler, 5}
-        )
-
-      outcome = Run.run(ReaderExamples.reader_with_state(), runner)
+      outcome = Run.run(ReaderExamples.reader_with_state(), [Reader.Handler, State.Handler], %{Reader.Handler => 3, State.Handler => 5})
 
       assert outcome.result == 15
-      assert outcome.outputs.s == 15
+      assert outcome.outputs[State.Handler] == 15
     end
 
     test "Reader used in function calls" do
-      runner = Run.with_handlers(r: {Reader.Handler, %{debug: true}})
-      outcome = Run.run(ReaderExamples.use_config(), runner)
+      outcome = Run.run(ReaderExamples.use_config(), [Reader.Handler], %{Reader.Handler => %{debug: true}})
 
       assert outcome.result == {:using, %{debug: true}}
     end
 
     test "Reader environment is read-only" do
       original_env = %{value: 42}
-      runner = Run.with_handlers(r: {Reader.Handler, original_env})
-      outcome = Run.run(ReaderExamples.read_only_env(), runner)
+      outcome = Run.run(ReaderExamples.read_only_env(), [Reader.Handler], %{Reader.Handler => original_env})
 
       {env1, env2} = outcome.result
       assert env1 == original_env
@@ -162,8 +149,7 @@ defmodule Freyja.Effects.ReaderTest do
         api: %{base_url: "https://api.example.com"}
       }
 
-      runner = Run.with_handlers(r: {Reader.Handler, config})
-      outcome = Run.run(ReaderExamples.complex_nested(), runner)
+      outcome = Run.run(ReaderExamples.complex_nested(), [Reader.Handler], %{Reader.Handler => config})
 
       assert outcome.result == %{
                db: %{host: "db.example.com", port: 5432},
@@ -172,8 +158,7 @@ defmodule Freyja.Effects.ReaderTest do
     end
 
     test "Reader propagates through multiple function calls" do
-      runner = Run.with_handlers(r: {Reader.Handler, :deep_value})
-      outcome = Run.run(ReaderExamples.level1(), runner)
+      outcome = Run.run(ReaderExamples.level1(), [Reader.Handler], %{Reader.Handler => :deep_value})
 
       assert outcome.result == :deep_value
     end

@@ -397,12 +397,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       assert %Freyja.Freer.Pure{val: :fallback} = freer_tree
 
       # Now interpret (phase 2)
-      run_state =
-        Freyja.Run.with_handlers([
-          {ThrowHandler, ThrowHandler},
-        ])
-
-      outcome = Freyja.Run.run(freer_tree, run_state)
+      outcome = Freyja.Run.run(freer_tree, [ThrowHandler], %{})
 
       assert {:ok, :fallback} = outcome.result
     end

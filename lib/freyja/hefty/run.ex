@@ -177,7 +177,7 @@ defmodule Freyja.Hefty.Run do
       end)
 
     run_state = Run.with_handlers(handler_specs)
-    Run.run(freer_computation, run_state)
+    Run.run_with_state(freer_computation, run_state)
   end
 
   @doc """

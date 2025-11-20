@@ -35,19 +35,15 @@ defmodule Freyja.Effects.StateTest do
 
   describe "simple state" do
     test "it does state stuff" do
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          s: {State.Handler, 5},
-          r: {Reader.Handler, %{env: 7}},
-          w: {Writer.Handler, []}
-        )
-
-      outcome = Run.run(calc(10), runner)
+      outcome = Run.run(
+        calc(10),
+        [EffectLogger.Handler, State.Handler, Reader.Handler, Writer.Handler],
+        %{State.Handler => 5, Reader.Handler => %{env: 7}, Writer.Handler => []}
+      )
 
       assert outcome.result == %{sum: 22, product: 350}
-      assert outcome.outputs.s == 350
-      assert outcome.outputs.w == [22]
+      assert outcome.outputs[State.Handler] == 350
+      assert outcome.outputs[Writer.Handler] == [22]
 
       # Logger.error("#{__MODULE__}.outcome\n" <> inspect(outcome, pretty: true))
     end

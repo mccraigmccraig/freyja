@@ -16,8 +16,7 @@ defmodule Freyja.ConPureBindingsTest do
           return(doubled)
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 10})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 10})
 
       assert %RunOutcome{
                result: 20
@@ -34,8 +33,7 @@ defmodule Freyja.ConPureBindingsTest do
           return(sum)
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 5})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 5})
 
       assert %RunOutcome{
                result: 25
@@ -53,12 +51,11 @@ defmodule Freyja.ConPureBindingsTest do
           return({doubled, y, halved})
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 10})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 10})
 
       assert %RunOutcome{
                result: {20, 20, 10.0},
-               outputs: %{s: 20}
+               outputs: %{State.Handler => 20}
              } = outcome
     end
 
@@ -73,12 +70,11 @@ defmodule Freyja.ConPureBindingsTest do
           return(result)
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 7})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 7})
 
       assert %RunOutcome{
                result: 121,
-               outputs: %{s: 121}
+               outputs: %{State.Handler => 121}
              } = outcome
     end
 
@@ -91,8 +87,7 @@ defmodule Freyja.ConPureBindingsTest do
           return(sum)
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 4})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 4})
 
       assert %RunOutcome{
                result: 20
@@ -116,12 +111,11 @@ defmodule Freyja.ConPureBindingsTest do
           return({x, calculated, final})
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 5})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 5})
 
       assert %RunOutcome{
                result: {5, 15, 15},
-               outputs: %{s: 15}
+               outputs: %{State.Handler => 15}
              } = outcome
     end
 
@@ -136,12 +130,11 @@ defmodule Freyja.ConPureBindingsTest do
           return({a, b, c})
         end
 
-      runner = Run.with_handlers(s: {State.Handler, 5})
-      outcome = computation |> Run.run(runner)
+      outcome = computation |> Run.run([State.Handler], %{State.Handler => 5})
 
       assert %RunOutcome{
                result: {15, 30, 25},
-               outputs: %{s: 25}
+               outputs: %{State.Handler => 25}
              } = outcome
     end
   end

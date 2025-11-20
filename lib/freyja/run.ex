@@ -81,16 +81,53 @@ defmodule Freyja.Run do
     do_run(computation, new_run_state)
   end
 
-  @spec run(Freer.freer(), RunState.t()) :: RunOutcome.t()
-  def run(computation, %RunState{} = run_state)
+  @doc """
+  Run a Freer computation with a list of handlers and optional initial states.
+
+  This is the main entry point for running Freer computations, matching the
+  clean API style of Hefty.Run.run.
+
+  ## Parameters
+
+  - `computation` - The Freer computation to run
+  - `handlers` - List of handler modules (e.g., [State.Handler, Writer.Handler])
+  - `initial_states` - Map of handler module to initial state (default: %{})
+
+  ## Example
+
+      Run.run(
+        computation,
+        [State.Handler, Writer.Handler],
+        %{State.Handler => 0, Writer.Handler => []}
+      )
+
+  """
+  @spec run(Freer.freer(), [module], map) :: RunOutcome.t()
+  def run(computation, handlers, initial_states \\ %{})
+      when is_list(handlers) and is_map(initial_states) do
+    # Build handler specs from handlers list and initial_states map
+    # This matches the Hefty.Run.run implementation
+    handler_specs =
+      Enum.map(handlers, fn handler_mod ->
+        state = Map.get(initial_states, handler_mod)
+        {handler_mod, {handler_mod, state}}
+      end)
+
+    run_state = with_handlers(handler_specs)
+    run_with_state(computation, run_state)
+  end
+
+  # Internal: run with pre-built RunState (for Hefty.Run to call)
+  @doc false
+  def run_with_state(computation, %RunState{} = run_state)
       when is_struct(computation, Pure) or is_struct(computation, Impure) do
     initialized_run_state = initialize(computation, run_state)
-
     do_run(computation, initialized_run_state)
   end
 
-  def run(computation, %RunState{} = run_state) do
-    ISendable.send(computation) |> run(run_state)
+  @doc false
+  def run_with_state(computation, %RunState{} = run_state) do
+    ISendable.send(computation) |> run_with_state(run_state)
   end
 
   @doc """

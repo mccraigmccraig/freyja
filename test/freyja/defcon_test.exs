@@ -53,18 +53,16 @@ defmodule Freyja.DefconTest do
   end
 
   test "defcon with Reader returns expected sum" do
-    runner = Run.with_handlers(r: {Reader.Handler, 3})
-    out = DefconExample.sum_env(1, 2) |> Run.run(runner)
+    out = Run.run(DefconExample.sum_env(1, 2), [Reader.Handler], %{Reader.Handler => 3})
     assert %Freyja.RunOutcome{result: 6} = out
   end
 
   test "defconp with Writer accumulates outputs" do
-    runner = Run.with_handlers(w: Writer.Handler)
-    out = DefconExample.call_private(4, 5) |> Run.run(runner)
+    out = Run.run(DefconExample.call_private(4, 5), [Writer.Handler])
 
     assert %Freyja.RunOutcome{
              result: 9,
-             outputs: %{w: [5, 4]}
+             outputs: %{Writer.Handler => [5, 4]}
            } =
              out
   end
@@ -81,20 +79,20 @@ defmodule Freyja.DefconTest do
   end
 
   test "defcon composition: sum_and_log composes Reader and Writer and calls another defcon" do
-    runner = Run.with_handlers(r: {Reader.Handler, 3}, w: Writer.Handler)
-
-    out = DefconExample.sum_and_log(1, 2) |> Run.run(runner)
+    out = Run.run(
+      DefconExample.sum_and_log(1, 2),
+      [Reader.Handler, Writer.Handler],
+      %{Reader.Handler => 3}
+    )
 
     assert %Freyja.RunOutcome{
              result: 6,
-             outputs: %{w: [{:sum, 6}]}
+             outputs: %{Writer.Handler => [{:sum, 6}]}
            } = out
   end
 
   test "defcon composition: sum_twice calls another defcon twice" do
-    runner = Run.with_handlers(r: {Reader.Handler, 3})
-
-    out = DefconExample.sum_twice(1, 2) |> Run.run(runner)
+    out = Run.run(DefconExample.sum_twice(1, 2), [Reader.Handler], %{Reader.Handler => 3})
 
     # First sum_env: 1+2+3 = 6; second: 6+0+3 = 9
     assert %Freyja.RunOutcome{result: 9} = out

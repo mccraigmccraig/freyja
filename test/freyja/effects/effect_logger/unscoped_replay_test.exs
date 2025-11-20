@@ -22,17 +22,11 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
         end
 
       # Run once to generate the log
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          s: {State.Handler, nil}
-        )
-
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
 
       assert %RunOutcome{
                result: {:initial_value, :updated_value},
-               outputs: %{l: _log}
+               outputs: %{EffectLogger.Handler => _log}
              } = first_outcome
 
       # Rerun using the outputs (including log) from first run
@@ -44,7 +38,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
              } = second_outcome
 
       # The log should be consumed (moved to stack) during replay
-      assert %{l: _replayed_log} = second_outcome.outputs
+      assert %{EffectLogger.Handler => _replayed_log} = second_outcome.outputs
       # IO.puts("\nFirst log:\n#{inspect(log, pretty: true)}")
       # IO.puts("\nReplayed log:\n#{inspect(replayed_log, pretty: true)}")
     end
@@ -58,17 +52,11 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return(:done)
         end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          w: Writer.Handler
-        )
-
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = computation |> Run.run([EffectLogger.Handler, Writer.Handler])
 
       assert %RunOutcome{
                result: :done,
-               outputs: %{l: _log, w: ["third", "second", "first"]}
+               outputs: %{EffectLogger.Handler => _log, Writer.Handler => ["third", "second", "first"]}
              } = first_outcome
 
       # Replay using rerun
@@ -76,7 +64,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       assert %RunOutcome{
                result: :done,
-               outputs: %{w: ["third", "second", "first"]}
+               outputs: %{Writer.Handler => ["third", "second", "first"]}
              } = second_outcome
     end
 
@@ -95,21 +83,14 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return(z)
         end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          s: {State.Handler, nil},
-          w: Writer.Handler
-        )
-
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = computation |> Run.run([EffectLogger.Handler, State.Handler, Writer.Handler], %{State.Handler => nil})
 
       assert %RunOutcome{
                result: 30,
                outputs: %{
-                 l: _log,
-                 s: 30,
-                 w: ["incremented to 30", "incremented to 10", "starting"]
+                 EffectLogger.Handler => _log,
+                 State.Handler => 30,
+                 Writer.Handler => ["incremented to 30", "incremented to 10", "starting"]
                }
              } = first_outcome
 
@@ -119,8 +100,8 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       assert %RunOutcome{
                result: 30,
                outputs: %{
-                 s: 30,
-                 w: ["incremented to 30", "incremented to 10", "starting"]
+                 State.Handler => 30,
+                 Writer.Handler => ["incremented to 30", "incremented to 10", "starting"]
                }
              } = second_outcome
     end
@@ -138,17 +119,11 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return({a, b})
         end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          s: {State.Handler, nil}
-        )
-
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
 
       assert %RunOutcome{
                result: {"value_one", "value_two"},
-               outputs: %{l: log, s: state}
+               outputs: %{EffectLogger.Handler => log, State.Handler => state}
              } = first_outcome
 
       # Serialize and deserialize the outputs
@@ -156,8 +131,8 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       decoded_map = Jason.decode!(json)
 
       deserialized_outputs = %{
-        l: Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
-        s: decoded_map["s"]
+        EffectLogger.Handler => Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
+        State.Handler => decoded_map["s"]
       }
 
       # IO.puts("\nOriginal log:\n#{inspect(log, pretty: true)}")
@@ -184,17 +159,11 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return(:complete)
         end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          w: Writer.Handler
-        )
-
-      first_outcome = computation |> Run.run(runner)
+      first_outcome = computation |> Run.run([EffectLogger.Handler, Writer.Handler])
 
       assert %RunOutcome{
                result: :complete,
-               outputs: %{l: log, w: writer_output}
+               outputs: %{EffectLogger.Handler => log, Writer.Handler => writer_output}
              } = first_outcome
 
       # Writer output is in reverse order (most recent first)
@@ -205,8 +174,8 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       decoded_map = Jason.decode!(json)
 
       deserialized_outputs = %{
-        l: Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
-        w: decoded_map["w"]
+        EffectLogger.Handler => Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
+        Writer.Handler => decoded_map["w"]
       }
 
       # Rerun with deserialized state
@@ -215,7 +184,7 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       assert %RunOutcome{
                result: :complete,
-               outputs: %{w: ["gamma", "beta", "alpha"]}
+               outputs: %{Writer.Handler => ["gamma", "beta", "alpha"]}
              } = second_outcome
     end
   end

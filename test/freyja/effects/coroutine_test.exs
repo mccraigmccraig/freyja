@@ -20,10 +20,7 @@ defmodule Freyja.Effects.CoroutineTest do
           return("finished: " <> inspect(a))
         end
 
-      runner =
-        Run.with_handlers(c: Coroutine.Handler)
-
-      outcome = Run.run(computation, runner)
+      outcome = Run.run(computation, [Coroutine.Handler])
       assert %RunOutcome{result: {:suspend, 42, _k}} = outcome
 
       outcome2 = Run.resume(outcome, 100)
@@ -42,13 +39,7 @@ defmodule Freyja.Effects.CoroutineTest do
         end
 
       # First yield
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          c: Coroutine.Handler
-        )
-
-      outcome = Run.run(computation, runner)
+      outcome = Run.run(computation, [EffectLogger.Handler, Coroutine.Handler])
       assert %RunOutcome{result: {:suspend, "first", _k}} = outcome
 
       # looks like I needd to encode the difference between "rerunning" and

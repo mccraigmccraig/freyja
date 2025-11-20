@@ -96,22 +96,13 @@ defmodule Freyja.EffectLoggerTest do
           subtract(d, c)
         end
 
-      runner =
-        Run.with_handlers(
-          l: EffectLogger.Handler,
-          n: Numbers.Handler,
-          s: {State.Handler, {:foo, 12}}
-        )
-
-      # Logger.error("#{inspect(runner, pretty: true)}\n#{inspect(fv, pretty: true)}")
-
-      result = fv |> Run.run(runner)
+      result = fv |> Run.run([EffectLogger.Handler, Numbers.Handler, State.Handler], %{State.Handler => {:foo, 12}})
 
       assert %Freyja.RunOutcome{
                result: _final_val,
                outputs: %{
-                 s: {:bar, 34},
-                 l: %Freyja.Effects.EffectLogger.Log{
+                 State.Handler => {:bar, 34},
+                 EffectLogger.Handler => %Freyja.Effects.EffectLogger.Log{
                    stack: [],
                    queue: log_queue
                  }

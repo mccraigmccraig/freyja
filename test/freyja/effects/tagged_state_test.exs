@@ -197,30 +197,21 @@ defmodule Freyja.Effects.TaggedStateTest do
   # Tests
   describe "basic tagged state operations" do
     test "get and put with single tag" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{cache: 5}})
-
-      outcome = Run.run(get_and_increment_cache(), runner)
+      outcome = Run.run(get_and_increment_cache(), [TaggedState.Handler], %{TaggedState.Handler => %{cache: 5}})
 
       assert outcome.result == 15
-      assert outcome.outputs.ts == %{cache: 15}
+      assert outcome.outputs[TaggedState.Handler] == %{cache: 15}
     end
 
     test "put returns old value" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{counter: 42}})
-
-      outcome = Run.run(put_and_return_old(), runner)
+      outcome = Run.run(put_and_return_old(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 42}})
 
       assert outcome.result == 42
-      assert outcome.outputs.ts == %{counter: 100}
+      assert outcome.outputs[TaggedState.Handler] == %{counter: 100}
     end
 
     test "get returns nil for missing tag" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{}})
-
-      outcome = Run.run(get_missing_tag(), runner)
+      outcome = Run.run(get_missing_tag(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == nil
     end
@@ -228,18 +219,13 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "multiple tagged states" do
     test "manage multiple independent states" do
-      runner =
-        Run.with_handlers(
-          ts:
-            {TaggedState.Handler,
-             %{
-               cache: %{},
-               config: %{host: "localhost", port: 8080},
-               session_id: 100
-             }}
-        )
-
-      outcome = Run.run(manage_multiple_states(), runner)
+      outcome = Run.run(manage_multiple_states(), [TaggedState.Handler], %{
+        TaggedState.Handler => %{
+          cache: %{},
+          config: %{host: "localhost", port: 8080},
+          session_id: 100
+        }
+      })
 
       assert outcome.result == %{
                cache: %{new_key: "new_value"},
@@ -247,7 +233,7 @@ defmodule Freyja.Effects.TaggedStateTest do
                session: 101
              }
 
-      assert outcome.outputs.ts == %{
+      assert outcome.outputs[TaggedState.Handler] == %{
                cache: %{new_key: "new_value"},
                config: %{host: "localhost", port: 8080},
                session_id: 101
@@ -255,14 +241,11 @@ defmodule Freyja.Effects.TaggedStateTest do
     end
 
     test "different value types per tag" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{}})
-
-      outcome = Run.run(put_different_types(), runner)
+      outcome = Run.run(put_different_types(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == :ok
 
-      assert outcome.outputs.ts == %{
+      assert outcome.outputs[TaggedState.Handler] == %{
                number: 42,
                string: "hello",
                list: [1, 2, 3],
@@ -274,97 +257,78 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "composition with other effects" do
     test "TaggedState with regular State" do
-      runner =
-        Run.with_handlers(
-          s: {State.Handler, 5},
-          ts: {TaggedState.Handler, %{cache: 100}}
-        )
-
-      outcome = Run.run(use_state_and_tagged_state(), runner)
+      outcome = Run.run(use_state_and_tagged_state(), [State.Handler, TaggedState.Handler], %{
+        State.Handler => 5,
+        TaggedState.Handler => %{cache: 100}
+      })
 
       assert outcome.result == %{regular: 6, tagged: 110}
-      assert outcome.outputs.s == 6
-      assert outcome.outputs.ts == %{cache: 110}
+      assert outcome.outputs[State.Handler] == 6
+      assert outcome.outputs[TaggedState.Handler] == %{cache: 110}
     end
 
     test "TaggedState with Reader and Writer" do
-      runner =
-        Run.with_handlers(
-          r: {Reader.Handler, %{multiplier: 3}},
-          w: {Writer.Handler, []},
-          ts: {TaggedState.Handler, %{cache: 10}}
-        )
-
-      outcome = Run.run(use_reader_writer_tagged(), runner)
+      outcome = Run.run(use_reader_writer_tagged(), [Reader.Handler, Writer.Handler, TaggedState.Handler], %{
+        Reader.Handler => %{multiplier: 3},
+        Writer.Handler => [],
+        TaggedState.Handler => %{cache: 10}
+      })
 
       assert outcome.result == 30
-      assert outcome.outputs.w == ["Computed: 30"]
-      assert outcome.outputs.ts == %{cache: 30, last_result: 30}
+      assert outcome.outputs[Writer.Handler] == ["Computed: 30"]
+      assert outcome.outputs[TaggedState.Handler] == %{cache: 30, last_result: 30}
     end
   end
 
   describe "nested computations" do
     test "nested functions using TaggedState" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{cache: 0}})
-
-      outcome = Run.run(call_increment_three_times(), runner)
+      outcome = Run.run(call_increment_three_times(), [TaggedState.Handler], %{TaggedState.Handler => %{cache: 0}})
 
       assert outcome.result == [1, 2, 3]
-      assert outcome.outputs.ts == %{cache: 3}
+      assert outcome.outputs[TaggedState.Handler] == %{cache: 3}
     end
 
     test "multiple tags in nested computations" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{count: 0, total: 0}})
-
-      outcome = Run.run(call_update_stats_three_times(), runner)
+      outcome = Run.run(call_update_stats_three_times(), [TaggedState.Handler], %{TaggedState.Handler => %{count: 0, total: 0}})
 
       assert outcome.result == %{
                steps: [{0, 0}, {1, 0}, {2, 1}],
                final: {3, 3}
              }
 
-      assert outcome.outputs.ts == %{count: 3, total: 3}
+      assert outcome.outputs[TaggedState.Handler] == %{count: 3, total: 3}
     end
   end
 
   describe "error handling" do
     test "raises ArgumentError if handler state is not a map" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, "not a map"})
-
       assert_raise ArgumentError, ~r/TaggedState.Handler state must be a map/, fn ->
-        Run.run(trigger_error(), runner)
+        Run.run(trigger_error(), [TaggedState.Handler], %{TaggedState.Handler => "not a map"})
       end
     end
   end
 
   describe "tag types" do
     test "supports atom tags" do
-      runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
-      outcome = Run.run(use_atom_tag(), runner)
+      outcome = Run.run(use_atom_tag(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == "value"
     end
 
     test "supports string tags" do
-      runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
-      outcome = Run.run(use_string_tag(), runner)
+      outcome = Run.run(use_string_tag(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == "value"
     end
 
     test "supports number tags" do
-      runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
-      outcome = Run.run(use_number_tags(), runner)
+      outcome = Run.run(use_number_tags(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == {"first", "second"}
     end
 
     test "supports tuple tags" do
-      runner = Run.with_handlers(ts: {TaggedState.Handler, %{}})
-      outcome = Run.run(use_tuple_tags(), runner)
+      outcome = Run.run(use_tuple_tags(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == {%{name: "Alice"}, %{name: "Bob"}}
     end
@@ -372,55 +336,40 @@ defmodule Freyja.Effects.TaggedStateTest do
 
   describe "update operation" do
     test "updates a counter and returns old value" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{counter: 5}})
-
-      outcome = Run.run(update_counter(), runner)
+      outcome = Run.run(update_counter(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 5}})
 
       assert outcome.result == {5, 6}
-      assert outcome.outputs.ts == %{counter: 6}
+      assert outcome.outputs[TaggedState.Handler] == %{counter: 6}
     end
 
     test "updates with map function" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{cache: %{existing: "value"}}})
-
-      outcome = Run.run(update_with_map_function(), runner)
+      outcome = Run.run(update_with_map_function(), [TaggedState.Handler], %{TaggedState.Handler => %{cache: %{existing: "value"}}})
 
       assert outcome.result == %{existing: "value", updated: true}
-      assert outcome.outputs.ts == %{cache: %{existing: "value", updated: true}}
+      assert outcome.outputs[TaggedState.Handler] == %{cache: %{existing: "value", updated: true}}
     end
 
     test "updates multiple tags" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{count: 1, total: 0}})
-
-      outcome = Run.run(update_multiple_tags(), runner)
+      outcome = Run.run(update_multiple_tags(), [TaggedState.Handler], %{TaggedState.Handler => %{count: 1, total: 0}})
 
       # count: 1 -> 2 (+ 1) -> 4 (* 2)
       # total: 0 -> 10 (+ 10)
       assert outcome.result == {4, 10}
-      assert outcome.outputs.ts == %{count: 4, total: 10}
+      assert outcome.outputs[TaggedState.Handler] == %{count: 4, total: 10}
     end
 
     test "updates missing tag (nil case)" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{}})
-
-      outcome = Run.run(update_missing_tag(), runner)
+      outcome = Run.run(update_missing_tag(), [TaggedState.Handler], %{TaggedState.Handler => %{}})
 
       assert outcome.result == {nil, 1}
-      assert outcome.outputs.ts == %{missing: 1}
+      assert outcome.outputs[TaggedState.Handler] == %{missing: 1}
     end
 
     test "nested update computations" do
-      runner =
-        Run.with_handlers(ts: {TaggedState.Handler, %{counter: 0}})
-
-      outcome = Run.run(call_increment_nested_three_times(), runner)
+      outcome = Run.run(call_increment_nested_three_times(), [TaggedState.Handler], %{TaggedState.Handler => %{counter: 0}})
 
       assert outcome.result == [1, 2, 3]
-      assert outcome.outputs.ts == %{counter: 3}
+      assert outcome.outputs[TaggedState.Handler] == %{counter: 3}
     end
   end
 end

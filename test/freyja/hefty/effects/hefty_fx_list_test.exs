@@ -252,7 +252,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
       assert %Freyja.Freer.Pure{val: [2, 4, 6]} = freer_tree
 
       # Run it
-      outcome = Freyja.Run.run(freer_tree, Freyja.Run.with_handlers([]))
+      outcome = Freyja.Run.run(freer_tree, [], %{})
 
       assert [2, 4, 6] = outcome.result
     end

@@ -375,8 +375,10 @@ defmodule Freyja.Hefty.PrototypeTest do
   end
 
   describe "Two-phase execution validation" do
-    test "elaboration produces Freer with case statement for control flow" do
-      # This test validates that elaboration encodes control flow as case statements
+    test "elaboration with interposition transforms computation structurally" do
+      # This test validates that elaboration with interposition transforms the computation
+      # The new approach uses interpose_with to structurally transform the tree,
+      # replacing Throw operations with catch handler calls
       try_block = Lift.lift(Throw.throw_error("error"))
       catch_block = Hefty.pure(:fallback)
 
@@ -389,8 +391,10 @@ defmodule Freyja.Hefty.PrototypeTest do
           [Catch.Algebra, Lift.Algebra]
         )
 
-      # The freer_tree should be an Impure node (Catch.Algebra.run_catching)
-      assert %Freyja.Freer.Impure{sig: Catch.Algebra} = freer_tree
+      # With interposition, the Throw is caught during elaboration and replaced
+      # with the catch handler result. Since catch returns Pure(:fallback),
+      # the elaborated tree is Pure(:fallback)
+      assert %Freyja.Freer.Pure{val: :fallback} = freer_tree
 
       # Now interpret (phase 2)
       run_state =

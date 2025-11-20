@@ -9,8 +9,7 @@ defmodule Freyja.DefconTest do
   alias Freyja.Run
 
   defmodule DefconExample do
-    import Freyja.Con
-    import Freyja.HeftyMacro
+    use Freyja.Syntax
 
     defcon sum_env(a, b), [Reader] do
       c <- ask()

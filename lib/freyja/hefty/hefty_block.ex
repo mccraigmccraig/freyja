@@ -233,7 +233,7 @@ defmodule Freyja.Hefty.HeftyBlock do
     def defhefty(call_ast, body, nil) do
       quote do
         def unquote(call_ast) do
-          Freyja.HeftyMacro.hefty do
+          Freyja.Hefty.HeftyBlock.hefty do
             unquote(body)
           end
         end
@@ -243,7 +243,7 @@ defmodule Freyja.Hefty.HeftyBlock do
     def defhefty(call_ast, body, catch_block) do
       quote do
         def unquote(call_ast) do
-          Freyja.HeftyMacro.hefty do
+          Freyja.Hefty.HeftyBlock.hefty do
             unquote(body)
           catch
             unquote(catch_block)
@@ -255,7 +255,7 @@ defmodule Freyja.Hefty.HeftyBlock do
     def defheftyp(call_ast, body, nil) do
       quote do
         defp unquote(call_ast) do
-          Freyja.HeftyMacro.hefty do
+          Freyja.Hefty.HeftyBlock.hefty do
             unquote(body)
           end
         end
@@ -265,7 +265,7 @@ defmodule Freyja.Hefty.HeftyBlock do
     def defheftyp(call_ast, body, catch_block) do
       quote do
         defp unquote(call_ast) do
-          Freyja.HeftyMacro.hefty do
+          Freyja.Hefty.HeftyBlock.hefty do
             unquote(body)
           catch
             unquote(catch_block)

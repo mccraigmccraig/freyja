@@ -6,7 +6,7 @@ defmodule Freyja.Freer.FreerBlock do
   """
 
   @doc """
-  Define a function whose body is a `Freyja.Con.con` block.
+  Define a function whose body is a `Freyja.Freer.FreerBlock.con` block.
 
   Usage:
     import Freyja.Freer.FreerBlock
@@ -53,7 +53,8 @@ defmodule Freyja.Freer.FreerBlock do
   """
   defmacro con(do: do_block), do: Freyja.Freer.FreerBlock.Impl.con([], do_block)
 
-  defmacro con(mod_or_mods, do: do_block), do: Freyja.Freer.FreerBlock.Impl.con(mod_or_mods, do_block)
+  defmacro con(mod_or_mods, do: do_block),
+    do: Freyja.Freer.FreerBlock.Impl.con(mod_or_mods, do_block)
 
   defmodule Impl do
     @moduledoc """
@@ -64,7 +65,7 @@ defmodule Freyja.Freer.FreerBlock do
 
       quote do
         def unquote(call_ast) do
-          Freyja.Con.con unquote(mods_list) do
+          Freyja.Freer.FreerBlock.con unquote(mods_list) do
             unquote(body)
           end
         end
@@ -79,7 +80,7 @@ defmodule Freyja.Freer.FreerBlock do
 
       quote do
         defp unquote(call_ast) do
-          Freyja.Con.con unquote(mods_list) do
+          Freyja.Freer.FreerBlock.con unquote(mods_list) do
             unquote(body)
           end
         end

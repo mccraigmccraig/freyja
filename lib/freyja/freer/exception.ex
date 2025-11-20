@@ -1,9 +1,10 @@
-defmodule Freyja.Exception do
+defmodule Freyja.Freer.Exception do
   @moduledoc """
   Utilities for converting Elixir exceptions to serializable error representations.
 
-  Provides standard formats for representing exceptions as JSON-serializable maps,
-  suitable for logging, replay, and debugging.
+  Used during first-order effect interpretation (Freer) to handle exceptions that
+  occur in user code. Provides standard formats for representing exceptions as
+  JSON-serializable maps, suitable for logging, replay, and debugging.
   """
 
   @doc """
@@ -36,7 +37,7 @@ defmodule Freyja.Exception do
         raise ArgumentError, "invalid input"
       rescue
         e ->
-          Freyja.Exception.to_serializable(e, __STACKTRACE__)
+          Freyja.Freer.Exception.to_serializable(e, __STACKTRACE__)
           #=> %{"type" => "Elixir.ArgumentError", "message" => "invalid input", ...}
       end
   """
@@ -63,7 +64,7 @@ defmodule Freyja.Exception do
   ## Examples
 
       iex> exception = %ArgumentError{message: "test"}
-      iex> Freyja.Exception.format_compact(exception)
+      iex> Freyja.Freer.Exception.format_compact(exception)
       "ArgumentError: test"
   """
   @spec format_compact(Exception.t()) :: String.t()

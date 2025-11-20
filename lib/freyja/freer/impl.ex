@@ -78,7 +78,7 @@ defmodule Freyja.Freer.Impl do
   # If no Throw handler is present, the effect will cause an unhandled effect error
   defp handle_continuation_exception(exception, stacktrace) do
     # Convert exception to serializable error
-    error_data = Freyja.Exception.to_serializable(exception, stacktrace)
+    error_data = Freyja.Freer.Exception.to_serializable(exception, stacktrace)
 
     # Create and return Throw effect
     Freyja.Effects.Throw.throw_error(error_data)

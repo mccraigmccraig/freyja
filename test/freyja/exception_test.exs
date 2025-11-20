@@ -1,7 +1,7 @@
-defmodule Freyja.ExceptionTest do
+defmodule Freyja.Freer.ExceptionTest do
   use ExUnit.Case
 
-  alias Freyja.Exception, as: FException
+  alias Freyja.Freer.Exception, as: FException
 
   describe "to_serializable/3" do
     test "converts ArithmeticError to serializable map" do

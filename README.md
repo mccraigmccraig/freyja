@@ -30,13 +30,11 @@ import Freyja.HeftyMacro
 alias Freyja.Effects.{State, Throw, Catch}
 
 defhefty safe_divide(a, b) do
-  result <- if b == 0 do
+  if b == 0 do
     Throw.throw_error(:division_by_zero)
   else
-    Hefty.pure(a / b)
+    return(a / b)
   end
-
-  return(result)
 catch
   :division_by_zero -> return(:infinity)
 end
@@ -115,22 +113,18 @@ Computations can suspend and resume, even inside error handlers:
 
 ```elixir
 defhefty process_with_checkpoints(data) do
-  result <- Catch.catch_hefty(
+  Catch.catch_hefty(
     hefty do
       x <- Coroutine.yield(data)  # Suspend (auto-lifted)
       # After resume, still inside catch scope!
-      result <- if x < 0 do
+      if x < 0 do
         Throw.throw_error(:negative)  # Auto-lifted, short-circuits
       else
-        Hefty.pure(x * 2)
+        return(x * 2)
       end
-
-      return(result)
     end,
     fn _err -> Hefty.pure(0) end
   )
-
-  return(result)
 end
 ```
 
@@ -183,21 +177,18 @@ Use `hefty` when you need higher-order effects:
 
 ```elixir
 defhefty with_error_handling do
-  result <- Catch.catch_hefty(
+  Catch.catch_hefty(
     hefty do
       x <- State.get()  # First-order, auto-lifted to Hefty
 
       if x < 0 do
-        _ <- Throw.throw_error(:negative)  # Auto-lifted, short-circuits
-        return(:unreachable)
+        Throw.throw_error(:negative)  # Auto-lifted, short-circuits
       else
         return(x)
       end
     end,
     fn _err -> Hefty.pure(0) end
   )
-
-  return(result)
 end
 ```
 
@@ -490,22 +481,18 @@ Example - this **just works**:
 ```elixir
 # Catch + Yield - suspension preserves catch scope
 defhefty example do
-  result <- Catch.catch_hefty(
+  Catch.catch_hefty(
     hefty do
       x <- Coroutine.yield(5)  # Suspend! (auto-lifted)
       # After resume, still inside catch scope
-      result <- if x < 0 do
+      if x < 0 do
         Throw.throw_error(:negative)  # Auto-lifted, short-circuits
       else
-        Hefty.pure(x)
+        return(x)
       end
-
-      return(result)
     end,
     fn _err -> Hefty.pure(0) end
   )
-
-  return(result)
 end
 
 # Works correctly - catch scope preserved after resume!
@@ -521,35 +508,36 @@ Start with simple effects using the `con` macro:
 
 ```elixir
 import Freyja.Con
-alias Freyja.Effects.{State, Writer, FxList}
+alias Freyja.Effects.{State, Writer}
 
-defcon count_and_log(items) do
-  _ <- Writer.tell("Processing #{length(items)} items")
+defcon calculate_sum(a, b) do
+  _ <- Writer.tell("Calculating sum")
 
-  # Process each item with effects
-  _ <- FxList.fx_map(items, fn item ->
-    con do
-      count <- State.get()
-      _ <- State.put(count + 1)
-      _ <- Writer.tell("Processed item #{item}")
-      return(:ok)
-    end
-  end)
+  # Get multiplier from state
+  multiplier <- State.get()
 
-  final_count <- State.get()
-  return(final_count)
+  # Calculate result
+  result = (a + b) * multiplier
+
+  # Update state with result
+  _ <- State.put(result)
+
+  # Log the result
+  _ <- Writer.tell("Result: #{result}")
+
+  return(result)
 end
 
 # Run it
 outcome = Run.run(
-  count_and_log([1, 2, 3]),
+  calculate_sum(10, 5),
   [State.Handler, Writer.Handler],
-  %{State.Handler => 0}
+  %{State.Handler => 2}
 )
 
-outcome.result  # => 3
-outcome.outputs[State.Handler]   # => 3
-outcome.outputs[Writer.Handler]  # => ["Processed item 3", "Processed item 2", ...]
+outcome.result  # => 30 (15 * 2)
+outcome.outputs[State.Handler]   # => 30
+outcome.outputs[Writer.Handler]  # => ["Result: 30", "Calculating sum"]
 ```
 
 ### Adding Error Handling
@@ -561,7 +549,7 @@ import Freyja.HeftyMacro
 alias Freyja.Effects.{Catch, Throw}
 
 defhefty fetch_user(id) do
-  user <- Catch.catch_hefty(
+  Catch.catch_hefty(
     hefty do
       Database.get(id)  # Auto-lifted
     end,
@@ -570,8 +558,6 @@ defhefty fetch_user(id) do
       error -> Hefty.pure({:error, error})
     end
   )
-
-  return(user)
 end
 
 # Or use catch clause syntax (cleaner):
@@ -730,13 +716,12 @@ outcome = Run.run(
 import Freyja.HeftyMacro
 
 computation = hefty do
-  result <- Catch.catch_hefty(
+  Catch.catch_hefty(
     hefty do
       State.get()  # Auto-lifted
     end,
     fn _err -> Hefty.pure(0) end
   )
-  return(result)
 end
 
 outcome = Hefty.Run.run(
@@ -923,6 +908,10 @@ Key areas for contribution:
 - **Hefty Algebras Paper**: [Poulsen & van der Rest (POPL 2023)](https://dl.acm.org/doi/10.1145/3571255)
 - **Heftia (Haskell)**: [sayo-hs/heftia](https://github.com/sayo-hs/heftia) - Reference implementation
 - **Algebraic Effects Overview**: [What is algebraic about algebraic effects?](https://arxiv.org/abs/1807.05923)
+- **Freer Monads, More Extensible Effects**: [Kiselyov & Ishii](https://okmij.org/ftp/Haskell/extensible/more.pdf)
+- **freer-simple — a friendly effect system for Haskell**: [lexi-lambda/freer-simple](https://github.com/lexi-lambda/freer-simple)
+  
+
 
 ---
 

@@ -7,7 +7,7 @@ defmodule Freyja.Effects.ScopedTest do
   alias Freyja.Effects.Writer
   alias Freyja.Run
   alias Freyja.Hefty
-  alias Freyja.Effects.{Lift, Error}
+  alias Freyja.Effects.{Lift, Throw}
   alias Freyja.Effects.Catch
 
   defmodule ScopedFx do
@@ -18,12 +18,12 @@ defmodule Freyja.Effects.ScopedTest do
       first <- yield(a)
       _ <- tell(first)
 
-      _ <- if first == "boo", do: Error.throw_error(:boo), else: return(:ok)
+      _ <- if first == "boo", do: Throw.throw_error(:boo), else: return(:ok)
 
       second <- yield(b)
       _ <- tell(second)
 
-      _ <- if second == "hoo", do: Error.throw_error(:hoo), else: return(:ok)
+      _ <- if second == "hoo", do: Throw.throw_error(:hoo), else: return(:ok)
 
       result <- return(%{a: a, b: b, first: first, second: second})
       _ <- tell(result)
@@ -53,14 +53,14 @@ defmodule Freyja.Effects.ScopedTest do
   # THESE TESTS ARE DISABLED (freyja-rdm)
   # The interaction between Catch and Coroutine suspensions needs to be fixed.
   # When a computation suspends inside a catch block, the catch scope is lost on resume.
-  # The old Error.Handler had special resume_catch_k logic to preserve the scope.
+  # The old Throw.Handler had special resume_catch_k logic to preserve the scope.
   # The old RunCatchingHandler didn't preserve catch scope across suspensions.
   # See ticket freyja-rdm for proposed solutions.
   describe "suspending a scoped effect" do
     @tag :skip
     test "it suspends" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Coroutine.Handler, Writer.Handler]
+      handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one =
@@ -88,7 +88,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "the scope is still in effect after resume" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Coroutine.Handler, Writer.Handler]
+      handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one =
@@ -108,7 +108,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "uncaught errors propagate out" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Coroutine.Handler, Writer.Handler]
+      handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one =

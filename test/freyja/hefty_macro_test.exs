@@ -7,8 +7,8 @@ defmodule Freyja.HeftyMacroTest do
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.Lift
   alias Freyja.Effects.Catch
-  alias Freyja.Effects.Error
-  alias Freyja.Effects.Error.Handler, as: ErrorHandler
+  alias Freyja.Effects.Throw
+  alias Freyja.Effects.Throw.Handler, as: ThrowHandler
   alias Freyja.Effects.State
 
   # Test struct that doesn't implement IHeftySendable
@@ -192,7 +192,7 @@ defmodule Freyja.HeftyMacroTest do
 
                 if x < 0 do
                   # Freer - auto-lifted
-                  Error.throw_error("negative")
+                  Throw.throw_error("negative")
                 else
                   Hefty.pure(x * 2)
                 end
@@ -208,18 +208,18 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 5}
         )
 
-      assert 10 = outcome1.result
+      assert {:ok, 10} = outcome1.result
 
       # With negative state
       outcome2 =
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => -3}
         )
 
@@ -259,7 +259,7 @@ defmodule Freyja.HeftyMacroTest do
         Catch.catch_hefty(
           hefty do
             if value < 0 do
-              Error.throw_error("negative")
+              Throw.throw_error("negative")
             else
               Hefty.pure(value * 2)
             end
@@ -278,10 +278,10 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           result1,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert 10 = outcome1.result
+      assert {:ok, 10} = outcome1.result
 
       # Error case
       result2 = with_catch(-3)
@@ -290,10 +290,10 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           result2,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert 0 = outcome2.result
+      assert {:ok, 0} = outcome2.result
     end
   end
 
@@ -343,7 +343,7 @@ defmodule Freyja.HeftyMacroTest do
           x <- State.get()
 
           if x < 0 do
-            Error.throw_error("negative")
+            Throw.throw_error("negative")
           else
             Hefty.pure(x * 2)
           end
@@ -356,22 +356,22 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 5}
         )
 
-      assert 10 = outcome1.result
+      assert {:ok, 10} = outcome1.result
 
       # Test error case (caught)
       outcome2 =
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => -3}
         )
 
-      assert 0 = outcome2.result
+      assert {:ok, 0} = outcome2.result
     end
 
     test "catch clause with multiple patterns" do
@@ -380,8 +380,8 @@ defmodule Freyja.HeftyMacroTest do
           error_type <- State.get()
 
           case error_type do
-            :throw_negative -> Error.throw_error("negative")
-            :throw_overflow -> Error.throw_error("overflow")
+            :throw_negative -> Throw.throw_error("negative")
+            :throw_overflow -> Throw.throw_error("overflow")
             value -> return(value)
           end
         catch
@@ -394,40 +394,40 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => :throw_negative}
         )
 
-      assert :handled_negative = outcome1.result
+      assert {:ok, :handled_negative} = outcome1.result
 
       # Test overflow error
       outcome2 =
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => :throw_overflow}
         )
 
-      assert :handled_overflow = outcome2.result
+      assert {:ok, :handled_overflow} = outcome2.result
 
       # Test success case
       outcome3 =
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 42}
         )
 
-      assert 42 = outcome3.result
+      assert {:ok, 42} = outcome3.result
     end
 
     test "catch clause with variable pattern (catch-all)" do
       computation =
         hefty do
           _ <- State.put(100)
-          Error.throw_error("any error")
+          Throw.throw_error("any error")
         catch
           error -> return({:caught, error})
         end
@@ -436,17 +436,17 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 0}
         )
 
-      assert {:caught, "any error"} = outcome.result
+      assert {:ok, {:caught, "any error"}} = outcome.result
     end
 
     test "catch clause re-throws unmatched errors" do
       computation =
         hefty do
-          Error.throw_error("unhandled")
+          Throw.throw_error("unhandled")
         catch
           "handled" -> return(:ok)
         end
@@ -455,7 +455,7 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 0}
         )
 
@@ -470,7 +470,7 @@ defmodule Freyja.HeftyMacroTest do
           y <- Hefty.pure(10)
 
           if x < 0 do
-            Error.throw_error({:negative, x})
+            Throw.throw_error({:negative, x})
           else
             return(x + y)
           end
@@ -482,18 +482,18 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => -5}
         )
 
-      assert {:handled, -5} = outcome.result
+      assert {:ok, {:handled, -5}} = outcome.result
     end
   end
 
   describe "defhefty macro - with catch clause" do
     defhefty safe_divide(a, b) do
       if b == 0 do
-        Error.throw_error(:division_by_zero)
+        Throw.throw_error(:division_by_zero)
       else
         return(div(a, b))
       end
@@ -509,10 +509,10 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           result1,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert 5 = outcome1.result
+      assert {:ok, 5} = outcome1.result
 
       # Error case
       result2 = safe_divide(10, 0)
@@ -521,17 +521,17 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           result2,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert :infinity = outcome2.result
+      assert {:ok, :infinity} = outcome2.result
     end
   end
 
   describe "defheftyp macro - with catch clause" do
     defheftyp private_safe_operation(value) do
       if value < 0 do
-        Error.throw_error(:invalid_value)
+        Throw.throw_error(:invalid_value)
       else
         return(value * 2)
       end
@@ -551,10 +551,10 @@ defmodule Freyja.HeftyMacroTest do
         HeftyRun.run(
           result,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert 100 = outcome.result
+      assert {:ok, 100} = outcome.result
     end
   end
 end

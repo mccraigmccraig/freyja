@@ -9,8 +9,8 @@ import Freyja.HeftyMacro
 alias Freyja.Hefty.Run, as: HeftyRun
 alias Freyja.Effects.Lift
 alias Freyja.Effects.Catch
-alias Freyja.Effects.Error
-alias Freyja.Effects.Error.Handler, as: ErrorHandler
+alias Freyja.Effects.Throw
+alias Freyja.Effects.Throw.Handler, as: ThrowHandler
 alias Freyja.Effects.State
 
 # Example 1: Simple catch with single pattern
@@ -21,7 +21,7 @@ computation1 =
     x <- State.get()
 
     if x < 0 do
-      Error.throw_error("negative value")
+      Throw.throw_error("negative value")
     else
       return(x * 2)
     end
@@ -34,7 +34,7 @@ outcome1a =
   HeftyRun.run(
     computation1,
     [Catch.Algebra, Lift.Algebra],
-    [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+    [State.Handler, ThrowHandler, Catch.RunCatchingHandler],
     %{State.Handler => 5}
   )
 
@@ -45,7 +45,7 @@ outcome1b =
   HeftyRun.run(
     computation1,
     [Catch.Algebra, Lift.Algebra],
-    [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+    [State.Handler, ThrowHandler, Catch.RunCatchingHandler],
     %{State.Handler => -3}
   )
 
@@ -59,8 +59,8 @@ computation2 =
     error_type <- State.get()
 
     case error_type do
-      :throw_negative -> Error.throw_error("negative")
-      :throw_overflow -> Error.throw_error("overflow")
+      :throw_negative -> Throw.throw_error("negative")
+      :throw_overflow -> Throw.throw_error("overflow")
       value -> return(value)
     end
   catch
@@ -78,7 +78,7 @@ for {input, _expected} <- [
     HeftyRun.run(
       computation2,
       [Catch.Algebra, Lift.Algebra],
-      [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+      [State.Handler, ThrowHandler, Catch.RunCatchingHandler],
       %{State.Handler => input}
     )
 
@@ -90,7 +90,7 @@ IO.puts("\nExample 3: Catch-all pattern")
 
 computation3 =
   hefty do
-    Error.throw_error({:custom, :error, 123})
+    Throw.throw_error({:custom, :error, 123})
   catch
     error -> return({:caught, error})
   end
@@ -99,7 +99,7 @@ outcome3 =
   HeftyRun.run(
     computation3,
     [Catch.Algebra, Lift.Algebra],
-    [ErrorHandler, Catch.RunCatchingHandler]
+    [ThrowHandler, Catch.RunCatchingHandler]
   )
 
 IO.puts("  Result: #{inspect(outcome3.result)}")
@@ -109,11 +109,11 @@ IO.puts("\nExample 4: Using defhefty with catch")
 
 defmodule SafeMath do
   import Freyja.HeftyMacro
-  alias Freyja.Effects.Error
+  alias Freyja.Effects.Throw
 
   defhefty safe_divide(a, b) do
     if b == 0 do
-      Error.throw_error(:division_by_zero)
+      Throw.throw_error(:division_by_zero)
     else
       return(div(a, b))
     end
@@ -129,7 +129,7 @@ outcome4a =
   HeftyRun.run(
     result1,
     [Catch.Algebra, Lift.Algebra],
-    [ErrorHandler, Catch.RunCatchingHandler]
+    [ThrowHandler, Catch.RunCatchingHandler]
   )
 
 IO.puts("  10 / 2 = #{inspect(outcome4a.result)}")
@@ -141,7 +141,7 @@ outcome4b =
   HeftyRun.run(
     result2,
     [Catch.Algebra, Lift.Algebra],
-    [ErrorHandler, Catch.RunCatchingHandler]
+    [ThrowHandler, Catch.RunCatchingHandler]
   )
 
 IO.puts("  10 / 0 = #{inspect(outcome4b.result)}")
@@ -151,7 +151,7 @@ IO.puts("\nExample 5: Re-throwing unmatched errors")
 
 computation5 =
   hefty do
-    Error.throw_error("unhandled")
+    Throw.throw_error("unhandled")
   catch
     "handled" -> return(:ok)
   end
@@ -160,7 +160,7 @@ outcome5 =
   HeftyRun.run(
     computation5,
     [Catch.Algebra, Lift.Algebra],
-    [ErrorHandler, Catch.RunCatchingHandler]
+    [ThrowHandler, Catch.RunCatchingHandler]
   )
 
 IO.puts("  Result (should be error): #{inspect(outcome5.result)}")

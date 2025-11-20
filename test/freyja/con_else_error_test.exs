@@ -3,7 +3,7 @@ defmodule Freyja.ConElseErrorTest do
 
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
-  alias Freyja.Effects.{Lift, Error}
+  alias Freyja.Effects.{Lift, Throw}
   alias Freyja.Effects.Catch
 
   describe "hefty ... catch error handling" do
@@ -12,14 +12,14 @@ defmodule Freyja.ConElseErrorTest do
 
       fv =
         hefty do
-          _ <- Lift.lift(Error.throw_error({:invalid, 3}))
+          _ <- Lift.lift(Throw.throw_error({:invalid, 3}))
           return(:unreachable)
         catch
           {:invalid, n} -> return({:fixed, n + 1})
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler]
+      handlers = [Throw.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =
@@ -33,14 +33,14 @@ defmodule Freyja.ConElseErrorTest do
 
       fv =
         hefty do
-          _ <- Lift.lift(Error.throw_error(:nope))
+          _ <- Lift.lift(Throw.throw_error(:nope))
           return(:unreachable)
         catch
           :other -> return(:ok)
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler]
+      handlers = [Throw.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res} = Hefty.Run.run(fv, algebras, handlers, initial_states)
@@ -52,7 +52,7 @@ defmodule Freyja.ConElseErrorTest do
 
       fv =
         hefty do
-          _ <- Lift.lift(Error.throw_error(:bad))
+          _ <- Lift.lift(Throw.throw_error(:bad))
           return(:nope)
         catch
           :bad ->
@@ -61,7 +61,7 @@ defmodule Freyja.ConElseErrorTest do
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Writer.Handler]
+      handlers = [Throw.Handler, Writer.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: out} =
@@ -77,14 +77,14 @@ defmodule Freyja.ConElseErrorTest do
 
       fv =
         hefty do
-          _ <- Lift.lift(Error.throw_error(:anything))
+          _ <- Lift.lift(Throw.throw_error(:anything))
           return(:unreachable)
         catch
           _ -> return(:handled)
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler]
+      handlers = [Throw.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =

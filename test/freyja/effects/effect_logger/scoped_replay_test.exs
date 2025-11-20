@@ -7,9 +7,9 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
-  alias Freyja.Effects.{Lift, Error}
+  alias Freyja.Effects.{Lift, Throw}
   alias Freyja.Effects.{Catch, FxList}
-  alias Freyja.Effects.Error.Handler, as: ErrorHandler
+  alias Freyja.Effects.Throw.Handler, as: ThrowHandler
   alias Freyja.RunOutcome
 
   describe "simple scoped effect replay - FxList.fx_map" do
@@ -167,7 +167,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler]
+      handlers = [EffectLogger.Handler, ThrowHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -199,7 +199,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         hefty do
           result <-
             Catch.catch_hefty(
-              Lift.lift(Error.throw_error(:oops)),
+              Lift.lift(Throw.throw_error(:oops)),
               fn _err -> Hefty.pure({:error, :oops}) end
             )
 
@@ -210,7 +210,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler]
+      handlers = [EffectLogger.Handler, ThrowHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -263,7 +263,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler, State.Handler]
+      handlers = [EffectLogger.Handler, ThrowHandler, State.Handler]
       initial_states = %{State.Handler => 0}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -355,7 +355,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
             FxList.fx_map([1, 0, 3], fn x ->
               Catch.catch_hefty(
                 if x == 0 do
-                  Lift.lift(Error.throw_error(:divide_by_zero))
+                  Lift.lift(Throw.throw_error(:divide_by_zero))
                 else
                   Hefty.pure({:ok, 10 / x})
                 end,
@@ -367,7 +367,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler]
+      handlers = [EffectLogger.Handler, ThrowHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -418,7 +418,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler]
+      handlers = [EffectLogger.Handler, ThrowHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)

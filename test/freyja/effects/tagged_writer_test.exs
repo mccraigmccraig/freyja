@@ -8,7 +8,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   alias Freyja.Effects.Writer
   alias Freyja.Effects.State
   alias Freyja.Effects.Reader
-  alias Freyja.Effects.Error
+  alias Freyja.Effects.Throw
   alias Freyja.Run
   alias Freyja.Hefty
   alias Freyja.Effects.Lift
@@ -103,17 +103,17 @@ defmodule Freyja.Effects.TaggedWriterTest do
     return(result)
   end
 
-  defcon success_with_writer, [TaggedWriter, Error] do
+  defcon success_with_writer, [TaggedWriter, Throw] do
     _ <- tell(:trace, "starting")
     result <- return(42)
     _ <- tell(:trace, "succeeded")
     return(result)
   end
 
-  defcon error_with_writer, [TaggedWriter, Error] do
+  defcon error_with_writer, [TaggedWriter, Throw] do
     _ <- tell(:trace, "starting")
     _ <- tell(:trace, "about to error")
-    _ <- Error.throw_error(:boom)
+    _ <- Throw.throw_error(:boom)
     _ <- tell(:trace, "never logged")
     return(:not_reached)
   end
@@ -519,7 +519,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       runner =
         Run.with_handlers(
           tw: {TaggedWriter.Handler, %{}},
-          e: Error.Handler
+          e: Throw.Handler
         )
 
       outcome = Run.run(error_with_writer(), runner)

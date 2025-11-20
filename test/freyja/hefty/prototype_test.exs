@@ -18,8 +18,8 @@ defmodule Freyja.Hefty.PrototypeTest do
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.Catch
   alias Freyja.Effects.Lift
-  alias Freyja.Effects.Error
-  alias Freyja.Effects.Error.Handler, as: ErrorHandler
+  alias Freyja.Effects.Throw
+  alias Freyja.Effects.Throw.Handler, as: ThrowHandler
   alias Freyja.Effects.State
 
 
@@ -90,10 +90,10 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert 42 = outcome.result
+      assert {:ok, 42} = outcome.result
     end
 
     test "executes try block with State effect" do
@@ -106,11 +106,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 42}
         )
 
-      assert 42 = outcome.result
+      assert {:ok, 42} = outcome.result
     end
 
     test "chains multiple operations in try block" do
@@ -134,11 +134,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 5}
         )
 
-      assert 10 = outcome.result
+      assert {:ok, 10} = outcome.result
       # Note: State changes within RunCatching scope don't propagate out (yet)
       # This is a scoping question for full implementation
     end
@@ -146,7 +146,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
   describe "Catch effect - error path" do
     test "returns catch block result when error occurs" do
-      try_block = Lift.lift(Error.throw_error("boom"))
+      try_block = Lift.lift(Throw.throw_error("boom"))
       catch_block = Hefty.pure(:recovered)
 
       computation = Catch.catch_hefty(try_block, fn _err -> catch_block end)
@@ -155,14 +155,14 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
-      assert :recovered = outcome.result
+      assert {:ok, :recovered} = outcome.result
     end
 
     test "executes catch block with State effect" do
-      try_block = Lift.lift(Error.throw_error("error"))
+      try_block = Lift.lift(Throw.throw_error("error"))
 
       catch_block = Lift.lift(State.get())
 
@@ -172,17 +172,17 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 99}
         )
 
-      assert 99 = outcome.result
+      assert {:ok, 99} = outcome.result
     end
 
     test "catch block can modify state" do
       import Freyja.Con
 
-      try_block = Lift.lift(Error.throw_error("error"))
+      try_block = Lift.lift(Throw.throw_error("error"))
 
       catch_block =
         Lift.lift(
@@ -198,11 +198,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 0}
         )
 
-      assert 999 = outcome.result
+      assert {:ok, 999} = outcome.result
       assert outcome.outputs[State.Handler] == 999
     end
   end
@@ -217,7 +217,7 @@ defmodule Freyja.Hefty.PrototypeTest do
             x <- State.get()
 
             if x < 0 do
-              Error.throw_error("negative value")
+              Throw.throw_error("negative value")
             else
               return(x * 2)
             end
@@ -231,28 +231,28 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           Catch.catch_hefty(try_block, fn _err -> catch_block end),
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 5}
         )
 
-      assert 10 = outcome1.result
+      assert {:ok, 10} = outcome1.result
 
       # With negative state - caught error
       outcome2 =
         HeftyRun.run(
           Catch.catch_hefty(try_block, fn _err -> catch_block end),
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => -3}
         )
 
-      assert 0 = outcome2.result
+      assert {:ok, 0} = outcome2.result
     end
 
     test "nested Catch operations" do
       import Freyja.Con
 
-      inner_try = Lift.lift(Error.throw_error("inner error"))
+      inner_try = Lift.lift(Throw.throw_error("inner error"))
       inner_catch = Hefty.pure(:inner_recovered)
       inner = Catch.catch_hefty(inner_try, fn _err -> inner_catch end)
 
@@ -264,11 +264,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           outer,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
       # Inner catch should handle the error
-      assert :inner_recovered = outcome.result
+      assert {:ok, :inner_recovered} = outcome.result
     end
 
     test "catch with continuation after" do
@@ -276,7 +276,7 @@ defmodule Freyja.Hefty.PrototypeTest do
 
       computation =
         Catch.catch_hefty(
-          Lift.lift(Error.throw_error("error")),
+          Lift.lift(Throw.throw_error("error")),
           fn _err -> Hefty.pure(10) end
         )
         |> Hefty.bind(fn x ->
@@ -288,11 +288,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
       # Catch returns 10, continuation doubles it
-      assert 20 = outcome.result
+      assert {:ok, 20} = outcome.result
     end
 
     test "State modifications visible across catch boundary" do
@@ -302,7 +302,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         Lift.lift(
           con do
             _ <- State.put(100)
-            Error.throw_error("after setting state")
+            Throw.throw_error("after setting state")
           end
         )
 
@@ -314,7 +314,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 0}
         )
 
@@ -322,7 +322,7 @@ defmodule Freyja.Hefty.PrototypeTest do
       # The try block sets State=100, then throws
       # The catch block sees State=100 (not the initial state of 0)
       # This matches Heftia's default behavior
-      assert 100 = outcome.result
+      assert {:ok, 100} = outcome.result
       assert outcome.outputs[State.Handler] == 100
     end
   end
@@ -341,11 +341,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler]
+          [ThrowHandler]
         )
 
       # (5 + 1) * 2 = 12
-      assert 12 = outcome.result
+      assert {:ok, 12} = outcome.result
     end
 
     test "bind with Lift in continuation" do
@@ -365,11 +365,11 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler],
+          [State.Handler, ThrowHandler],
           %{State.Handler => 999}
         )
 
-      assert 5 = outcome.result
+      assert {:ok, 5} = outcome.result
       assert outcome.outputs[State.Handler] == 5
     end
   end
@@ -377,7 +377,7 @@ defmodule Freyja.Hefty.PrototypeTest do
   describe "Two-phase execution validation" do
     test "elaboration produces Freer with case statement for control flow" do
       # This test validates that elaboration encodes control flow as case statements
-      try_block = Lift.lift(Error.throw_error("error"))
+      try_block = Lift.lift(Throw.throw_error("error"))
       catch_block = Hefty.pure(:fallback)
 
       hefty_tree = Catch.catch_hefty(try_block, fn _err -> catch_block end)
@@ -395,12 +395,12 @@ defmodule Freyja.Hefty.PrototypeTest do
       # Now interpret (phase 2)
       run_state =
         Freyja.Run.with_handlers([
-          {ErrorHandler, ErrorHandler},
+          {ThrowHandler, ThrowHandler},
         ])
 
       outcome = Freyja.Run.run(freer_tree, run_state)
 
-      assert :fallback = outcome.result
+      assert {:ok, :fallback} = outcome.result
     end
 
     test "algebras are applied before interpretation" do
@@ -415,12 +415,12 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          # Need ErrorHandler, Catch.RunCatchingHandler for catch_fx
-          [State.Handler, ErrorHandler],
+          # Need ThrowHandler, Catch.RunCatchingHandler for catch_fx
+          [State.Handler, ThrowHandler],
           %{State.Handler => 42}
         )
 
-      assert 42 = outcome.result
+      assert {:ok, 42} = outcome.result
     end
 
     test "run_simple convenience function" do

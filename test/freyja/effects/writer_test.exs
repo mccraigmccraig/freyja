@@ -3,7 +3,7 @@ defmodule Freyja.Effects.WriterTest do
 
   alias Freyja.Effects.Writer
   alias Freyja.Effects.State
-  alias Freyja.Effects.Error
+  alias Freyja.Effects.Throw
   alias Freyja.Run
 
   defmodule WriterExamples do
@@ -57,14 +57,14 @@ defmodule Freyja.Effects.WriterTest do
       return(new_counter)
     end
 
-    defcon success_path, [Writer, Error] do
+    defcon success_path, [Writer, Throw] do
       _ <- tell("starting")
       result <- return(42)
       _ <- tell("succeeded")
       return(result)
     end
 
-    defcon error_path, [Writer, Error] do
+    defcon error_path, [Writer, Throw] do
       _ <- tell("starting")
       _ <- tell("about to error")
       _ <- throw_error(:error)
@@ -214,7 +214,7 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "Writer with Error effect - error path logs until error" do
-      runner = Run.with_handlers(w: {Writer.Handler, []}, e: Error.Handler)
+      runner = Run.with_handlers(w: {Writer.Handler, []}, e: Throw.Handler)
       outcome = Run.run(WriterExamples.error_path(), runner)
 
       assert outcome.result == {:error, :error}

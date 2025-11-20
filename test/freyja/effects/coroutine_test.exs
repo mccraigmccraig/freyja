@@ -2,7 +2,7 @@ defmodule Freyja.Effects.CoroutineTest do
   use ExUnit.Case
 
   require Logger
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   alias Freyja.Freer
   alias Freyja.Effects.EffectLogger

@@ -1,8 +1,7 @@
 defmodule Freyja.Effects.TaggedWriterTest do
   use ExUnit.Case
 
-  import Freyja.Con
-  import Freyja.HeftyMacro
+  use Freyja.Syntax
 
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.Writer

@@ -1,7 +1,7 @@
 defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
   use ExUnit.Case
 
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.State
@@ -22,7 +22,8 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
         end
 
       # Run once to generate the log
-      first_outcome = computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
+      first_outcome =
+        computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
 
       assert %RunOutcome{
                result: {:initial_value, :updated_value},
@@ -56,7 +57,10 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       assert %RunOutcome{
                result: :done,
-               outputs: %{EffectLogger.Handler => _log, Writer.Handler => ["third", "second", "first"]}
+               outputs: %{
+                 EffectLogger.Handler => _log,
+                 Writer.Handler => ["third", "second", "first"]
+               }
              } = first_outcome
 
       # Replay using rerun
@@ -83,7 +87,9 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return(z)
         end
 
-      first_outcome = computation |> Run.run([EffectLogger.Handler, State.Handler, Writer.Handler], %{State.Handler => nil})
+      first_outcome =
+        computation
+        |> Run.run([EffectLogger.Handler, State.Handler, Writer.Handler], %{State.Handler => nil})
 
       assert %RunOutcome{
                result: 30,
@@ -119,7 +125,8 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return({a, b})
         end
 
-      first_outcome = computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
+      first_outcome =
+        computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
 
       assert %RunOutcome{
                result: {"value_one", "value_two"},

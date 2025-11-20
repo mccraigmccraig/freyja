@@ -54,7 +54,8 @@ defmodule Freyja.UserCodeExceptionTest do
       return(y)
     end
 
-    defcon raising_computation, [State] do
+    defcon raising_with_state(initial_state), [State] do
+      _ <- State.put(initial_state)
       x <- State.get()
       y <- return(Kernel.div(10, x))
       return(y)
@@ -64,7 +65,7 @@ defmodule Freyja.UserCodeExceptionTest do
     defhefty caught_exception(initial_state) do
       res <-
         Freyja.Effects.Catch.catch_hefty(
-          Lift.lift(raising_computation()),
+          Lift.lift(raising_with_state(initial_state)),
           fn error ->
             # Error handler receives serialized exception
             Hefty.pure({:caught, error})
@@ -226,7 +227,8 @@ defmodule Freyja.UserCodeExceptionTest do
       import Freyja.Con
       import Freyja.HeftyMacro
 
-      defcon inner_raising, [State] do
+      defcon inner_computation_with_state(initial_state), [State] do
+        _ <- State.put(initial_state)
         x <- State.get()
         # Inner computation raises
         y <- return(Kernel.div(10, x))
@@ -237,7 +239,7 @@ defmodule Freyja.UserCodeExceptionTest do
       defhefty outer_catches_inner(initial_state) do
         res <-
           Freyja.Effects.Catch.catch_hefty(
-            Lift.lift(inner_raising()),
+            Lift.lift(inner_computation_with_state(initial_state)),
             fn error ->
               # Outer catches and transforms
               Hefty.pure({:outer_caught, error})
@@ -247,8 +249,14 @@ defmodule Freyja.UserCodeExceptionTest do
         return(res)
       end
 
+      defcon nested_no_catch_inner, [State] do
+        x <- State.get()
+        y <- return(Kernel.div(10, x))
+        return(y)
+      end
+
       defcon nested_no_catch, [State] do
-        inner <- inner_raising()
+        inner <- nested_no_catch_inner()
         return({:result, inner})
       end
     end

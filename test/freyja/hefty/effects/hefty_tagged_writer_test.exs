@@ -8,7 +8,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
   approach to clean Hefty elaboration.
   """
 
-  import Freyja.HeftyMacro
+  import Freyja.Hefty.HeftyBlock
 
   alias Freyja.Run
   alias Freyja.Effects.TaggedWriter

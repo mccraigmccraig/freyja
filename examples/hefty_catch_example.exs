@@ -6,7 +6,7 @@
 
 import Freyja.HeftyMacro
 
-alias Freyja.Hefty.Run, as: HeftyRun
+alias Freyja.Run
 alias Freyja.Effects.Lift
 alias Freyja.Effects.Catch
 alias Freyja.Effects.Throw
@@ -31,7 +31,7 @@ computation1 =
 
 # Success case
 outcome1a =
-  HeftyRun.run(
+  Run.run(
     computation1,
     [Catch.Algebra, Lift.Algebra],
     [State.Handler, ThrowHandler, Catch.RunCatchingHandler],
@@ -42,7 +42,7 @@ IO.puts("  Success (x=5): #{inspect(outcome1a.result)}")
 
 # Error case (caught)
 outcome1b =
-  HeftyRun.run(
+  Run.run(
     computation1,
     [Catch.Algebra, Lift.Algebra],
     [State.Handler, ThrowHandler, Catch.RunCatchingHandler],
@@ -75,7 +75,7 @@ for {input, _expected} <- [
       {42, 42}
     ] do
   outcome =
-    HeftyRun.run(
+    Run.run(
       computation2,
       [Catch.Algebra, Lift.Algebra],
       [State.Handler, ThrowHandler, Catch.RunCatchingHandler],
@@ -96,7 +96,7 @@ computation3 =
   end
 
 outcome3 =
-  HeftyRun.run(
+  Run.run(
     computation3,
     [Catch.Algebra, Lift.Algebra],
     [ThrowHandler, Catch.RunCatchingHandler]
@@ -126,7 +126,7 @@ end
 result1 = SafeMath.safe_divide(10, 2)
 
 outcome4a =
-  HeftyRun.run(
+  Run.run(
     result1,
     [Catch.Algebra, Lift.Algebra],
     [ThrowHandler, Catch.RunCatchingHandler]
@@ -138,7 +138,7 @@ IO.puts("  10 / 2 = #{inspect(outcome4a.result)}")
 result2 = SafeMath.safe_divide(10, 0)
 
 outcome4b =
-  HeftyRun.run(
+  Run.run(
     result2,
     [Catch.Algebra, Lift.Algebra],
     [ThrowHandler, Catch.RunCatchingHandler]
@@ -157,7 +157,7 @@ computation5 =
   end
 
 outcome5 =
-  HeftyRun.run(
+  Run.run(
     computation5,
     [Catch.Algebra, Lift.Algebra],
     [ThrowHandler, Catch.RunCatchingHandler]

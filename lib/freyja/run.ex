@@ -1,14 +1,58 @@
 defmodule Freyja.Run do
   @moduledoc """
-  Functions to manage a priority-list of EffectHandlers and run a computation
-  in the context of that list of EffectHandlers
+  Execute both Freer and Hefty computations.
 
-  EffectHandlers are structs implementing the EffectHandler behaviour
+  This module provides a unified interface for running both first-order (Freer)
+  and higher-order (Hefty) effect computations.
+
+  ## Freer Computations (First-Order Effects)
+
+  For Freer computations with only first-order effects:
+
+      Run.run(
+        computation,
+        [State.Handler, Writer.Handler],
+        %{State.Handler => 0}
+      )
+
+  ## Hefty Computations (Higher-Order Effects)
+
+  For Hefty computations with higher-order effects, provide algebras as the
+  second parameter:
+
+      Run.run(
+        hefty_computation,
+        [Catch.Algebra, Lift.Algebra],      # Elaboration phase
+        [State.Handler, Error.Handler],     # Interpretation phase
+        %{State.Handler => 0}
+      )
+
+  The function automatically detects whether you're running Freer or Hefty
+  based on the computation structure and arity.
+
+  ## Two-Phase Execution for Hefty
+
+  When running Hefty computations:
+
+  **Phase 1: Elaboration** - Transform higher-order effects into first-order effects
+  **Phase 2: Interpretation** - Execute first-order effects using handlers
+
+  Based on "Hefty Algebras: Modular Elaboration of Higher-Order Algebraic Effects"
+  (Poulsen & van der Rest, POPL 2023).
+
+  ## See Also
+
+  - `Freyja.Hefty.Elaborate` - Elaboration catamorphism for Hefty
+  - `Freyja.Hefty.Algebra` - Algebra behavior
+  - Effect handlers implement `Freyja.EffectHandler` behavior
   """
   alias Freyja.Freer
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Pure
   alias Freyja.Freer.Sig.ISendable
+  alias Freyja.Hefty
+  alias Freyja.Hefty.Elaborate
+  alias Freyja.Hefty.Sig.IHeftySendable
   alias Freyja.Run.RunState
   alias Freyja.RunOutcome
 
@@ -82,18 +126,14 @@ defmodule Freyja.Run do
   end
 
   @doc """
-  Run a Freer computation with a list of handlers and optional initial states.
+  Run a Freer or Hefty computation.
 
-  This is the main entry point for running Freer computations, matching the
-  clean API style of Hefty.Run.run.
+  This function automatically handles both first-order (Freer) and higher-order
+  (Hefty) effect computations based on the arguments provided.
 
-  ## Parameters
+  ## Running Freer Computations (3 arguments)
 
-  - `computation` - The Freer computation to run
-  - `handlers` - List of handler modules (e.g., [State.Handler, Writer.Handler])
-  - `initial_states` - Map of handler module to initial state (default: %{})
-
-  ## Example
+  For Freer computations with only first-order effects:
 
       Run.run(
         computation,
@@ -101,12 +141,70 @@ defmodule Freyja.Run do
         %{State.Handler => 0, Writer.Handler => []}
       )
 
+  ## Running Hefty Computations (4 arguments)
+
+  For Hefty computations with higher-order effects, provide algebras:
+
+      Run.run(
+        hefty_computation,
+        [Catch.Algebra, Lift.Algebra],      # Elaboration (algebras)
+        [State.Handler, Error.Handler],     # Interpretation (handlers)
+        %{State.Handler => 0}
+      )
+
+  ## Parameters
+
+  - `computation` - The Freer or Hefty computation to run
+  - `algebras_or_handlers` - For Freer: handlers list. For Hefty: algebras list
+  - `handlers_or_initial_states` - For Freer: initial states. For Hefty: handlers list
+  - `initial_states` - (Hefty only) Map of handler module to initial state
+
+  ## Returns
+
+  `RunOutcome.t()` containing:
+  - `result` - Final value, {:error, reason}, or {:suspend, value, continuation}
+  - `outputs` - Final handler states
+  - `run_state` - RunState for resume operations
   """
+  # Hefty: 4-arity with Hefty.Pure struct
+  @spec run(Hefty.t(), [module], [module], map) :: RunOutcome.t()
+  def run(%Hefty.Pure{} = hefty_tree, algebras, handlers, initial_states)
+      when is_list(algebras) and is_list(handlers) and is_map(initial_states) do
+    # Phase 1: Elaborate higher-order effects into first-order effects
+    # Phase 2: Interpret first-order effects using existing infrastructure
+    hefty_tree
+    |> Elaborate.elaborate(algebras)
+    |> run(handlers, initial_states)
+  end
+
+  # Hefty: 4-arity with Hefty.Impure struct
+  def run(%Hefty.Impure{} = hefty_tree, algebras, handlers, initial_states)
+      when is_list(algebras) and is_list(handlers) and is_map(initial_states) do
+    hefty_tree
+    |> Elaborate.elaborate(algebras)
+    |> run(handlers, initial_states)
+  end
+
+  # Hefty: 4-arity with IHeftySendable protocol (auto-convert to Hefty)
+  def run(hefty_tree, algebras, handlers, initial_states)
+      when is_list(algebras) and is_list(handlers) and is_map(initial_states) do
+    hefty_tree
+    |> IHeftySendable.send_to_hefty()
+    |> run(algebras, handlers, initial_states)
+  end
+
+  # Hefty: 3-arity (algebras, handlers, no initial_states) - default to %{}
+  def run(hefty_tree, algebras, handlers)
+      when (is_struct(hefty_tree, Hefty.Pure) or is_struct(hefty_tree, Hefty.Impure)) and
+             is_list(algebras) and is_list(handlers) do
+    run(hefty_tree, algebras, handlers, %{})
+  end
+
+  # Freer: 3-arity with initial_states
   @spec run(Freer.freer(), [module], map) :: RunOutcome.t()
-  def run(computation, handlers, initial_states \\ %{})
+  def run(computation, handlers, initial_states)
       when is_list(handlers) and is_map(initial_states) do
     # Build handler specs from handlers list and initial_states map
-    # This matches the Hefty.Run.run implementation
     handler_specs =
       Enum.map(handlers, fn handler_mod ->
         state = Map.get(initial_states, handler_mod)
@@ -115,6 +213,34 @@ defmodule Freyja.Run do
 
     run_state = with_handlers(handler_specs)
     run_with_state(computation, run_state)
+  end
+
+  # Freer: 2-arity (no initial_states) - default to %{}
+  @spec run(Freer.freer(), [module]) :: RunOutcome.t()
+  def run(computation, handlers) when is_list(handlers) do
+    run(computation, handlers, %{})
+  end
+
+  @doc """
+  Simplified run for Hefty computations with no handler state.
+
+  Useful for quick prototyping or when handlers don't need initial state.
+
+  ## Example
+
+      computation = Catch.catch_hefty(
+        Hefty.pure(42),
+        fn _err -> Hefty.pure(0) end
+      )
+
+      outcome = Run.run_simple(
+        computation,
+        [Catch.Algebra, Lift.Algebra]
+      )
+  """
+  @spec run_simple(Hefty.t(), [module]) :: RunOutcome.t()
+  def run_simple(hefty_tree, algebras) do
+    run(hefty_tree, algebras, [], %{})
   end
 
   # Internal: run with pre-built RunState (for Hefty.Run to call)

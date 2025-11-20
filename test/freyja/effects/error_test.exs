@@ -10,7 +10,7 @@ defmodule Freyja.Effects.ErrorTest do
   alias Freyja.Effects.Lift
   alias Freyja.Effects.Throw
   alias Freyja.Effects.Throw.Handler, as: ThrowHandler
-  alias Freyja.Hefty.Run, as: HeftyRun
+  alias Freyja.Run
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.Writer
   alias Freyja.Effects.State
@@ -24,7 +24,7 @@ defmodule Freyja.Effects.ErrorTest do
           return(:unreachable)
         end
 
-      outcome = HeftyRun.run(fv, [Lift.Algebra], [ThrowHandler])
+      outcome = Run.run(fv, [Lift.Algebra], [ThrowHandler])
 
       assert %RunOutcome{result: {:error, :oops}} = outcome
     end
@@ -49,7 +49,7 @@ defmodule Freyja.Effects.ErrorTest do
       # note: we don't need the ThrowHandler because the Catch
       # elaboration catches all possible Throws
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [])
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [])
 
       # no Throw.Handler means no {:ok, ...} wrapper
       assert %Freyja.RunOutcome{
@@ -67,7 +67,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [])
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [])
 
       assert %Freyja.RunOutcome{result: 42} = outcome
     end
@@ -94,7 +94,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
           Writer.Handler
         ])
 
@@ -132,7 +132,7 @@ defmodule Freyja.Effects.ErrorTest do
       # we do need the Throw.Handler here, because
       # throws bubble outside the Catch scope
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
           ThrowHandler,
           Writer.Handler
         ])
@@ -165,7 +165,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
           ThrowHandler,
           Writer.Handler
         ])
@@ -198,7 +198,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
           State.Handler,
           ThrowHandler
         ])
@@ -237,7 +237,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
+        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
           State.Handler,
           ThrowHandler
         ])
@@ -274,7 +274,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           fv,
           [Catch.Algebra, Lift.Algebra],
           [EffectLogger.Handler, State.Handler, ThrowHandler]

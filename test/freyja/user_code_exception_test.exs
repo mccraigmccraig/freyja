@@ -137,7 +137,7 @@ defmodule Freyja.UserCodeExceptionTest do
       handlers = [State.Handler, Throw.Handler]
       initial_states = %{State.Handler => 0}
 
-      outcome = Hefty.Run.run(Examples.caught_exception(0), algebras, handlers, initial_states)
+      outcome = Run.run(Examples.caught_exception(0), algebras, handlers, initial_states)
 
       assert %Freyja.RunOutcome{result: {:ok, {:caught, error_data}}} = outcome
 
@@ -257,7 +257,7 @@ defmodule Freyja.UserCodeExceptionTest do
       handlers = [State.Handler, Throw.Handler]
       initial_states = %{State.Handler => 0}
 
-      outcome = Hefty.Run.run(NestedExamples.outer_catches_inner(0), algebras, handlers, initial_states)
+      outcome = Run.run(NestedExamples.outer_catches_inner(0), algebras, handlers, initial_states)
 
       assert %Freyja.RunOutcome{result: {:ok, {:outer_caught, error_data}}} = outcome
       assert is_map(error_data)

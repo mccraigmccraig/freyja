@@ -10,7 +10,6 @@ defmodule Freyja.Effects.TaggedWriterTest do
   alias Freyja.Effects.Reader
   alias Freyja.Effects.Throw
   alias Freyja.Run
-  alias Freyja.Hefty
   alias Freyja.Effects.Lift
 
   # Helper to create Hefty runner for tests with listen
@@ -404,14 +403,16 @@ defmodule Freyja.Effects.TaggedWriterTest do
   # Tests
   describe "basic tagged writer operations" do
     test "single tell operation" do
-      outcome = Run.run(single_tell_tagged(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(single_tell_tagged(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
 
       assert outcome.result == :done
       assert outcome.outputs[TaggedWriter.Handler] == %{audit: ["user logged in"]}
     end
 
     test "multiple tells to same tag accumulate" do
-      outcome = Run.run(multiple_tells_same_tag(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(multiple_tells_same_tag(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
 
       assert outcome.result == :done
       # Most recent first (reverse chronological order)
@@ -419,7 +420,10 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "multiple tells to different tags" do
-      outcome = Run.run(multiple_tells_different_tags(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(multiple_tells_different_tags(), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == :done
 
@@ -456,18 +460,22 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "tell mixed types" do
-      outcome = Run.run(tell_mixed_types(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(tell_mixed_types(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
 
-      assert outcome.outputs[TaggedWriter.Handler] == %{mixed: [%{key: "value"}, 42, "string", :atom]}
+      assert outcome.outputs[TaggedWriter.Handler] == %{
+               mixed: [%{key: "value"}, 42, "string", :atom]
+             }
     end
   end
 
   describe "composition with other effects" do
     test "TaggedWriter with State" do
-      outcome = Run.run(writer_with_state(), [TaggedWriter.Handler, State.Handler], %{
-        TaggedWriter.Handler => %{},
-        State.Handler => 5
-      })
+      outcome =
+        Run.run(writer_with_state(), [TaggedWriter.Handler, State.Handler], %{
+          TaggedWriter.Handler => %{},
+          State.Handler => 5
+        })
 
       assert outcome.result == 6
       assert outcome.outputs[State.Handler] == 6
@@ -475,10 +483,11 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "TaggedWriter with Reader" do
-      outcome = Run.run(writer_with_reader(), [TaggedWriter.Handler, Reader.Handler], %{
-        TaggedWriter.Handler => %{},
-        Reader.Handler => %{multiplier: 3}
-      })
+      outcome =
+        Run.run(writer_with_reader(), [TaggedWriter.Handler, Reader.Handler], %{
+          TaggedWriter.Handler => %{},
+          Reader.Handler => %{multiplier: 3}
+        })
 
       assert outcome.result == 6
 
@@ -489,14 +498,20 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "TaggedWriter with Error effect - success path" do
-      outcome = Run.run(success_with_writer(), [TaggedWriter.Handler, Throw.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(success_with_writer(), [TaggedWriter.Handler, Throw.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == {:ok, 42}
       assert outcome.outputs[TaggedWriter.Handler] == %{trace: ["succeeded", "starting"]}
     end
 
     test "TaggedWriter with Error effect - error path logs until error" do
-      outcome = Run.run(error_with_writer(), [TaggedWriter.Handler, Throw.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(error_with_writer(), [TaggedWriter.Handler, Throw.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == {:error, :boom}
       # Only logs before the error are captured
@@ -504,11 +519,12 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "TaggedWriter with State and Reader" do
-      outcome = Run.run(all_effects(), [TaggedWriter.Handler, State.Handler, Reader.Handler], %{
-        TaggedWriter.Handler => %{},
-        State.Handler => 7,
-        Reader.Handler => 4
-      })
+      outcome =
+        Run.run(all_effects(), [TaggedWriter.Handler, State.Handler, Reader.Handler], %{
+          TaggedWriter.Handler => %{},
+          State.Handler => 7,
+          Reader.Handler => 4
+        })
 
       assert outcome.result == 28
       assert outcome.outputs[State.Handler] == 28
@@ -516,10 +532,11 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "TaggedWriter with regular Writer" do
-      outcome = Run.run(use_both_writers(), [Writer.Handler, TaggedWriter.Handler], %{
-        Writer.Handler => [],
-        TaggedWriter.Handler => %{}
-      })
+      outcome =
+        Run.run(use_both_writers(), [Writer.Handler, TaggedWriter.Handler], %{
+          Writer.Handler => [],
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == :done
       assert outcome.outputs[Writer.Handler] == ["another global log", "global log"]
@@ -575,16 +592,27 @@ defmodule Freyja.Effects.TaggedWriterTest do
                "user alice authenticated"
              ]
 
-      assert outcome.outputs[TaggedWriter.Handler].metrics == [%{operation: :write, duration_ms: 45}]
+      assert outcome.outputs[TaggedWriter.Handler].metrics == [
+               %{operation: :write, duration_ms: 45}
+             ]
     end
 
     test "multi-tenant logging with tuple tags" do
       # Log actions for different tenants
-      outcome1 = Run.run(multi_tenant_logs("tenant_a", :create), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome1 =
+        Run.run(multi_tenant_logs("tenant_a", :create), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
-      outcome2 = Run.run(multi_tenant_logs("tenant_b", :update), [TaggedWriter.Handler], %{TaggedWriter.Handler => outcome1.outputs[TaggedWriter.Handler]})
+      outcome2 =
+        Run.run(multi_tenant_logs("tenant_b", :update), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => outcome1.outputs[TaggedWriter.Handler]
+        })
 
-      outcome3 = Run.run(multi_tenant_logs("tenant_a", :delete), [TaggedWriter.Handler], %{TaggedWriter.Handler => outcome2.outputs[TaggedWriter.Handler]})
+      outcome3 =
+        Run.run(multi_tenant_logs("tenant_a", :delete), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => outcome2.outputs[TaggedWriter.Handler]
+        })
 
       assert outcome3.result == :logged
 
@@ -604,25 +632,36 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "conditional logging - enabled" do
-      outcome = Run.run(conditional_log(true, :log, "logged"), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(conditional_log(true, :log, "logged"), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == :done
       assert outcome.outputs[TaggedWriter.Handler] == %{log: ["logged"]}
     end
 
     test "conditional logging - disabled" do
-      outcome = Run.run(conditional_log(false, :log, "not logged"), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(conditional_log(false, :log, "not logged"), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == :done
       assert outcome.outputs[TaggedWriter.Handler] == %{}
     end
 
     test "append to existing tagged logs" do
-      outcome = Run.run(append_to_existing(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{log: ["existing1", "existing2"]}})
+      outcome =
+        Run.run(append_to_existing(), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{log: ["existing1", "existing2"]}
+        })
 
       assert outcome.result == :ok
       # New entries are prepended
-      assert outcome.outputs[TaggedWriter.Handler] == %{log: ["new entry", "existing1", "existing2"]}
+      assert outcome.outputs[TaggedWriter.Handler] == %{
+               log: ["new entry", "existing1", "existing2"]
+             }
     end
   end
 
@@ -666,7 +705,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
   describe "listen operation" do
     test "simple listen captures inner logs for all tags" do
       {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
-      outcome = Hefty.Run.run(simple_listen(), algebras, handlers, initial_states)
+      outcome = Run.run(simple_listen(), algebras, handlers, initial_states)
 
       {result, captured_logs} = outcome.result
 
@@ -678,7 +717,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
     test "listen separates inner and outer logs" do
       {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
-      outcome = Hefty.Run.run(listen_with_outer_logs(), algebras, handlers, initial_states)
+      outcome = Run.run(listen_with_outer_logs(), algebras, handlers, initial_states)
 
       {result, inner_logs} = outcome.result
 
@@ -693,7 +732,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
     test "nested listen operations" do
       {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
-      outcome = Hefty.Run.run(nested_listen(), algebras, handlers, initial_states)
+      outcome = Run.run(nested_listen(), algebras, handlers, initial_states)
 
       {{level2_result, level2_logs}, level1_logs} = outcome.result
 
@@ -709,7 +748,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
 
     test "listen captures multiple tags simultaneously" do
       {algebras, handlers, initial_states} = hefty_runner_with_tagged_writer()
-      outcome = Hefty.Run.run(listen_multiple_tags(), algebras, handlers, initial_states)
+      outcome = Run.run(listen_multiple_tags(), algebras, handlers, initial_states)
 
       {result, all_logs} = outcome.result
 
@@ -732,7 +771,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
       {algebras, handlers, initial_states} =
         add_state_handler({algebras, handlers, initial_states}, 0)
 
-      outcome = Hefty.Run.run(listen_with_state(), algebras, handlers, initial_states)
+      outcome = Run.run(listen_with_state(), algebras, handlers, initial_states)
 
       {result, logs} = outcome.result
 
@@ -749,7 +788,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
           TaggedWriter.listen(return(:empty))
         end
 
-      outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
+      outcome = Run.run(computation, algebras, handlers, initial_states)
 
       {result, logs} = outcome.result
 
@@ -777,7 +816,7 @@ defmodule Freyja.Effects.TaggedWriterTest do
           return({result, all_logs})
         end
 
-      outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
+      outcome = Run.run(computation, algebras, handlers, initial_states)
 
       {result, captured_logs} = outcome.result
 
@@ -808,14 +847,16 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "peek returns current logs after tells" do
-      outcome = Run.run(peek_after_tells(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(peek_after_tells(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
 
       # Should return logs in reverse chronological order
       assert outcome.result == ["second", "first"]
     end
 
     test "peek can query multiple different tags" do
-      outcome = Run.run(peek_multiple_tags(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(peek_multiple_tags(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
 
       assert outcome.result == %{
                audit: ["a2", "a1"],
@@ -824,7 +865,8 @@ defmodule Freyja.Effects.TaggedWriterTest do
     end
 
     test "peek shows accumulating logs at different points" do
-      outcome = Run.run(peek_in_between_tells(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(peek_in_between_tells(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
 
       {logs1, logs2, logs3} = outcome.result
 
@@ -856,13 +898,19 @@ defmodule Freyja.Effects.TaggedWriterTest do
           return(logs)
         end
 
-      outcome = Run.run(computation, [TaggedWriter.Handler], %{TaggedWriter.Handler => %{log: ["existing"]}})
+      outcome =
+        Run.run(computation, [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{log: ["existing"]}
+        })
 
       assert outcome.result == ["existing"]
     end
 
     test "conditional logging based on peek" do
-      outcome = Run.run(conditional_log_based_on_peek(), [TaggedWriter.Handler], %{TaggedWriter.Handler => %{}})
+      outcome =
+        Run.run(conditional_log_based_on_peek(), [TaggedWriter.Handler], %{
+          TaggedWriter.Handler => %{}
+        })
 
       assert outcome.result == 1
 
@@ -886,10 +934,11 @@ defmodule Freyja.Effects.TaggedWriterTest do
           return(final_count)
         end
 
-      outcome = Run.run(computation, [TaggedWriter.Handler, State.Handler], %{
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      })
+      outcome =
+        Run.run(computation, [TaggedWriter.Handler, State.Handler], %{
+          TaggedWriter.Handler => %{},
+          State.Handler => 0
+        })
 
       assert outcome.result == 1
       assert outcome.outputs[State.Handler] == 1

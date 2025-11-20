@@ -15,7 +15,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
   import Freyja.HeftyMacro
 
   alias Freyja.Hefty
-  alias Freyja.Hefty.Run, as: HeftyRun
+  alias Freyja.Run
   alias Freyja.Effects.FxList
   alias Freyja.Effects.FxList.FxMap
   alias Freyja.Effects.Lift
@@ -41,7 +41,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           []
@@ -57,7 +57,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           []
@@ -73,7 +73,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           []
@@ -93,7 +93,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           []
@@ -117,7 +117,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           [State.Handler],
@@ -141,7 +141,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           [State.Handler],
@@ -161,7 +161,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         |> Hefty.bind(fn results -> Hefty.pure(Enum.sum(results)) end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           []
@@ -190,7 +190,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           [State.Handler],
@@ -210,7 +210,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [FxList.Algebra, Lift.Algebra],
           []

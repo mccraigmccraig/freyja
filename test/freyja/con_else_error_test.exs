@@ -2,7 +2,7 @@ defmodule Freyja.ConElseErrorTest do
   use ExUnit.Case
 
   alias Freyja.Effects.Writer
-  alias Freyja.Hefty
+  alias Freyja.Run
   alias Freyja.Effects.{Lift, Throw}
   alias Freyja.Effects.Catch
 
@@ -23,7 +23,7 @@ defmodule Freyja.ConElseErrorTest do
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =
-        Hefty.Run.run(fv, algebras, handlers, initial_states)
+        Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:ok, {:fixed, 4}}
     end
@@ -43,7 +43,7 @@ defmodule Freyja.ConElseErrorTest do
       handlers = [Throw.Handler]
       initial_states = %{}
 
-      %Freyja.RunOutcome{result: res} = Hefty.Run.run(fv, algebras, handlers, initial_states)
+      %Freyja.RunOutcome{result: res} = Run.run(fv, algebras, handlers, initial_states)
       assert res == {:error, :nope}
     end
 
@@ -65,7 +65,7 @@ defmodule Freyja.ConElseErrorTest do
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: out} =
-        Hefty.Run.run(fv, algebras, handlers, initial_states)
+        Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:ok, :ok}
       # Writer output is in reverse order (most recent first)
@@ -88,7 +88,7 @@ defmodule Freyja.ConElseErrorTest do
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =
-        Hefty.Run.run(fv, algebras, handlers, initial_states)
+        Run.run(fv, algebras, handlers, initial_states)
 
       assert res == {:ok, :handled}
     end

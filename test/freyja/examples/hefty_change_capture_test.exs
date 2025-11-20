@@ -5,7 +5,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
   alias Freyja.Examples.HeftyChangeCapture.Storage
   alias Freyja.Effects.Lift
   alias Freyja.Effects.{FxList, TaggedWriter, State}
-  alias Freyja.Hefty.Run
+  alias Freyja.Run
 
   describe "basic change capture example with Hefty" do
     test "removes emails and tracks changes" do

@@ -10,7 +10,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
   import Freyja.HeftyMacro
 
-  alias Freyja.Hefty.Run, as: HeftyRun
+  alias Freyja.Run
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.Lift
 
@@ -26,7 +26,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         )
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
           [TaggedWriter.Handler],
@@ -49,7 +49,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         )
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
           [TaggedWriter.Handler],
@@ -70,7 +70,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         )
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
           [TaggedWriter.Handler],
@@ -100,7 +100,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         end
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
           [TaggedWriter.Handler],
@@ -145,7 +145,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         end
 
       outcome =
-        HeftyRun.run(
+        Run.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
           [TaggedWriter.Handler],

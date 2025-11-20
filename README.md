@@ -40,7 +40,7 @@ catch
 end
 
 # Run it
-outcome = Hefty.Run.run(
+outcome = Run.run(
   safe_divide(10, 0),
   [Catch.Algebra, Lift.Algebra],
   [Throw.Handler]
@@ -199,7 +199,7 @@ First-order effects are automatically lifted to Hefty when used in `hefty` block
 Hefty computations execute in two phases:
 
 ```elixir
-Hefty.Run.run(
+Run.run(
   computation,
   [Catch.Algebra, Lift.Algebra],  # Phase 1: Elaboration
   [State.Handler, Throw.Handler],  # Phase 2: Interpretation
@@ -409,7 +409,7 @@ defhefty process_users(user_ids) do
 end
 
 # Run with handlers
-outcome = Hefty.Run.run(
+outcome = Run.run(
   process_users([1, 2, 3]),
   [Storage.Algebra, FxList.Algebra, Lift.Algebra],  # Elaboration
   [Storage.Handler, TaggedWriter.Handler, State.Handler],  # Interpretation
@@ -724,7 +724,7 @@ computation = hefty do
   )
 end
 
-outcome = Hefty.Run.run(
+outcome = Run.run(
   computation,
   [Catch.Algebra, Lift.Algebra],  # Algebras for elaboration
   [State.Handler, Throw.Handler],  # Handlers for interpretation
@@ -761,7 +761,7 @@ Log all effect operations for audit trails and debugging:
 
 ```elixir
 # Run with logging
-outcome = Hefty.Run.run(
+outcome = Run.run(
   computation,
   algebras,
   [EffectLogger.Handler | other_handlers],

@@ -7,7 +7,6 @@ defmodule Freyja.DefconTest do
   alias Freyja.Effects.Catch
   alias Freyja.Effects.Lift
   alias Freyja.Run
-  alias Freyja.Hefty
 
   defmodule DefconExample do
     import Freyja.Con
@@ -71,19 +70,20 @@ defmodule Freyja.DefconTest do
     algebras = [Catch.Algebra, Lift.Algebra]
     handlers = [Throw.Handler]
 
-    out = Hefty.Run.run(DefconExample.safe_div(10, 0), algebras, handlers)
+    out = Run.run(DefconExample.safe_div(10, 0), algebras, handlers)
     assert %Freyja.RunOutcome{result: {:ok, :infty}} = out
 
-    out2 = Hefty.Run.run(DefconExample.safe_div(10, 2), algebras, handlers)
+    out2 = Run.run(DefconExample.safe_div(10, 2), algebras, handlers)
     assert %Freyja.RunOutcome{result: {:ok, 5.0}} = out2
   end
 
   test "defcon composition: sum_and_log composes Reader and Writer and calls another defcon" do
-    out = Run.run(
-      DefconExample.sum_and_log(1, 2),
-      [Reader.Handler, Writer.Handler],
-      %{Reader.Handler => 3}
-    )
+    out =
+      Run.run(
+        DefconExample.sum_and_log(1, 2),
+        [Reader.Handler, Writer.Handler],
+        %{Reader.Handler => 3}
+      )
 
     assert %Freyja.RunOutcome{
              result: 6,

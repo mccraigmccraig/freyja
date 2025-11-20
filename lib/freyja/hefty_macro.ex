@@ -101,7 +101,7 @@ defmodule Freyja.HeftyMacro do
   ## Returns
 
   The function returns `Hefty.t()` which must be elaborated using
-  `Hefty.Run.run/4` or `Hefty.Elaborate.elaborate/2`.
+  `Run.run/4` or `Hefty.Elaborate.elaborate/2`.
   """
   defmacro defhefty(call_ast, do: body) do
     Freyja.HeftyMacro.Impl.defhefty(call_ast, body, nil)

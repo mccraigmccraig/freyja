@@ -12,7 +12,7 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
   - Self-explanatory code
   """
 
-  import Freyja.HeftyMacro
+  import Freyja.Hefty.HeftyBlock
 
   alias Freyja.Hefty
   alias Freyja.Run
@@ -23,7 +23,6 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
 
   # Helper for comparison test
   defmodule ComparisonHelper do
-    import Freyja.HeftyMacro
     alias Freyja.Effects.State
 
     defhefty process_item(x) do

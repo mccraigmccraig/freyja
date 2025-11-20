@@ -7,7 +7,7 @@ defmodule Freyja.Effects.WriterTest do
   alias Freyja.Run
 
   defmodule WriterExamples do
-    import Freyja.Con
+    import Freyja.Freer.FreerBlock
 
     defcon single_tell, [Writer] do
       _ <- tell("log entry")
@@ -186,7 +186,10 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "Writer with State effect" do
-      outcome = Run.run(WriterExamples.writer_with_state(), [Writer.Handler, State.Handler], %{State.Handler => 0})
+      outcome =
+        Run.run(WriterExamples.writer_with_state(), [Writer.Handler, State.Handler], %{
+          State.Handler => 0
+        })
 
       assert outcome.result == 1
       assert outcome.outputs[State.Handler] == 1
@@ -250,7 +253,10 @@ defmodule Freyja.Effects.WriterTest do
 
     test "Writer with initial state" do
       # Start with some existing log entries
-      outcome = Run.run(WriterExamples.single_tell(), [Writer.Handler], %{Writer.Handler => ["existing1", "existing2"]})
+      outcome =
+        Run.run(WriterExamples.single_tell(), [Writer.Handler], %{
+          Writer.Handler => ["existing1", "existing2"]
+        })
 
       assert outcome.result == :done
       # New entries are prepended (most recent first)

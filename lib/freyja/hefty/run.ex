@@ -83,6 +83,7 @@ defmodule Freyja.Hefty.Run do
 
   alias Freyja.Hefty
   alias Freyja.Hefty.Elaborate
+  alias Freyja.Hefty.Sig.IHeftySendable
   alias Freyja.Run
 
   @doc """
@@ -164,20 +165,22 @@ defmodule Freyja.Hefty.Run do
   Runtime errors from handlers are returned as {:error, reason} tuples as usual.
   """
   @spec run(Hefty.t(), [module], [module], map) :: Run.RunOutcome.t()
-  def run(hefty_tree, algebras, handlers, initial_states \\ %{}) do
+  def run(hefty_tree, algebras, handlers, initial_states \\ %{})
+
+  def run(hefty_tree, algebras, handlers, initial_states)
+      when is_struct(hefty_tree, Hefty.Pure) or is_struct(hefty_tree, Hefty.Impure) do
     # Phase 1: Elaborate higher-order effects into first-order effects
-    freer_computation = Elaborate.elaborate(hefty_tree, algebras)
-
     # Phase 2: Interpret first-order effects using existing infrastructure
-    # Build handler specs from handlers list and initial_states map
-    handler_specs =
-      Enum.map(handlers, fn handler_mod ->
-        state = Map.get(initial_states, handler_mod)
-        {handler_mod, {handler_mod, state}}
-      end)
 
-    run_state = Run.with_handlers(handler_specs)
-    Run.run_with_state(freer_computation, run_state)
+    hefty_tree
+    |> Elaborate.elaborate(algebras)
+    |> Run.run(handlers, initial_states)
+  end
+
+  def run(hefty_tree, algebras, handlers, initial_states) do
+    hefty_tree
+    |> IHeftySendable.send_to_hefty()
+    |> run(algebras, handlers, initial_states)
   end
 
   @doc """

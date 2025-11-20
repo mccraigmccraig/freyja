@@ -195,8 +195,7 @@ defmodule Freyja.Run do
 
   # Hefty: 3-arity (algebras, handlers, no initial_states) - default to %{}
   def run(hefty_tree, algebras, handlers)
-      when (is_struct(hefty_tree, Hefty.Pure) or is_struct(hefty_tree, Hefty.Impure)) and
-             is_list(algebras) and is_list(handlers) do
+      when is_list(algebras) and is_list(handlers) do
     run(hefty_tree, algebras, handlers, %{})
   end
 

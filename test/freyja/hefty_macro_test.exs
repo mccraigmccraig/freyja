@@ -1,7 +1,7 @@
 defmodule Freyja.HeftyMacroTest do
   use ExUnit.Case, async: true
 
-  import Freyja.HeftyMacro
+  import Freyja.Hefty.HeftyBlock
 
   alias Freyja.Hefty
   alias Freyja.Run

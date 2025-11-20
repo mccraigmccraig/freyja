@@ -173,7 +173,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
-               result: 42,
+               result: {:ok, 42},
                outputs: outputs
              } = first_outcome
 
@@ -183,7 +183,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
-               result: 42,
+               result: {:ok, 42},
                outputs: replayed_outputs
              } = second_outcome
 
@@ -216,7 +216,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
-               result: {:recovered, :oops},
+               result: {:ok, {:recovered, :oops}},
                outputs: outputs
              } = first_outcome
 
@@ -226,7 +226,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
-               result: {:recovered, :oops},
+               result: {:ok, {:recovered, :oops}},
                outputs: replayed_outputs
              } = second_outcome
 
@@ -375,7 +375,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       ok_val = 10 / 3
 
       assert %RunOutcome{
-               result: [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}],
+               result: {:ok, [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}]},
                outputs: outputs
              } = first_outcome
 
@@ -385,7 +385,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
-               result: [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}],
+               result: {:ok, [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}]},
                outputs: replayed_outputs
              } = second_outcome
 
@@ -424,7 +424,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
-               result: {:success, 60},
+               result: {:ok, {:success, 60}},
                outputs: outputs
              } = first_outcome
 
@@ -434,7 +434,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       second_outcome = Hefty.Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
-               result: {:success, 60},
+               result: {:ok, {:success, 60}},
                outputs: replayed_outputs
              } = second_outcome
 

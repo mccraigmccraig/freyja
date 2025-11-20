@@ -1,7 +1,11 @@
-defmodule Freyja.EffectHandler do
+defmodule Freyja.Freer.EffectHandler do
   @moduledoc """
-  The Run module uses EffectHandlers to interpret
-  effects when running a computation
+  Behavior for first-order effect handlers.
+
+  EffectHandlers interpret first-order effects (Freer computations) during
+  the interpretation phase. They are used by the Run module to execute effects.
+
+  For higher-order effects (Hefty), see `Freyja.Hefty.Algebra` instead.
   """
 
   alias Freyja.Freer

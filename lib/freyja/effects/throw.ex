@@ -54,9 +54,9 @@ defmodule Freyja.Effects.Throw.Handler do
   alias Freyja.Effects.Throw
   alias Freyja.Effects.Throw.ThrowOp
 
-  @behaviour Freyja.EffectHandler
+  @behaviour Freyja.Freer.EffectHandler
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig}, _state) do
     sig == Throw
   end
@@ -65,7 +65,7 @@ defmodule Freyja.Effects.Throw.Handler do
   Interpret a Throw operation.
   Returns {:error, reason} tuple instead of wrapped ErrorResult struct.
   """
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def interpret(
         %Impure{sig: Throw, data: %ThrowOp{error: err}},
         _handler_key,
@@ -83,7 +83,7 @@ defmodule Freyja.Effects.Throw.Handler do
   Errors are already {:error, _} tuples from throw_error, so this creates
   Either-style results when Throw.Handler is in the stack.
   """
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def finalize(%Pure{val: val}, _key, state, _run_state) do
     # Wrap completed values in {:ok, _}
     # Errors already return {:error, _}, so this creates Either-style tuples

@@ -32,7 +32,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   alias Freyja.Run.RunState
   alias Freyja.RunOutcome
 
-  @behaviour Freyja.EffectHandler
+  @behaviour Freyja.Freer.EffectHandler
 
   # logger captures effects in log-queue/log-stack, and avoids repeat work
   #
@@ -56,7 +56,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   #
   # - how do logs compose ?
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig, data: u, q: _q}, state) do
     cond do
       # Always handle our own EffectLogger effects
@@ -104,7 +104,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
   defp can_replay?(_sig, _data, _state), do: false
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def initialize(
         _computation,
         _handler_key,
@@ -161,7 +161,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
     end
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def interpret(
         %Impure{sig: eff, data: u, q: q} = computation,
         _handler_key,
@@ -190,7 +190,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
     end
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def scoped_error(
         _result,
         _error,
@@ -206,7 +206,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
     updated_state
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def finalize(
         %Pure{} = computation,
         _handler_key,

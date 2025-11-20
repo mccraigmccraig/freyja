@@ -15,14 +15,14 @@ defmodule Freyja.Effects.Writer.Handler do
   alias Freyja.Effects.Writer
   alias Freyja.Run.RunState
 
-  @behaviour Freyja.EffectHandler
+  @behaviour Freyja.Freer.EffectHandler
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == Writer
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def interpret(
         %Freer.Impure{sig: Writer, data: u, q: q} = _computation,
         _handler_key,
@@ -36,7 +36,7 @@ defmodule Freyja.Effects.Writer.Handler do
     end
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def finalize(
         %Pure{} = computation,
         _handler_key,

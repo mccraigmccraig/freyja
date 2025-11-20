@@ -163,14 +163,14 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     alias Freyja.Effects.TaggedWriter
     alias Freyja.Run.RunState
 
-    @behaviour Freyja.EffectHandler
+    @behaviour Freyja.Freer.EffectHandler
 
-    @impl Freyja.EffectHandler
+    @impl Freyja.Freer.EffectHandler
     def handles?(%Impure{sig: sig}, _state) do
       sig == Storage
     end
 
-    @impl Freyja.EffectHandler
+    @impl Freyja.Freer.EffectHandler
     def interpret(
           %Impure{sig: Storage, data: operation, q: q},
           _handler_key,

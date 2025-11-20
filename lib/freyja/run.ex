@@ -44,7 +44,7 @@ defmodule Freyja.Run do
 
   - `Freyja.Hefty.Elaborate` - Elaboration catamorphism for Hefty
   - `Freyja.Hefty.Algebra` - Algebra behavior
-  - Effect handlers implement `Freyja.EffectHandler` behavior
+  - Effect handlers implement `Freyja.Freer.EffectHandler` behavior
   """
   alias Freyja.Freer
   alias Freyja.Freer.Impure

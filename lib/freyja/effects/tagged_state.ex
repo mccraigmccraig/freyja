@@ -108,14 +108,14 @@ defmodule Freyja.Effects.TaggedState.Handler do
   alias Freyja.Effects.TaggedState.UpdateTagged
   alias Freyja.Run.RunState
 
-  @behaviour Freyja.EffectHandler
+  @behaviour Freyja.Freer.EffectHandler
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == TaggedState
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def interpret(
         %Freer.Impure{sig: TaggedState, data: operation, q: q} = _computation,
         _handler_key,

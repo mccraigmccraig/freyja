@@ -169,14 +169,14 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
   alias Freyja.Effects.TaggedWriter.{TellTagged, PeekTagged, PeekAll}
   alias Freyja.Run.RunState
 
-  @behaviour Freyja.EffectHandler
+  @behaviour Freyja.Freer.EffectHandler
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == TaggedWriter
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def interpret(
         %Impure{sig: TaggedWriter, data: operation, q: q} = _computation,
         _handler_key,
@@ -209,7 +209,7 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
     end
   end
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def finalize(
         %Pure{} = computation,
         _handler_key,

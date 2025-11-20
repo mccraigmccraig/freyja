@@ -42,9 +42,9 @@ defmodule Freyja.Effects.Coroutine.Handler do
   alias Freyja.Effects.Coroutine.ScopedYield
   alias Freyja.Run.RunState
 
-  @behaviour Freyja.EffectHandler
+  @behaviour Freyja.Freer.EffectHandler
 
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == Coroutine
   end
@@ -53,7 +53,7 @@ defmodule Freyja.Effects.Coroutine.Handler do
   Interpret a coroutine and report its status.
   Returns Suspend struct which Run.do_run converts to {:suspend, value, continuation}.
   """
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def interpret(
         %Impure{sig: Coroutine, data: u, q: q} = _computation,
         _handler_key,
@@ -80,7 +80,7 @@ defmodule Freyja.Effects.Coroutine.Handler do
   Suspensions bypass finalize (via Run.do_run), so only completed values reach here.
   This creates a consistent result shape when Coroutine is in the handler stack.
   """
-  @impl Freyja.EffectHandler
+  @impl Freyja.Freer.EffectHandler
   def finalize(%Pure{val: val}, _key, state, _run_state) do
     # Wrap completed values in {:done, _}
     # Suspensions already bypass finalize, so they stay as {:suspend, _, _}

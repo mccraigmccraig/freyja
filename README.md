@@ -30,11 +30,13 @@ import Freyja.HeftyMacro
 alias Freyja.Effects.{State, Throw, Catch}
 
 defhefty safe_divide(a, b) do
-  if b == 0 do
+  result <- if b == 0 do
     Throw.throw_error(:division_by_zero)
   else
-    return(a / b)
+    Hefty.pure(a / b)
   end
+
+  return(result)
 catch
   :division_by_zero -> return(:infinity)
 end
@@ -76,7 +78,7 @@ Programs describe effects as pure data. Handlers interpret them:
 defcon process_user(user_id) do
   user <- Storage.query(user_id)
   updated <- validate_and_update(user)
-  Storage.save(updated)
+  _ <- Storage.save(updated)
   return(updated)
 end
 
@@ -117,11 +119,13 @@ defhefty process_with_checkpoints(data) do
     hefty do
       x <- Coroutine.yield(data)  # Suspend (auto-lifted)
       # After resume, still inside catch scope!
-      if x < 0 do
-        Throw.throw_error(:negative)  # Auto-lifted
+      result <- if x < 0 do
+        Throw.throw_error(:negative)  # Auto-lifted, short-circuits
       else
-        return(x * 2)
+        Hefty.pure(x * 2)
       end
+
+      return(result)
     end,
     fn _err -> Hefty.pure(0) end
   )
@@ -169,8 +173,8 @@ Use `con` for first-order effects only:
 ```elixir
 defcon simple_example do
   x <- State.get()
-  Writer.tell("Got: #{x}")
-  State.put(x + 1)
+  _ <- Writer.tell("Got: #{x}")
+  _ <- State.put(x + 1)
   return(x + 1)
 end
 ```
@@ -182,8 +186,10 @@ defhefty with_error_handling do
   result <- Catch.catch_hefty(
     hefty do
       x <- State.get()  # First-order, auto-lifted to Hefty
+
       if x < 0 do
-        Throw.throw_error(:negative)  # Auto-lifted
+        _ <- Throw.throw_error(:negative)  # Auto-lifted, short-circuits
+        return(:unreachable)
       else
         return(x)
       end
@@ -231,53 +237,53 @@ These are simple operations interpreted by handlers:
 #### State Management
 - **`State`** - Single mutable state
   ```elixir
-  State.get()            # Read current state
-  State.put(value)       # Replace state
-  State.update(fn)       # Transform state
+  x <- State.get()            # Read current state
+  _ <- State.put(value)       # Replace state
+  _ <- State.update(fn)       # Transform state
   ```
 
 - **`TaggedState`** - Multiple independent states by tag
   ```elixir
-  TaggedState.get(:user_count)
-  TaggedState.put(:user_count, 42)
+  count <- TaggedState.get(:user_count)
+  _ <- TaggedState.put(:user_count, 42)
   ```
 
 #### Environment/Context
 - **`Reader`** - Read-only environment
   ```elixir
-  Reader.ask()           # Get environment value
+  config <- Reader.ask()  # Get environment value
   ```
 
 - **`TaggedReader`** - Multiple environments by tag
   ```elixir
-  TaggedReader.ask(:config)
-  TaggedReader.ask(:secrets)
+  config <- TaggedReader.ask(:config)
+  secrets <- TaggedReader.ask(:secrets)
   ```
 
 #### Logging/Output
 - **`Writer`** - Accumulate output
   ```elixir
-  Writer.tell("message") # Append to log
+  _ <- Writer.tell("message") # Append to log
   ```
 
 - **`TaggedWriter`** - Multiple output streams by tag
   ```elixir
-  TaggedWriter.tell(:audit, event)
-  TaggedWriter.tell(:metrics, data)
-  TaggedWriter.peek(:audit)     # Query current logs
-  TaggedWriter.peek_all()       # Query all tag logs
+  _ <- TaggedWriter.tell(:audit, event)
+  _ <- TaggedWriter.tell(:metrics, data)
+  logs <- TaggedWriter.peek(:audit)     # Query current logs
+  all_logs <- TaggedWriter.peek_all()   # Query all tag logs
   ```
 
 #### Error Handling
 - **`Throw`** - Throw errors (first-order operation)
   ```elixir
-  Throw.throw_error(reason)  # Short-circuit with error
+  _ <- Throw.throw_error(reason)  # Short-circuit with error
   ```
 
 #### Control Flow
 - **`Coroutine`** - Suspend and resume
   ```elixir
-  Coroutine.yield(value)     # Suspend with value
+  result <- Coroutine.yield(value)  # Suspend with value
   # Resumed later with Run.resume(outcome, input)
   ```
 
@@ -459,9 +465,9 @@ A single top-level interpreter executes first-order effects:
 
 ```elixir
 # Handlers interpret effects one by one
-State.get()           → read from handler state
-Writer.tell("log")    → append to handler state
-Coroutine.yield(val)  → return suspension
+x <- State.get()           # → read from handler state
+_ <- Writer.tell("log")    # → append to handler state
+v <- Coroutine.yield(val)  # → return suspension
 ```
 
 All effects are at the same level, so they compose without conflicts.
@@ -488,11 +494,13 @@ defhefty example do
     hefty do
       x <- Coroutine.yield(5)  # Suspend! (auto-lifted)
       # After resume, still inside catch scope
-      if x < 0 do
-        Throw.throw_error(:negative)  # Auto-lifted
+      result <- if x < 0 do
+        Throw.throw_error(:negative)  # Auto-lifted, short-circuits
       else
-        return(x)
+        Hefty.pure(x)
       end
+
+      return(result)
     end,
     fn _err -> Hefty.pure(0) end
   )
@@ -513,16 +521,19 @@ Start with simple effects using the `con` macro:
 
 ```elixir
 import Freyja.Con
-alias Freyja.Effects.{State, Writer}
+alias Freyja.Effects.{State, Writer, FxList}
 
 defcon count_and_log(items) do
-  Writer.tell("Processing #{length(items)} items")
+  _ <- Writer.tell("Processing #{length(items)} items")
 
-  # Process each item
-  Enum.each(items, fn item ->
-    count <- State.get()
-    State.put(count + 1)
-    Writer.tell("Processed item #{item}")
+  # Process each item with effects
+  _ <- FxList.fx_map(items, fn item ->
+    con do
+      count <- State.get()
+      _ <- State.put(count + 1)
+      _ <- Writer.tell("Processed item #{item}")
+      return(:ok)
+    end
   end)
 
   final_count <- State.get()
@@ -582,16 +593,16 @@ defhefty process_with_logging(items) do
   {results, logs} <- TaggedWriter.listen(
     FxList.fx_map(items, fn item ->
       hefty do
-        TaggedWriter.tell(:audit, {:processing, item})
+        _ <- TaggedWriter.tell(:audit, {:processing, item})
         result <- process_item(item)
-        TaggedWriter.tell(:audit, {:processed, result})
+        _ <- TaggedWriter.tell(:audit, {:processed, result})
         return(result)
       end
     end)
   )
 
   # Save audit log (auto-lifted)
-  save_audit_log(logs[:audit])
+  _ <- save_audit_log(logs[:audit])
 
   return(results)
 end
@@ -701,8 +712,8 @@ import Freyja.Con
 
 computation = con do
   x <- State.get()
-  Writer.tell("Value: #{x}")
-  State.put(x + 1)
+  _ <- Writer.tell("Value: #{x}")
+  _ <- State.put(x + 1)
   return(x)
 end
 
@@ -789,16 +800,16 @@ con do
   user_count <- TaggedState.get(:users)
   post_count <- TaggedState.get(:posts)
 
-  TaggedState.put(:users, user_count + 1)
+  _ <- TaggedState.put(:users, user_count + 1)
 
   return({user_count, post_count})
 end
 
 # Multiple log streams
 con do
-  TaggedWriter.tell(:audit, %{action: :login})
-  TaggedWriter.tell(:metrics, %{event: :user_active})
-  TaggedWriter.tell(:debug, "Processing...")
+  _ <- TaggedWriter.tell(:audit, %{action: :login})
+  _ <- TaggedWriter.tell(:metrics, %{event: :user_active})
+  _ <- TaggedWriter.tell(:debug, "Processing...")
 
   return(:ok)
 end

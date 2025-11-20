@@ -1,7 +1,7 @@
 defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   use ExUnit.Case
 
-  import Freyja.HeftyMacro
+  use Freyja.Syntax
 
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.State

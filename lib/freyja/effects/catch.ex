@@ -21,7 +21,7 @@ defmodule Freyja.Effects.Catch do
           hefty do
             x <- Lift.lift(State.get())
             if x < 0 do
-              Lift.lift(Error.throw_error("negative value"))
+              Lift.lift(Throw.throw_error("negative value"))
             else
               Hefty.pure(x * 2)
             end
@@ -48,7 +48,7 @@ defmodule Freyja.Effects.Catch do
   ## See Also
 
   - `Freyja.Effects.Catch.Algebra` - The elaboration algebra
-  - `Freyja.Effects.Error` - First-order error effects
+  - `Freyja.Effects.Throw` - First-order throw effects
   """
 
   import Freyja.Hefty.Sig.DefHeftyStruct
@@ -188,7 +188,7 @@ defmodule Freyja.Effects.Catch.Algebra do
   require Logger
 
   alias Freyja.Effects.Catch.Catch, as: CatchOp
-  alias Freyja.Effects.Error
+  alias Freyja.Effects.Throw
   alias Freyja.Freer
   alias Freyja.Freer.Interpose
 
@@ -216,11 +216,11 @@ defmodule Freyja.Effects.Catch.Algebra do
     transformed =
       Interpose.interpose_with(
         try_comp,
-        # Match only Error.Throw operations (not other Error operations)
+        # Match only Throw.ThrowOp operations
         fn sig, data ->
-          sig == Error and match?(%Error.Throw{}, data)
+          sig == Throw and match?(%Throw.ThrowOp{}, data)
         end,
-        fn %Error.Throw{error: err}, continuation ->
+        fn %Throw.ThrowOp{error: err}, continuation ->
           # When a throw is encountered:
           # 1. Call the error handler function to get a Hefty computation
           catch_hefty_comp = error_handler_fn.(err)

@@ -1,6 +1,6 @@
-defmodule Freyja.Effects.Error do
+defmodule Freyja.Effects.Throw do
   @moduledoc """
-  First-order Error effect for throwing errors.
+  First-order Throw effect for throwing errors.
 
   This module provides the `throw_error` operation (first-order).
 
@@ -13,7 +13,7 @@ defmodule Freyja.Effects.Error do
       import Freyja.HeftyMacro
 
       # Throw an error
-      Lift.lift(Error.throw_error("something went wrong"))
+      Lift.lift(Throw.throw_error("something went wrong"))
 
   ## See Also
 
@@ -21,19 +21,19 @@ defmodule Freyja.Effects.Error do
   """
   import Freyja.Freer.Sig.DefEffectStruct
 
-  def_effect_struct(Throw, error: nil)
+  def_effect_struct(ThrowOp, error: nil)
 
   @doc """
   Throw an error, short-circuiting the computation.
 
   Returns a Freer effect that will fail with the given error value.
   """
-  def throw_error(err), do: %Throw{error: err}
+  def throw_error(err), do: %ThrowOp{error: err}
 end
 
-defmodule Freyja.Effects.Error.Handler do
+defmodule Freyja.Effects.Throw.Handler do
   @moduledoc """
-  Handler for first-order Error operations (throw only).
+  Handler for first-order Throw operations (throw only).
 
   This is a simple first-order effect handler. The scoped `catch` operation
   is available via `Freyja.Effects.Catch` as a Hefty algebra-based
@@ -51,23 +51,23 @@ defmodule Freyja.Effects.Error.Handler do
   alias Freyja.Freer
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Pure
-  alias Freyja.Effects.Error
-  alias Freyja.Effects.Error.Throw
+  alias Freyja.Effects.Throw
+  alias Freyja.Effects.Throw.ThrowOp
 
   @behaviour Freyja.EffectHandler
 
   @impl Freyja.EffectHandler
   def handles?(%Impure{sig: sig}, _state) do
-    sig == Error
+    sig == Throw
   end
 
   @doc """
-  Interpret an Error throw operation.
+  Interpret a Throw operation.
   Returns {:error, reason} tuple instead of wrapped ErrorResult struct.
   """
   @impl Freyja.EffectHandler
   def interpret(
-        %Impure{sig: Error, data: %Throw{error: err}},
+        %Impure{sig: Throw, data: %ThrowOp{error: err}},
         _handler_key,
         _state,
         _run_state
@@ -81,7 +81,7 @@ defmodule Freyja.Effects.Error.Handler do
   Wrap completed computations in {:ok, value}.
 
   Errors are already {:error, _} tuples from throw_error, so this creates
-  Either-style results when Error.Handler is in the stack.
+  Either-style results when Throw.Handler is in the stack.
   """
   @impl Freyja.EffectHandler
   def finalize(%Pure{val: val}, _key, state, _run_state) do

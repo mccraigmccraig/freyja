@@ -74,14 +74,14 @@ defmodule Freyja.Freer.Impl do
   end
 
   # Handle exceptions from user code in continuations
-  # Always converts to Error effect - let Error handler decide what to do
-  # If no Error handler is present, the effect will cause an unhandled effect error
+  # Always converts to Throw effect - let Throw handler decide what to do
+  # If no Throw handler is present, the effect will cause an unhandled effect error
   defp handle_continuation_exception(exception, stacktrace) do
     # Convert exception to serializable error
     error_data = Freyja.Exception.to_serializable(exception, stacktrace)
 
-    # Create and return Error effect
-    Freyja.Effects.Error.throw_error(error_data)
+    # Create and return Throw effect
+    Freyja.Effects.Throw.throw_error(error_data)
     |> ISendable.send()
   end
 

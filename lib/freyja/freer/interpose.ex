@@ -45,12 +45,12 @@ defmodule Freyja.Freer.Interpose do
 
   ## Example: Catch with Interposition
 
-      # Transform a computation by intercepting Error.Throw operations
+      # Transform a computation by intercepting Throw.ThrowOp operations
       interpose_with(
         computation,
-        Freyja.Effects.Error,
+        Freyja.Effects.Throw,
         fn
-          %Error.Throw{error: err}, continuation ->
+          %Throw.ThrowOp{error: err}, continuation ->
             # Call error handler and bind to continuation
             error_handler.(err) |> elaborate() |> Freer.bind(continuation)
         end
@@ -99,7 +99,7 @@ defmodule Freyja.Freer.Interpose do
     - An atom (effect signature module) to match all operations of that signature
     - A function `(sig, data) -> boolean` to match specific operations
   - `handler` - Handler function: `(effect_data, continuation) -> Freer.t()`
-    - `effect_data` - The operation data (e.g., `%Error.Throw{error: err}`)
+    - `effect_data` - The operation data (e.g., `%Throw.ThrowOp{error: err}`)
     - `continuation` - Wrapped continuation that preserves interposition
   - `value_handler` - Function to transform final Pure values (default: identity)
 
@@ -115,13 +115,13 @@ defmodule Freyja.Freer.Interpose do
 
   1. **An atom** - matches all operations with that signature:
      ```elixir
-     Freyja.Effects.Error  # Matches all Error operations
+     Freyja.Effects.Throw  # Matches all Throw operations
      ```
 
   2. **A predicate function** - matches operations where `(sig, data)` returns `true`:
      ```elixir
      fn sig, data ->
-       sig == Freyja.Effects.Error and match?(%Error.Throw{}, data)
+       sig == Freyja.Effects.Throw and match?(%Throw.ThrowOp{}, data)
      end
      ```
 
@@ -155,18 +155,18 @@ defmodule Freyja.Freer.Interpose do
       # Match all operations of a signature
       interpose(
         computation,
-        Freyja.Effects.Error,
-        fn %Error.Throw{}, _k -> Freer.pure(:default_value) end
+        Freyja.Effects.Throw,
+        fn %Throw.ThrowOp{}, _k -> Freer.pure(:default_value) end
       )
 
       # Match only specific operations using a predicate
       interpose(
         computation,
         fn sig, data ->
-          sig == Freyja.Effects.Error and match?(%Error.Throw{}, data)
+          sig == Freyja.Effects.Throw and match?(%Throw.ThrowOp{}, data)
         end,
-        fn %Error.Throw{error: err}, k ->
-          # Only intercept Throw, let other Error ops pass through
+        fn %Throw.ThrowOp{error: err}, k ->
+          # Only intercept Throw operations
           handle_error(err) |> Freer.bind(k)
         end
       )
@@ -264,20 +264,20 @@ defmodule Freyja.Freer.Interpose do
 
   ## Examples
 
-      # Intercept all Error operations
+      # Intercept all Throw operations
       interpose_with(
         computation,
-        Freyja.Effects.Error,
-        fn %Error.Throw{}, _k -> Freer.pure(:caught) end
+        Freyja.Effects.Throw,
+        fn %Throw.ThrowOp{}, _k -> Freer.pure(:caught) end
       )
 
-      # Intercept only specific Error.Throw operations
+      # Intercept only specific Throw.ThrowOp operations
       interpose_with(
         computation,
         fn sig, data ->
-          sig == Freyja.Effects.Error and match?(%Error.Throw{}, data)
+          sig == Freyja.Effects.Throw and match?(%Throw.ThrowOp{}, data)
         end,
-        fn %Error.Throw{error: err}, k ->
+        fn %Throw.ThrowOp{error: err}, k ->
           handle_throw(err) |> Freer.bind(k)
         end
       )

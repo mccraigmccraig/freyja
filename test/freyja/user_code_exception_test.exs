@@ -4,8 +4,7 @@ defmodule Freyja.UserCodeExceptionTest do
   # Tests automatic exception conversion: when user code raises an exception,
   # it's caught and converted to a Throw effect (see freer/impl.ex handle_continuation_exception)
 
-  import Freyja.Con
-  import Freyja.HeftyMacro
+  use Freyja.Syntax
 
   alias Freyja.Effects.Throw
   alias Freyja.Effects.State
@@ -17,9 +16,6 @@ defmodule Freyja.UserCodeExceptionTest do
   alias Freyja.Hefty
 
   defmodule Examples do
-    import Freyja.Con
-    import Freyja.HeftyMacro
-
     defcon div_by_zero, [State] do
       x <- State.get()
       # This will raise ArithmeticError
@@ -85,7 +81,8 @@ defmodule Freyja.UserCodeExceptionTest do
 
   describe "user code exceptions with Throw handler" do
     test "ArithmeticError is caught and converted to Throw effect" do
-      outcome = Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
+      outcome =
+        Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
 
       assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
 
@@ -97,7 +94,10 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "KeyError is caught and converted to Throw effect" do
-      outcome = Run.run(Examples.map_fetch_missing(), [Reader.Handler, Throw.Handler], %{Reader.Handler => %{foo: 1}})
+      outcome =
+        Run.run(Examples.map_fetch_missing(), [Reader.Handler, Throw.Handler], %{
+          Reader.Handler => %{foo: 1}
+        })
 
       assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
 
@@ -108,7 +108,10 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "FunctionClauseError is caught and converted to Throw effect" do
-      outcome = Run.run(Examples.function_clause_error(), [State.Handler, Throw.Handler], %{State.Handler => 123})
+      outcome =
+        Run.run(Examples.function_clause_error(), [State.Handler, Throw.Handler], %{
+          State.Handler => 123
+        })
 
       assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
 
@@ -118,10 +121,15 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "exceptions preserve state up to the point of error" do
-      outcome = Run.run(Examples.multiple_effects_with_error(), [State.Handler, Writer.Handler, Throw.Handler], %{
-        State.Handler => 0,
-        Writer.Handler => []
-      })
+      outcome =
+        Run.run(
+          Examples.multiple_effects_with_error(),
+          [State.Handler, Writer.Handler, Throw.Handler],
+          %{
+            State.Handler => 0,
+            Writer.Handler => []
+          }
+        )
 
       assert %Freyja.RunOutcome{result: {:error, _error_data}} = outcome
 
@@ -148,14 +156,18 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "successful computations still work" do
-      outcome = Run.run(Examples.successful_computation(), [State.Handler, Throw.Handler], %{State.Handler => 5})
+      outcome =
+        Run.run(Examples.successful_computation(), [State.Handler, Throw.Handler], %{
+          State.Handler => 5
+        })
 
       assert %Freyja.RunOutcome{result: {:ok, 10}} = outcome
       assert outcome.outputs[State.Handler] == 10
     end
 
     test "error data is JSON serializable" do
-      outcome = Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
+      outcome =
+        Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
 
       assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
 
@@ -166,7 +178,8 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "stacktrace contains relevant frames" do
-      outcome = Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
+      outcome =
+        Run.run(Examples.div_by_zero(), [State.Handler, Throw.Handler], %{State.Handler => 10})
 
       assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
 
@@ -175,18 +188,19 @@ defmodule Freyja.UserCodeExceptionTest do
 
       # Should include the :erlang.div call
       assert Enum.any?(error_data["stacktrace"], fn frame ->
-        String.contains?(frame["module"], "erlang") &&
-          String.contains?(frame["function"], "div")
-      end)
+               String.contains?(frame["module"], "erlang") &&
+                 String.contains?(frame["function"], "div")
+             end)
     end
   end
 
   describe "user code exceptions without Throw handler" do
     test "ArithmeticError causes unhandled Throw effect when no Throw handler present" do
       # Without Throw handler, the Throw effect will be unhandled and raise ArgumentError
-      exception = assert_raise ArgumentError, fn ->
-        Run.run(Examples.div_by_zero(), [State.Handler], %{State.Handler => 10})
-      end
+      exception =
+        assert_raise ArgumentError, fn ->
+          Run.run(Examples.div_by_zero(), [State.Handler], %{State.Handler => 10})
+        end
 
       # The exception message should contain the original error details
       assert String.contains?(exception.message, "no handler for effect")
@@ -195,9 +209,10 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "KeyError causes unhandled Throw effect when no Throw handler present" do
-      exception = assert_raise ArgumentError, fn ->
-        Run.run(Examples.map_fetch_missing(), [Reader.Handler], %{Reader.Handler => %{foo: 1}})
-      end
+      exception =
+        assert_raise ArgumentError, fn ->
+          Run.run(Examples.map_fetch_missing(), [Reader.Handler], %{Reader.Handler => %{foo: 1}})
+        end
 
       # The exception message should contain the original error details
       assert String.contains?(exception.message, "no handler for effect")
@@ -215,9 +230,6 @@ defmodule Freyja.UserCodeExceptionTest do
 
   describe "nested exception handling" do
     defmodule NestedExamples do
-      import Freyja.Con
-      import Freyja.HeftyMacro
-
       defcon inner_computation_with_state(initial_state), [State] do
         _ <- State.put(initial_state)
         x <- State.get()
@@ -265,7 +277,10 @@ defmodule Freyja.UserCodeExceptionTest do
     end
 
     test "exception propagates from nested computation" do
-      outcome = Run.run(NestedExamples.nested_no_catch(), [State.Handler, Throw.Handler], %{State.Handler => 0})
+      outcome =
+        Run.run(NestedExamples.nested_no_catch(), [State.Handler, Throw.Handler], %{
+          State.Handler => 0
+        })
 
       assert %Freyja.RunOutcome{result: {:error, error_data}} = outcome
       assert is_map(error_data)

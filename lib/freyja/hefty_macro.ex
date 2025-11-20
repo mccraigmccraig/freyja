@@ -355,7 +355,7 @@ defmodule Freyja.HeftyMacro do
                  quote(
                    do:
                      Freyja.Effects.Lift.lift(
-                       Freyja.Effects.Error.throw_error(__freyja_unhandled_error__)
+                       Freyja.Effects.Throw.throw_error(__freyja_unhandled_error__)
                      )
                  )
                ]}

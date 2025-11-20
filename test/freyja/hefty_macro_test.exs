@@ -223,7 +223,7 @@ defmodule Freyja.HeftyMacroTest do
           %{State.Handler => -3}
         )
 
-      assert 0 = outcome2.result
+      assert {:ok, 0} = outcome2.result
     end
   end
 

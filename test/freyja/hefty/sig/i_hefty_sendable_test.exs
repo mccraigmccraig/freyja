@@ -1,6 +1,8 @@
 defmodule Freyja.Hefty.Sig.IHeftySendableTest do
   use ExUnit.Case, async: true
 
+  import Freyja.Freer.FreerBlock
+
   alias Freyja.Hefty
   alias Freyja.Hefty.Sig.IHeftySendable
   alias Freyja.Effects.Lift
@@ -39,7 +41,6 @@ defmodule Freyja.Hefty.Sig.IHeftySendableTest do
     end
 
     test "Freer.Impure gets lifted" do
-      import Freyja.Con
       alias Freyja.Effects.State
 
       freer_impure = State.get()
@@ -53,7 +54,6 @@ defmodule Freyja.Hefty.Sig.IHeftySendableTest do
     end
 
     test "lifted Freer can be bound" do
-      import Freyja.Con
       alias Freyja.Effects.State
 
       freer =

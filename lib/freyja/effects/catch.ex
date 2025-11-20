@@ -220,14 +220,15 @@ defmodule Freyja.Effects.Catch.Algebra do
         fn sig, data ->
           sig == Throw and match?(%Throw.ThrowOp{}, data)
         end,
-        fn %Throw.ThrowOp{error: err}, continuation ->
+        fn %Throw.ThrowOp{error: err}, _continuation ->
           # When a throw is encountered:
           # 1. Call the error handler function to get a Hefty computation
           catch_hefty_comp = error_handler_fn.(err)
           # 2. Elaborate the catch computation (it's Hefty, needs elaboration!)
           catch_freer_comp = elaborator.(catch_hefty_comp)
-          # 3. Bind to the continuation (which preserves interposition!)
-          Freer.bind(catch_freer_comp, continuation)
+          # 3. Return the catch result directly - DON'T call continuation!
+          #    Throw short-circuits, so we discard the continuation
+          catch_freer_comp
         end
       )
 

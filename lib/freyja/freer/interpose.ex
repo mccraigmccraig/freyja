@@ -73,8 +73,8 @@ defmodule Freyja.Freer.Interpose do
   5. When resumed, continuation still has interposition active
   6. The throw is caught!
 
-  Without interposition (old approach):
-  1. RunCatchingHandler calls Run.run(try_comp)
+  Without interposition (old runner effect approach):
+  1. RunCatchingHandler calls nested Run.run(try_comp)
   2. Nested run encounters yield, returns suspension
   3. Suspension escapes back to caller
   4. Resume continues, but catch scope is gone

@@ -19,7 +19,7 @@ defmodule Freyja.ConElseErrorTest do
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler]
+      handlers = [Error.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =
@@ -40,7 +40,7 @@ defmodule Freyja.ConElseErrorTest do
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler]
+      handlers = [Error.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res} = Hefty.Run.run(fv, algebras, handlers, initial_states)
@@ -61,7 +61,7 @@ defmodule Freyja.ConElseErrorTest do
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler, Writer.Handler]
+      handlers = [Error.Handler, Writer.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: out} =
@@ -84,7 +84,7 @@ defmodule Freyja.ConElseErrorTest do
         end
 
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler]
+      handlers = [Error.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =

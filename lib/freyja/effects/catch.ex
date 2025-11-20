@@ -185,20 +185,12 @@ defmodule Freyja.Effects.Catch.Algebra do
 
   @behaviour Freyja.Hefty.Algebra
 
-  import Freyja.Freer.Sig.DefEffectStruct
-
   require Logger
 
   alias Freyja.Effects.Catch.Catch, as: CatchOp
+  alias Freyja.Effects.Error
   alias Freyja.Freer
-
-  # Simple runner effect for the prototype
-  # This executes a computation and returns {:ok, value} or {:error, err}
-  def_effect_struct(RunCatching, computation: nil)
-
-  def run_catching(computation) do
-    %RunCatching{computation: computation}
-  end
+  alias Freyja.Freer.Interpose
 
   @impl true
   def handles?(sig) when sig == Freyja.Effects.Catch, do: true
@@ -213,150 +205,33 @@ defmodule Freyja.Effects.Catch.Algebra do
     # It's NOT in psi, so it won't be pre-elaborated
     # We'll call it dynamically when an error occurs
 
-    # Use our own run_catching runner effect (not HeftyError.run_catching)
-    # This ensures it gets handled by Catch.RunCatchingHandler which uses ScopedOk
-    Freer.bind(run_catching(try_comp), fn result ->
-      # Branch on the result (this case is in the Freer computation)
-      case result do
-        {:ok, value} ->
-          # Success: continue with value
-          k.(value)
-
-        {:error, err} ->
-          # Error: call handler function with error to get Hefty computation
+    # NEW APPROACH: Use interposition to structurally transform the computation
+    # Instead of using a runner effect with nested Run.run(), we intercept
+    # Error.Throw operations and replace them with handler calls.
+    #
+    # This is the key difference from the old approach:
+    # - No nested interpretation
+    # - All effects stay at the same level
+    # - Suspensions work automatically because the interception is baked into the structure
+    transformed =
+      Interpose.interpose_with(
+        try_comp,
+        # Match only Error.Throw operations (not other Error operations)
+        fn sig, data ->
+          sig == Error and match?(%Error.Throw{}, data)
+        end,
+        fn %Error.Throw{error: err}, continuation ->
+          # When a throw is encountered:
+          # 1. Call the error handler function to get a Hefty computation
           catch_hefty_comp = error_handler_fn.(err)
-          # Elaborate the catch computation (it's Hefty, needs elaboration!)
+          # 2. Elaborate the catch computation (it's Hefty, needs elaboration!)
           catch_freer_comp = elaborator.(catch_hefty_comp)
-          # Then bind to continuation
-          Freer.bind(catch_freer_comp, k)
-      end
-    end)
-  end
-end
+          # 3. Bind to the continuation (which preserves interposition!)
+          Freer.bind(catch_freer_comp, continuation)
+        end
+      )
 
-defmodule Freyja.Effects.Catch.RunCatchingHandler do
-  @moduledoc """
-  Handler for the RunCatching effect used by Catch.Algebra.
-
-  Executes a computation and returns `{:ok, value}` or `{:error, err}`.
-
-  ## State Propagation Semantics
-
-  This handler implements **non-transactional semantics** for state propagation,
-  matching the approach used in Heftia:
-
-  - State changes in the inner computation **always propagate** to the parent context
-  - This applies whether the computation succeeds, fails, or has unexpected results
-  - Both `{:ok, value}` and `{:error, err}` cases preserve state changes
-
-  This means:
-  ```elixir
-  catch_hefty(
-    hefty do
-      Lift.lift(State.put(100))
-      Lift.lift(Error.throw("boom"))
-    end,
-    hefty do
-      x <- Lift.lift(State.get())
-      Hefty.pure(x)  # Will see x = 100, not initial state
-    end
-  )
-  ```
-
-  ## Transactional Semantics
-
-  If you need transactional semantics (rollback state on error), use an explicit
-  transactional wrapper. This keeps the Catch handler simple and makes the choice
-  of transactional vs non-transactional explicit in the code.
-
-  See: Heftia's `transactState` for reference implementation of transactional wrapper.
-  """
-
-  @behaviour Freyja.EffectHandler
-
-  require Logger
-
-  alias Freyja.Effects.Catch.Algebra.RunCatching
-  alias Freyja.Freer.Impure
-  alias Freyja.Run
-  alias Freyja.Run.RunState
-  alias Freyja.Run.RunEffects
-
-  @impl true
-  def handles?(%Impure{sig: sig}, _state) do
-    sig == Freyja.Effects.Catch.Algebra
-  end
-
-  @impl true
-  def interpret(
-        %Impure{
-          sig: Freyja.Effects.Catch.Algebra,
-          data: %RunCatching{computation: comp},
-          q: q
-        },
-        _handler_key,
-        state,
-        %RunState{} = run_state
-      ) do
-    alias Freyja.RunOutcome
-
-    # Run the computation
-    outcome = Run.run(comp, run_state)
-
-    # Inspect the result - now using plain tuples instead of Result structs
-    # Suspensions pass through unchanged - they bypass the catch entirely
-    # For success/error, wrap in tagged tuple and use ScopedOk to propagate state
-    case outcome.result do
-      {:suspend, _, _} = suspend ->
-        # Suspensions pass through directly - don't wrap in ScopedOk
-        # Just return the suspend with the continuation
-        {Freyja.Freer.return(suspend), state}
-
-      {:error, err} ->
-        # Error - wrap in {:error, err} tuple (already in correct format)
-        result_value = {:error, err}
-
-        # IMPORTANT FIX: Run.run returns outcome with run_state pointing to INPUT states,
-        # but outputs pointing to FINAL states. For ScopedOk to work properly, we need
-        # run_state to also have the final states. Reconstruct outcome with updated run_state.
-        corrected_outcome = %RunOutcome{
-          result: outcome.result,
-          outputs: outcome.outputs,
-          run_state: %{outcome.run_state | states: outcome.outputs}
-        }
-
-        scoped_ok_effect = %Impure{
-          sig: RunEffects,
-          data: %RunEffects.ScopedOk{
-            value: result_value,
-            run_outcome: corrected_outcome
-          },
-          q: q
-        }
-
-        {scoped_ok_effect, state}
-
-      value ->
-        # Success - wrap in {:ok, value} tuple
-        result_value = {:ok, value}
-
-        corrected_outcome = %RunOutcome{
-          result: outcome.result,
-          outputs: outcome.outputs,
-          run_state: %{outcome.run_state | states: outcome.outputs}
-        }
-
-        # Return ScopedOk effect to propagate state changes
-        scoped_ok_effect = %Impure{
-          sig: RunEffects,
-          data: %RunEffects.ScopedOk{
-            value: result_value,
-            run_outcome: corrected_outcome
-          },
-          q: q
-        }
-
-        {scoped_ok_effect, state}
-    end
+    # Bind the transformed computation to the outer continuation
+    Freer.bind(transformed, k)
   end
 end

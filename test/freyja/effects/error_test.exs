@@ -47,7 +47,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler, Catch.RunCatchingHandler])
+        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler])
 
       assert %Freyja.RunOutcome{
                result: {:recovered, :bad}
@@ -64,7 +64,7 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler, Catch.RunCatchingHandler])
+        HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [ErrorHandler])
 
       assert %Freyja.RunOutcome{result: 42} = outcome
     end
@@ -94,7 +94,6 @@ defmodule Freyja.Effects.ErrorTest do
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           ErrorHandler,
           Writer.Handler,
-          Catch.RunCatchingHandler
         ])
 
       assert %Freyja.RunOutcome{
@@ -132,7 +131,6 @@ defmodule Freyja.Effects.ErrorTest do
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           ErrorHandler,
           Writer.Handler,
-          Catch.RunCatchingHandler
         ])
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
@@ -166,7 +164,6 @@ defmodule Freyja.Effects.ErrorTest do
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           ErrorHandler,
           Writer.Handler,
-          Catch.RunCatchingHandler
         ])
 
       assert %Freyja.RunOutcome{
@@ -200,7 +197,6 @@ defmodule Freyja.Effects.ErrorTest do
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           State.Handler,
           ErrorHandler,
-          Catch.RunCatchingHandler
         ])
 
       assert %Freyja.RunOutcome{
@@ -240,7 +236,6 @@ defmodule Freyja.Effects.ErrorTest do
         HeftyRun.run(fv, [Catch.Algebra, Lift.Algebra], [
           State.Handler,
           ErrorHandler,
-          Catch.RunCatchingHandler
         ])
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
@@ -278,7 +273,7 @@ defmodule Freyja.Effects.ErrorTest do
         HeftyRun.run(
           fv,
           [Catch.Algebra, Lift.Algebra],
-          [EffectLogger.Handler, State.Handler, ErrorHandler, Catch.RunCatchingHandler]
+          [EffectLogger.Handler, State.Handler, ErrorHandler]
         )
 
       assert %Freyja.RunOutcome{

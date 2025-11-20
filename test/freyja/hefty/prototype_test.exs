@@ -17,14 +17,11 @@ defmodule Freyja.Hefty.PrototypeTest do
   alias Freyja.Hefty
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.Catch
-  alias Freyja.Effects.Catch.RunCatchingHandler
   alias Freyja.Effects.Lift
   alias Freyja.Effects.Error
   alias Freyja.Effects.Error.Handler, as: ErrorHandler
   alias Freyja.Effects.State
 
-  # Silence warning - RunCatchingHandler is passed as atom in handler lists
-  _ = RunCatchingHandler
 
   describe "Lift effect" do
     test "lifts simple Freer computation" do
@@ -93,7 +90,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler, Catch.RunCatchingHandler]
+          [ErrorHandler]
         )
 
       assert 42 = outcome.result
@@ -109,7 +106,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 42}
         )
 
@@ -137,7 +134,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 5}
         )
 
@@ -158,7 +155,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler, Catch.RunCatchingHandler]
+          [ErrorHandler]
         )
 
       assert :recovered = outcome.result
@@ -175,7 +172,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 99}
         )
 
@@ -201,7 +198,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 0}
         )
 
@@ -234,7 +231,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           Catch.catch_hefty(try_block, fn _err -> catch_block end),
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 5}
         )
 
@@ -245,7 +242,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           Catch.catch_hefty(try_block, fn _err -> catch_block end),
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => -3}
         )
 
@@ -267,7 +264,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           outer,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler, Catch.RunCatchingHandler]
+          [ErrorHandler]
         )
 
       # Inner catch should handle the error
@@ -291,7 +288,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler, Catch.RunCatchingHandler]
+          [ErrorHandler]
         )
 
       # Catch returns 10, continuation doubles it
@@ -317,7 +314,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 0}
         )
 
@@ -344,7 +341,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [ErrorHandler, Catch.RunCatchingHandler]
+          [ErrorHandler]
         )
 
       # (5 + 1) * 2 = 12
@@ -368,7 +365,7 @@ defmodule Freyja.Hefty.PrototypeTest do
         HeftyRun.run(
           computation,
           [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 999}
         )
 
@@ -399,7 +396,6 @@ defmodule Freyja.Hefty.PrototypeTest do
       run_state =
         Freyja.Run.with_handlers([
           {ErrorHandler, ErrorHandler},
-          {Catch.RunCatchingHandler, Catch.RunCatchingHandler}
         ])
 
       outcome = Freyja.Run.run(freer_tree, run_state)
@@ -420,7 +416,7 @@ defmodule Freyja.Hefty.PrototypeTest do
           computation,
           [Catch.Algebra, Lift.Algebra],
           # Need ErrorHandler, Catch.RunCatchingHandler for catch_fx
-          [State.Handler, ErrorHandler, Catch.RunCatchingHandler],
+          [State.Handler, ErrorHandler],
           %{State.Handler => 42}
         )
 

@@ -167,7 +167,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler, Catch.RunCatchingHandler]
+      handlers = [EffectLogger.Handler, ErrorHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -210,7 +210,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler, Catch.RunCatchingHandler]
+      handlers = [EffectLogger.Handler, ErrorHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -263,7 +263,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler, Catch.RunCatchingHandler, State.Handler]
+      handlers = [EffectLogger.Handler, ErrorHandler, State.Handler]
       initial_states = %{State.Handler => 0}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -367,7 +367,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler, Catch.RunCatchingHandler]
+      handlers = [EffectLogger.Handler, ErrorHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)
@@ -418,7 +418,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
         end
 
       algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, ErrorHandler, Catch.RunCatchingHandler]
+      handlers = [EffectLogger.Handler, ErrorHandler]
       initial_states = %{}
 
       first_outcome = Hefty.Run.run(computation, algebras, handlers, initial_states)

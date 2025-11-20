@@ -54,13 +54,13 @@ defmodule Freyja.Effects.ScopedTest do
   # The interaction between Catch and Coroutine suspensions needs to be fixed.
   # When a computation suspends inside a catch block, the catch scope is lost on resume.
   # The old Error.Handler had special resume_catch_k logic to preserve the scope.
-  # Hefty Catch.RunCatchingHandler currently doesn't preserve catch scope across suspensions.
+  # The old RunCatchingHandler didn't preserve catch scope across suspensions.
   # See ticket freyja-rdm for proposed solutions.
   describe "suspending a scoped effect" do
     @tag :skip
     test "it suspends" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
+      handlers = [Error.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one =
@@ -88,7 +88,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "the scope is still in effect after resume" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
+      handlers = [Error.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one =
@@ -108,7 +108,7 @@ defmodule Freyja.Effects.ScopedTest do
     @tag :skip
     test "uncaught errors propagate out" do
       algebras = [Lift.Algebra, Catch.Algebra]
-      handlers = [Error.Handler, Catch.RunCatchingHandler, Coroutine.Handler, Writer.Handler]
+      handlers = [Error.Handler, Coroutine.Handler, Writer.Handler]
       initial_states = %{}
 
       outcome_one =

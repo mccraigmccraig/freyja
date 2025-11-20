@@ -326,7 +326,7 @@ defmodule Freyja.Effects.TaggedWriter.RunListenHandler do
     result_tuple = {result_value, captured_logs}
 
     # Use ScopedOk to propagate state changes
-    # Fix RunOutcome to have updated run_state (same pattern as RunCatchingHandler)
+    # Fix RunOutcome to have updated run_state (same pattern as old RunCatchingHandler)
     corrected_outcome = %RunOutcome{
       result: outcome.result,
       outputs: outcome.outputs,

@@ -165,7 +165,7 @@ defmodule Freyja.Effects.CoroutineTest do
   #     require Freer
 
   #     computation =
-  #       Freyja.Con.con [Coroutine, Freyja.Effects.Reader, Freyja.Effects.Writer] do
+  #       Freyja.Freer.FreerBlock.con [Coroutine, Freyja.Effects.Reader, Freyja.Effects.Writer] do
   #         state <- get()
   #         r1 <- yield("State is: #{state}")
   #         put(state + r1)
@@ -206,7 +206,7 @@ defmodule Freyja.Effects.CoroutineTest do
   #     require Freer
 
   #     computation =
-  #       Freyja.Con.con [Coroutine, Freyja.Effects.Reader, Freyja.Effects.Writer] do
+  #       Freyja.Freer.FreerBlock.con [Coroutine, Freyja.Effects.Reader, Freyja.Effects.Writer] do
   #         state <- get()
   #         r1 <- yield("State is: #{state}")
   #         put(state + r1)

@@ -246,11 +246,20 @@ defmodule Freyja.Examples.HeftyChangeCapture do
       # Extract already-elaborated inner computation (now Freer)
       inner_comp = Map.fetch!(psi, :inner)
 
-      # Elaborate to: use RunListen to capture changes, update_all to apply them
+      # Elaborate to: use PeekAll to capture changes, update_all to apply them
       # This is the entire higher-order operation elaboration!
       con do
-        # Use RunListen runner effect (first-order, already defined)
-        {result, all_logs} <- TaggedWriter.RunListen.run_listen(inner_comp)
+        # Get initial logs
+        initial_logs <- TaggedWriter.peek_all()
+
+        # Run the inner computation
+        result <- inner_comp
+
+        # Get final logs
+        final_logs <- TaggedWriter.peek_all()
+
+        # Calculate captured logs
+        all_logs = calculate_captured_logs(initial_logs, final_logs)
 
         # Extract captured changes
         changes = all_logs[:changes] || []
@@ -261,6 +270,18 @@ defmodule Freyja.Examples.HeftyChangeCapture do
         # Continue with result and logs
         k.({result, all_logs})
       end
+    end
+
+    # Calculate what logs were added by comparing initial and final states
+    defp calculate_captured_logs(initial, final) do
+      final
+      |> Enum.map(fn {tag, final_tag_log} ->
+        initial_tag_log = Map.get(initial, tag, [])
+        # New logs are at the front (prepended)
+        new_logs = Enum.take(final_tag_log, length(final_tag_log) - length(initial_tag_log))
+        {tag, new_logs}
+      end)
+      |> Enum.into(%{})
     end
   end
 

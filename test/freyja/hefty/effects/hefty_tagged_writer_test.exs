@@ -12,7 +12,6 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
 
   alias Freyja.Hefty.Run, as: HeftyRun
   alias Freyja.Effects.TaggedWriter
-  alias Freyja.Effects.TaggedWriter.RunListenHandler
   alias Freyja.Effects.Lift
 
   describe "listen/1 - basic functionality" do
@@ -30,7 +29,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         HeftyRun.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler, RunListenHandler],
+          [TaggedWriter.Handler],
           %{TaggedWriter.Handler => %{}}
         )
 
@@ -53,7 +52,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         HeftyRun.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler, RunListenHandler],
+          [TaggedWriter.Handler],
           %{TaggedWriter.Handler => %{}}
         )
 
@@ -74,7 +73,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         HeftyRun.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler, RunListenHandler],
+          [TaggedWriter.Handler],
           %{TaggedWriter.Handler => %{}}
         )
 
@@ -104,7 +103,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         HeftyRun.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler, RunListenHandler],
+          [TaggedWriter.Handler],
           %{TaggedWriter.Handler => %{}}
         )
 
@@ -149,7 +148,7 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         HeftyRun.run(
           computation,
           [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler, RunListenHandler],
+          [TaggedWriter.Handler],
           %{TaggedWriter.Handler => %{}}
         )
 

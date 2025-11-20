@@ -74,6 +74,7 @@ defmodule Freyja.Effects.TaggedWriter do
   # First-order operations
   def_effect_struct(TellTagged, tag: nil, val: nil)
   def_effect_struct(PeekTagged, tag: nil)
+  def_effect_struct(PeekAll, [])
 
   # Higher-order operations
   def_hefty_struct(Listen, [])
@@ -92,6 +93,14 @@ defmodule Freyja.Effects.TaggedWriter do
   Returns an empty list if the tag has no logged values yet.
   """
   def peek(tag), do: %PeekTagged{tag: tag}
+
+  @doc """
+  Query the current accumulated logs for all tags.
+
+  Returns a map of `%{tag => [logs]}` for all tags that have been written to.
+  Each tag's log list is in reverse chronological order (most recent first).
+  """
+  def peek_all(), do: %PeekAll{}
 
   @doc """
   Execute a computation and capture all logs written during it.
@@ -157,7 +166,7 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Pure
   alias Freyja.Effects.TaggedWriter
-  alias Freyja.Effects.TaggedWriter.{TellTagged, PeekTagged}
+  alias Freyja.Effects.TaggedWriter.{TellTagged, PeekTagged, PeekAll}
   alias Freyja.Run.RunState
 
   @behaviour Freyja.EffectHandler
@@ -193,6 +202,10 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
         # Return current log for this tag without modifying state
         current_log = Map.get(state, tag, [])
         {Impl.q_apply(q, current_log), state}
+
+      %PeekAll{} ->
+        # Return current logs for all tags without modifying state
+        {Impl.q_apply(q, state || %{}), state}
     end
   end
 
@@ -209,17 +222,6 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
   end
 end
 
-# First-order runner effect for listen
-defmodule Freyja.Effects.TaggedWriter.RunListen do
-  import Freyja.Freer.Sig.DefEffectStruct
-
-  def_effect_struct(RunListen, computation: nil)
-
-  def run_listen(computation) do
-    %RunListen{computation: computation}
-  end
-end
-
 defmodule Freyja.Effects.TaggedWriter.Algebra do
   @moduledoc """
   Algebra for elaborating TaggedWriter higher-order operations.
@@ -227,28 +229,31 @@ defmodule Freyja.Effects.TaggedWriter.Algebra do
   Currently only handles `listen` - tell and peek are first-order effects
   that use the existing TaggedWriter handler.
 
-  ## Listen Elaboration
+  ## Listen Elaboration (Interposition-based)
 
-  The listen operation elaborates using the runner effect pattern:
+  The listen operation uses interposition with PeekAll to capture logs:
 
-  1. Create RunListen first-order effect wrapping the inner computation
-  2. RunListenHandler executes it and returns `{result, captured_logs}`
-  3. Elaboration just binds the result to continuation
+  1. Use PeekAll to get initial log state before the computation
+  2. Run the inner computation (Tell operations execute normally)
+  3. Use PeekAll to get final log state after the computation
+  4. Calculate the diff to determine captured logs
+  5. Return {result, captured_logs}
 
-  The handler is responsible for:
-  - Capturing log changes during computation execution
-  - Returning captured logs as a map
-  - Propagating state changes via ScopedOk
+  This approach:
+  - No nested Run.run() call
+  - No ScopedOk needed
+  - Works correctly with suspensions (interposition preserves structure)
+  - All effects stay at the same level
 
-  This is simpler than the old scoped handler approach which had complex
-  log diffing logic mixed with effect interpretation.
+  The key insight: We don't need to intercept Tell operations, just query
+  the state before/after using PeekAll to calculate what was added.
   """
 
   @behaviour Freyja.Hefty.Algebra
 
+  alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.TaggedWriter.Listen
   import Freyja.Con
-  import Freyja.Effects.TaggedWriter.RunListen, only: [run_listen: 1]
 
   @impl true
   def handles?(sig) when sig == Freyja.Effects.TaggedWriter, do: true
@@ -259,98 +264,30 @@ defmodule Freyja.Effects.TaggedWriter.Algebra do
     # Extract already-elaborated inner computation
     inner_comp = Map.fetch!(psi, :inner)
 
-    # Use runner effect to execute and capture logs
+    # Use PeekAll to capture logs before and after
     con do
-      result_and_logs <- run_listen(inner_comp)
-      k.(result_and_logs)
+      # Get initial logs
+      initial_logs <- TaggedWriter.peek_all()
+
+      # Run the inner computation
+      result <- inner_comp
+
+      # Get final logs
+      final_logs <- TaggedWriter.peek_all()
+
+      # Calculate captured logs (what was added during inner_comp)
+      captured = calculate_captured_logs(initial_logs, final_logs)
+
+      # Return tuple and continue
+      k.({result, captured})
     end
   end
-end
 
-defmodule Freyja.Effects.TaggedWriter.RunListenHandler do
-  @moduledoc """
-  Handler for RunListen runner effect.
-
-  Executes a computation and captures all log writes, returning
-  `{result, captured_logs_map}`.
-
-  ## State Propagation
-
-  Uses ScopedOk to propagate state changes from the inner computation,
-  implementing non-transactional semantics (logs and other state changes
-  persist regardless of errors).
-  """
-
-  @behaviour Freyja.EffectHandler
-
-  alias Freyja.Effects.TaggedWriter.RunListen.RunListen
-  alias Freyja.Freer.Impure
-  alias Freyja.Run
-  alias Freyja.Run.RunState
-  alias Freyja.Run.RunEffects
-  alias Freyja.RunOutcome
-  alias Freyja.Effects.TaggedWriter
-
-  @impl true
-  def handles?(%Impure{sig: sig}, _state) do
-    sig == Freyja.Effects.TaggedWriter.RunListen
-  end
-
-  @impl true
-  def interpret(
-        %Impure{
-          sig: Freyja.Effects.TaggedWriter.RunListen,
-          data: %RunListen{computation: comp},
-          q: q
-        },
-        _handler_key,
-        state,
-        %RunState{} = run_state
-      ) do
-    # Run the inner computation
-    outcome = Run.run(comp, run_state)
-
-    # Get the initial state (before inner computation)
-    initial_tw_state = Map.get(run_state.states, TaggedWriter.Handler, %{})
-
-    # Get the final state (after inner computation)
-    final_tw_state = Map.get(outcome.outputs, TaggedWriter.Handler, %{})
-
-    # Calculate captured logs: what was added during the computation
-    captured_logs = calculate_captured_logs(initial_tw_state, final_tw_state)
-
-    # Extract the result value (now plain values, no wrapping)
-    result_value = outcome.result
-
-    # Return tuple of result and captured logs
-    result_tuple = {result_value, captured_logs}
-
-    # Use ScopedOk to propagate state changes
-    # Fix RunOutcome to have updated run_state (same pattern as old RunCatchingHandler)
-    corrected_outcome = %RunOutcome{
-      result: outcome.result,
-      outputs: outcome.outputs,
-      run_state: %{outcome.run_state | states: outcome.outputs}
-    }
-
-    scoped_ok_effect = %Impure{
-      sig: RunEffects,
-      data: %RunEffects.ScopedOk{
-        value: result_tuple,
-        run_outcome: corrected_outcome
-      },
-      q: q
-    }
-
-    {scoped_ok_effect, state}
-  end
-
-  # Calculate what logs were added during the computation
-  # by comparing initial and final states
-  defp calculate_captured_logs(initial_state, final_state) do
-    final_state
+  # Calculate what logs were added by comparing initial and final states
+  defp calculate_captured_logs(initial, final) do
+    final
     |> Enum.map(fn {tag, final_tag_log} ->
-      initial_tag_log = Map.get(initial_state, tag, [])
+      initial_tag_log = Map.get(initial, tag, [])
       # New logs are at the front (prepended)
       new_logs = Enum.take(final_tag_log, length(final_tag_log) - length(initial_tag_log))
       {tag, new_logs}

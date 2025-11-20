@@ -3,7 +3,7 @@ defmodule Freyja.Effects.StateTest do
 
   require Logger
 
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.Reader
@@ -35,11 +35,12 @@ defmodule Freyja.Effects.StateTest do
 
   describe "simple state" do
     test "it does state stuff" do
-      outcome = Run.run(
-        calc(10),
-        [EffectLogger.Handler, State.Handler, Reader.Handler, Writer.Handler],
-        %{State.Handler => 5, Reader.Handler => %{env: 7}, Writer.Handler => []}
-      )
+      outcome =
+        Run.run(
+          calc(10),
+          [EffectLogger.Handler, State.Handler, Reader.Handler, Writer.Handler],
+          %{State.Handler => 5, Reader.Handler => %{env: 7}, Writer.Handler => []}
+        )
 
       assert outcome.result == %{sum: 22, product: 350}
       assert outcome.outputs[State.Handler] == 350

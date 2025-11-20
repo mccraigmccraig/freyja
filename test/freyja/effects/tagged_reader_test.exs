@@ -1,7 +1,7 @@
 defmodule Freyja.Effects.TaggedReaderTest do
   use ExUnit.Case
 
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.TaggedReader
   alias Freyja.Effects.Reader
@@ -150,17 +150,23 @@ defmodule Freyja.Effects.TaggedReaderTest do
   # Tests
   describe "basic tagged reader operations" do
     test "simple ask operation" do
-      outcome = Run.run(simple_ask_tagged(), [TaggedReader.Handler], %{TaggedReader.Handler => %{database: %{host: "localhost"}}})
+      outcome =
+        Run.run(simple_ask_tagged(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{database: %{host: "localhost"}}
+        })
 
       assert outcome.result == %{host: "localhost"}
     end
 
     test "ask multiple tags" do
-      outcome = Run.run(ask_multiple_tags(), [TaggedReader.Handler], %{TaggedReader.Handler => %{
-               database: %{host: "db.example.com"},
-               api: %{url: "https://api.example.com"},
-               environment: :production
-             }})
+      outcome =
+        Run.run(ask_multiple_tags(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{
+            database: %{host: "db.example.com"},
+            api: %{url: "https://api.example.com"},
+            environment: :production
+          }
+        })
 
       assert outcome.result == %{
                db: %{host: "db.example.com"},
@@ -178,7 +184,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
   describe "read-only behavior" do
     test "asking twice returns same value" do
-      outcome = Run.run(ask_twice_same_tag(), [TaggedReader.Handler], %{TaggedReader.Handler => %{config: %{setting: "value"}}})
+      outcome =
+        Run.run(ask_twice_same_tag(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{config: %{setting: "value"}}
+        })
 
       {val1, val2} = outcome.result
       assert val1 == %{setting: "value"}
@@ -189,7 +198,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
     test "environment is truly read-only" do
       original = %{value: 42}
 
-      outcome = Run.run(modify_and_ask_again(), [TaggedReader.Handler], %{TaggedReader.Handler => %{data: original}})
+      outcome =
+        Run.run(modify_and_ask_again(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{data: original}
+        })
 
       {env1, env2} = outcome.result
       assert env1 == original
@@ -200,23 +212,25 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
   describe "composition with other effects" do
     test "TaggedReader with State" do
-      outcome = Run.run(reader_state_composition(), [TaggedReader.Handler, State.Handler], %{
-        TaggedReader.Handler => %{multiplier: 3},
-        State.Handler => 5
-      })
+      outcome =
+        Run.run(reader_state_composition(), [TaggedReader.Handler, State.Handler], %{
+          TaggedReader.Handler => %{multiplier: 3},
+          State.Handler => 5
+        })
 
       assert outcome.result == 15
       assert outcome.outputs[State.Handler] == 15
     end
 
     test "TaggedReader with Writer" do
-      outcome = Run.run(reader_writer_composition(), [TaggedReader.Handler, Writer.Handler], %{
-        TaggedReader.Handler => %{
-          database: %{host: "db.local"},
-          api: %{url: "https://api.local"}
-        },
-        Writer.Handler => []
-      })
+      outcome =
+        Run.run(reader_writer_composition(), [TaggedReader.Handler, Writer.Handler], %{
+          TaggedReader.Handler => %{
+            database: %{host: "db.local"},
+            api: %{url: "https://api.local"}
+          },
+          Writer.Handler => []
+        })
 
       assert outcome.result == {:configured, %{host: "db.local"}, %{url: "https://api.local"}}
 
@@ -227,11 +241,16 @@ defmodule Freyja.Effects.TaggedReaderTest do
     end
 
     test "TaggedReader with State and Writer" do
-      outcome = Run.run(all_effects_composition(), [TaggedReader.Handler, State.Handler, Writer.Handler], %{
-        TaggedReader.Handler => %{multiplier: 4},
-        State.Handler => 7,
-        Writer.Handler => []
-      })
+      outcome =
+        Run.run(
+          all_effects_composition(),
+          [TaggedReader.Handler, State.Handler, Writer.Handler],
+          %{
+            TaggedReader.Handler => %{multiplier: 4},
+            State.Handler => 7,
+            Writer.Handler => []
+          }
+        )
 
       assert outcome.result == 28
       assert outcome.outputs[State.Handler] == 28
@@ -243,13 +262,14 @@ defmodule Freyja.Effects.TaggedReaderTest do
     end
 
     test "TaggedReader with regular Reader" do
-      outcome = Run.run(use_both_readers(), [Reader.Handler, TaggedReader.Handler], %{
-        Reader.Handler => %{global: "config"},
-        TaggedReader.Handler => %{
-          database: %{host: "db.example.com"},
-          api: %{url: "https://api.example.com"}
-        }
-      })
+      outcome =
+        Run.run(use_both_readers(), [Reader.Handler, TaggedReader.Handler], %{
+          Reader.Handler => %{global: "config"},
+          TaggedReader.Handler => %{
+            database: %{host: "db.example.com"},
+            api: %{url: "https://api.example.com"}
+          }
+        })
 
       assert outcome.result == %{
                regular: %{global: "config"},
@@ -261,12 +281,13 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
   describe "nested computations" do
     test "nested function calls" do
-      outcome = Run.run(nested_config_fetch(), [TaggedReader.Handler], %{
-        TaggedReader.Handler => %{
-          database: %{host: "nested.db"},
-          api: %{url: "https://nested.api"}
-        }
-      })
+      outcome =
+        Run.run(nested_config_fetch(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{
+            database: %{host: "nested.db"},
+            api: %{url: "https://nested.api"}
+          }
+        })
 
       assert outcome.result == %{
                database: %{host: "nested.db"},
@@ -275,7 +296,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
     end
 
     test "deep nesting propagates environment" do
-      outcome = Run.run(level1(), [TaggedReader.Handler], %{TaggedReader.Handler => %{deep: :deeply_nested_value}})
+      outcome =
+        Run.run(level1(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{deep: :deeply_nested_value}
+        })
 
       assert outcome.result == :deeply_nested_value
     end
@@ -288,7 +312,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
         api: %{base_url: "https://complex.api"}
       }
 
-      outcome = Run.run(complex_nested_env(), [TaggedReader.Handler], %{TaggedReader.Handler => %{config: config}})
+      outcome =
+        Run.run(complex_nested_env(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{config: config}
+        })
 
       assert outcome.result == "db: complex.db:5432, api: https://complex.api"
     end
@@ -296,30 +323,40 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
   describe "tag types" do
     test "supports atom tags" do
-      outcome = Run.run(use_atom_tag(), [TaggedReader.Handler], %{TaggedReader.Handler => %{atom_tag: :atom_value}})
+      outcome =
+        Run.run(use_atom_tag(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{atom_tag: :atom_value}
+        })
 
       assert outcome.result == :atom_value
     end
 
     test "supports string tags" do
-      outcome = Run.run(use_string_tag(), [TaggedReader.Handler], %{TaggedReader.Handler => %{"string_tag" => "string_value"}})
+      outcome =
+        Run.run(use_string_tag(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{"string_tag" => "string_value"}
+        })
 
       assert outcome.result == "string_value"
     end
 
     test "supports number tags" do
-      outcome = Run.run(use_number_tag(), [TaggedReader.Handler], %{TaggedReader.Handler => %{1 => "first", 2 => "second"}})
+      outcome =
+        Run.run(use_number_tag(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{1 => "first", 2 => "second"}
+        })
 
       assert outcome.result == {"first", "second"}
     end
 
     test "supports tuple tags" do
-      outcome = Run.run(use_tuple_tag(), [TaggedReader.Handler], %{
-        TaggedReader.Handler => %{
-          {:user, 123} => %{name: "Alice"},
-          {:user, 456} => %{name: "Bob"}
-        }
-      })
+      outcome =
+        Run.run(use_tuple_tag(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => %{
+            {:user, 123} => %{name: "Alice"},
+            {:user, 456} => %{name: "Bob"}
+          }
+        })
 
       assert outcome.result == {%{name: "Alice"}, %{name: "Bob"}}
     end

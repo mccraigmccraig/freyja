@@ -3,7 +3,7 @@ defmodule Freyja.Effects.ErrorTest do
 
   require Logger
 
-  import Freyja.HeftyMacro
+  import Freyja.Hefty.HeftyBlock
 
   alias Freyja.Hefty
   alias Freyja.Effects.Catch

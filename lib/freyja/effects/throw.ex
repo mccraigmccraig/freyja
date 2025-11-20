@@ -10,7 +10,7 @@ defmodule Freyja.Effects.Throw do
 
   ## Example
 
-      import Freyja.HeftyMacro
+      import Freyja.Hefty.HeftyBlock
 
       # Throw an error
       Lift.lift(Throw.throw_error("something went wrong"))

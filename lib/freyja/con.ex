@@ -49,7 +49,7 @@ defmodule Freyja.Con do
   end
 
   Note: For exception handling with `catch` clauses, use `hefty` instead,
-  as catch is a higher-order effect. See `Freyja.HeftyMacro.hefty/1`.
+  as catch is a higher-order effect. See `Freyja.Hefty.HeftyBlock.hefty/1`.
   """
   defmacro con(do: do_block), do: Freyja.Con.Impl.con([], do_block)
 

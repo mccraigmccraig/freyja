@@ -69,7 +69,8 @@ defmodule Freyja.Examples.HeftyChangeCapture do
 
   import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Hefty.Sig.DefHeftyStruct
-  import Freyja.HeftyMacro
+
+  use Freyja.Syntax
 
   alias Freyja.Effects.State
   alias Freyja.Effects.TaggedWriter
@@ -94,9 +95,6 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     - `def_hefty_struct` creates higher-order operation structs
     - Both live in the same module namespace
     """
-
-    import Freyja.Freer.Sig.DefEffectStruct
-    import Freyja.Hefty.Sig.DefHeftyStruct
 
     # First-order operations - go directly to Freer
     def_effect_struct(Query, ids: [])
@@ -235,7 +233,8 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     alias Freyja.Examples.HeftyChangeCapture.Storage.ApplyAllChanges
     alias Freyja.Effects.TaggedWriter
     alias Freyja.Freer
-    import Freyja.Con
+
+    use Freyja.Syntax
 
     @impl true
     def handles?(sig) when sig == Storage, do: true

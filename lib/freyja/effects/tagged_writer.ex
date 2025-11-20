@@ -24,7 +24,7 @@ defmodule Freyja.Effects.TaggedWriter do
 
   ## Example (Higher-order with listen)
 
-      import Freyja.HeftyMacro
+      import Freyja.Hefty.HeftyBlock
 
       hefty do
         tell(:audit, "before listen")
@@ -253,7 +253,7 @@ defmodule Freyja.Effects.TaggedWriter.Algebra do
 
   alias Freyja.Effects.TaggedWriter
   alias Freyja.Effects.TaggedWriter.Listen
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   @impl true
   def handles?(sig) when sig == Freyja.Effects.TaggedWriter, do: true

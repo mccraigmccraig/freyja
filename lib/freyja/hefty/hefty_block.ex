@@ -78,7 +78,7 @@ defmodule Freyja.Hefty.HeftyBlock do
 
   ## See Also
 
-  - `Freyja.Con` - For first-order (Freer) computations
+  - `Freyja.Hefty.FreerBlock` - For first-order (Freer) computations
   - `Freyja.Hefty.Sig.IHeftySendable` - Protocol for auto-lifting
   - `Freyja.Hefty.bind/2` - Monadic bind with auto-lifting
   """

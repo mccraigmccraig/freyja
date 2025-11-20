@@ -31,7 +31,7 @@ defmodule Freyja.Effects.FxList do
 
   ## Example
 
-      import Freyja.HeftyMacro
+      import Freyja.Hefty.HeftyBlock
 
       defhefty process_users(user_ids) do
         users <- FxList.fx_map(user_ids, fn id ->
@@ -156,7 +156,7 @@ defmodule Freyja.Effects.FxList.Algebra do
 
   alias Freyja.Effects.FxList.FxMap
   alias Freyja.Freer
-  import Freyja.Con
+  import Freyja.Freer.FreerBlock
 
   @impl true
   def handles?(sig) when sig == Freyja.Effects.FxList, do: true

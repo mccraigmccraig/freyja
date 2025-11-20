@@ -1,7 +1,7 @@
 defmodule Freyja.ConPureBindingsTest do
   use ExUnit.Case
 
-  import Freyja.Con
+  use Freyja.Syntax
 
   alias Freyja.Effects.State
   alias Freyja.Run

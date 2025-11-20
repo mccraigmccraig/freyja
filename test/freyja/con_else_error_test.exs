@@ -18,14 +18,14 @@ defmodule Freyja.ConElseErrorTest do
           {:invalid, n} -> return({:fixed, n + 1})
         end
 
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =
         Hefty.Run.run(fv, algebras, handlers, initial_states)
 
-      assert res == {:fixed, 4}
+      assert res == {:ok, {:fixed, 4}}
     end
 
     test "no matching clause rethrows" do
@@ -39,7 +39,7 @@ defmodule Freyja.ConElseErrorTest do
           :other -> return(:ok)
         end
 
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler]
       initial_states = %{}
 
@@ -60,14 +60,14 @@ defmodule Freyja.ConElseErrorTest do
             return(:ok)
         end
 
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler, Writer.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: out} =
         Hefty.Run.run(fv, algebras, handlers, initial_states)
 
-      assert res == :ok
+      assert res == {:ok, :ok}
       # Writer output is in reverse order (most recent first)
       assert out[Writer.Handler] == [{:handled, :bad}]
     end
@@ -83,14 +83,14 @@ defmodule Freyja.ConElseErrorTest do
           _ -> return(:handled)
         end
 
-      algebras = [Lift.Algebra, Catch.Algebra]
+      algebras = [Catch.Algebra, Lift.Algebra]
       handlers = [Throw.Handler]
       initial_states = %{}
 
       %Freyja.RunOutcome{result: res, outputs: _out} =
         Hefty.Run.run(fv, algebras, handlers, initial_states)
 
-      assert res == :handled
+      assert res == {:ok, :handled}
     end
   end
 end

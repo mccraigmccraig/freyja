@@ -124,7 +124,7 @@ defmodule Freyja.Hefty do
           }
   end
 
-  @type t :: Pure.t() | Impure.t()
+  @type t :: Pure.t() | Impure.t() | any
 
   @doc """
   Create a pure Hefty computation that immediately returns a value.

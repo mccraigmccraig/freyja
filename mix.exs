@@ -40,9 +40,7 @@ defmodule Freyja.MixProject do
 
   defp description do
     """
-    Algebraic effects and handlers for Elixir using the Hefty Algebras architecture.
-    Enables writing programs as pure functions with effects as data structures,
-    providing clean separation between effect description and interpretation.
+    Algebraic effects and handlers for Elixir.
     """
   end
 

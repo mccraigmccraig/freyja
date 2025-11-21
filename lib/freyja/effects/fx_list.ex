@@ -185,13 +185,11 @@ defmodule Freyja.Effects.FxList.Algebra do
 
   # Helper: Sequence a list of Freer computations
   # Returns Freer computation that produces list of results
-  defp sequence([]), do: Freer.pure([])
+  defconp(sequence([]), do: Freer.pure([]))
 
-  defp sequence([comp | rest]) do
-    con do
-      val <- comp
-      rest_vals <- sequence(rest)
-      return([val | rest_vals])
-    end
+  defconp sequence([comp | rest]) do
+    val <- comp
+    rest_vals <- sequence(rest)
+    return([val | rest_vals])
   end
 end

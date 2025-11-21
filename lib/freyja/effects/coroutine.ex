@@ -54,13 +54,23 @@ defmodule Freyja.Effects.Coroutine.Handler do
   def interpret(
         %Impure{sig: Coroutine, data: u, q: q} = _computation,
         _handler_key,
-        _state,
+        state,
         %RunState{}
       ) do
     case u do
       %Yield{value: val} ->
-        k = fn v -> Impl.q_apply(q, v) end
-        {Freer.return(%Suspend{value: val, continuation: k}), nil}
+        case state do
+          %{resume_value: resume_val} ->
+            # Resuming! Continue with resume_value instead of suspending
+            next = Impl.q_apply(q, resume_val)
+            # Clear resume_value so subsequent yields suspend normally
+            {next, Map.delete(state, :resume_value)}
+
+          _ ->
+            # Normal suspend
+            k = fn v -> Impl.q_apply(q, v) end
+            {Freer.return(%Suspend{value: val, continuation: k}), state}
+        end
     end
   end
 

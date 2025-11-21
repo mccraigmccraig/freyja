@@ -251,7 +251,27 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         updated_log = ILog.consume_log_entry(log)
         {Freyja.Freer.Impl.q_apply(q, value), updated_log}
 
-      # partially interpreted computation
+      # incomplete entry that matches current effect - for resuming from suspension
+      [
+        %StepLogEntry{
+          effects_queue: [
+            %EffectLogEntry{
+              sig: log_entry_sig,
+              data: log_entry_data
+            }
+            | _
+          ],
+          completed?: false
+        } = _log_entry
+        | _rest
+      ]
+      when sig == log_entry_sig and (u == log_entry_data or log_entry_data == nil) ->
+        # This is a suspension point (e.g., Coroutine.Yield)
+        # Pass through to handler - it will either suspend (first run) or resume (if state has resume_value)
+        # DON'T consume the entry yet - let LogInterpretedEffectValue complete it with the actual value
+        {computation, log}
+
+      # partially interpreted computation - effect doesn't match
       [
         %StepLogEntry{
           effects_queue: [%EffectLogEntry{} | _],
@@ -259,7 +279,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         } = _log_entry
         | _rest
       ] ->
-        # push the new effect tp the current log entry
+        # push the new effect to the current log entry
         # and carry on
         updated_log = ILog.push_effect(log, computation)
 

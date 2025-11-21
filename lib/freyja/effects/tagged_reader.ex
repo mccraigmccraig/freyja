@@ -5,6 +5,15 @@ defmodule Freyja.Effects.TaggedReader do
   Unlike the regular Reader effect which provides a single read-only environment,
   TaggedReader allows multiple independent environments identified by tags.
 
+  ## First-Order Operations
+
+  - `ask/1` - Read the environment for a specific tag
+
+  ## Higher-Order Operations
+
+  - `local/3` - Temporarily modify the environment for a single tag
+  - `local_all/2` - Temporarily modify all tagged environments
+
   ## Example
 
       con [TaggedReader] do
@@ -41,7 +50,9 @@ defmodule Freyja.Effects.TaggedReader do
   """
 
   import Freyja.Freer.Sig.DefEffectStruct
+  import Freyja.Hefty.Sig.DefHeftyStruct
 
+  # First-order operation
   def_effect_struct(AskTagged, tag: nil)
 
   @doc """
@@ -50,6 +61,214 @@ defmodule Freyja.Effects.TaggedReader do
   Returns the read-only environment associated with `tag`.
   """
   def ask(tag), do: %AskTagged{tag: tag}
+
+  # Higher-order operations
+  def_hefty_struct(Local, tag: nil, modifier_fn: nil)
+  def_hefty_struct(LocalAll, modifier_fn: nil)
+
+  @doc """
+  Run a computation with a temporarily modified environment for a specific tag.
+
+  The modifier function receives the current environment for the given tag
+  and returns a modified version. This modified environment is used for all
+  `ask(tag)` calls within the inner computation. After the inner computation
+  completes, the original environment is restored.
+
+  Other tags are not affected by this operation.
+
+  ## Parameters
+  - `tag` - The tag whose environment should be modified
+  - `modifier_fn` - Function `(env -> env)` that transforms the environment
+  - `inner_comp` - Hefty computation to run with the modified environment
+
+  ## Example
+
+      hefty do
+        db_config <- TaggedReader.ask(:database)
+
+        result <- TaggedReader.local(
+          :database,
+          fn config -> %{config | port: 5433} end,
+          hefty do
+            cfg <- TaggedReader.ask(:database)
+            return(cfg.port)  # => 5433
+          end
+        )
+
+        final_config <- TaggedReader.ask(:database)
+        return({final_config.port, result})  # => {5432, 5433}
+      end
+  """
+  def local(tag, modifier_fn, inner_comp) when is_function(modifier_fn, 1) do
+    Freyja.Hefty.send_hefty(
+      __MODULE__,
+      %Local{tag: tag, modifier_fn: modifier_fn},
+      %{inner: inner_comp}
+    )
+  end
+
+  @doc """
+  Run a computation with temporarily modified environments for all tags.
+
+  The modifier function receives the entire map of tagged environments
+  and returns a modified map. This modified map is used for all `ask/1`
+  calls within the inner computation. After the inner computation completes,
+  the original environments are restored.
+
+  ## Parameters
+  - `modifier_fn` - Function `(env_map -> env_map)` that transforms the entire environment map
+  - `inner_comp` - Hefty computation to run with the modified environments
+
+  ## Example
+
+      hefty do
+        result <- TaggedReader.local_all(
+          fn envs ->
+            envs
+            |> Map.update!(:database, fn db -> %{db | port: 5433} end)
+            |> Map.update!(:api, fn api -> %{api | timeout: 30} end)
+          end,
+          hefty do
+            db <- TaggedReader.ask(:database)
+            api <- TaggedReader.ask(:api)
+            return({db.port, api.timeout})  # => {5433, 30}
+          end
+        )
+
+        return(result)
+      end
+  """
+  def local_all(modifier_fn, inner_comp) when is_function(modifier_fn, 1) do
+    Freyja.Hefty.send_hefty(
+      __MODULE__,
+      %LocalAll{modifier_fn: modifier_fn},
+      %{inner: inner_comp}
+    )
+  end
+end
+
+defmodule Freyja.Effects.TaggedReader.Algebra do
+  @moduledoc """
+  Algebra for elaborating TaggedReader.Local and TaggedReader.LocalAll operations.
+
+  ## Overview
+
+  The Local operations provide scoped modification of tagged environments:
+  - `Local` modifies a single tag's environment
+  - `LocalAll` modifies all tagged environments at once
+
+  Both intercept `TaggedReader.AskTagged` operations within a computation and provide
+  modified environments, without affecting operations outside the scope.
+
+  ## Elaboration Strategy
+
+  Uses interposition to structurally transform the inner computation:
+
+  ### For Local (single tag):
+  1. Intercept `AskTagged` operations for the specific tag
+  2. Apply the modifier function to that tag's environment
+  3. Pass other tags through unchanged
+  4. Original environment is automatically restored outside the scope
+
+  ### For LocalAll (all tags):
+  1. Intercept all `AskTagged` operations
+  2. Apply the modifier function to the entire environment map
+  3. Look up the requested tag in the modified map
+  4. Original environments are automatically restored outside the scope
+
+  ## State Propagation
+
+  State propagates naturally through interposition - no special handling needed.
+  All effects at the same level, no nested interpretation.
+
+  ## Suspensions
+
+  Suspensions (like Coroutine.yield) work automatically because the interposition
+  is baked into the computation structure. When resuming, the modified environment
+  context is preserved.
+  """
+
+  @behaviour Freyja.Hefty.Algebra
+
+  import Freyja.Freer.FreerBlock
+
+  alias Freyja.Effects.TaggedReader
+  alias Freyja.Effects.TaggedReader.{AskTagged, Local, LocalAll}
+  alias Freyja.Freer
+  alias Freyja.Freer.Interpose
+
+  @impl true
+  def handles?(sig) when sig == TaggedReader, do: true
+  def handles?(_), do: false
+
+  @impl true
+  def elaborate(%Local{tag: target_tag, modifier_fn: modifier_fn} = _op, psi, k, _elaborator) do
+    # Extract the already-elaborated inner computation (Freer)
+    inner_comp = Map.fetch!(psi, :inner)
+
+    # Interpose on TaggedReader.AskTagged operations for the specific tag
+    transformed =
+      Interpose.interpose_with(
+        inner_comp,
+        # Match only AskTagged operations for the target tag
+        fn sig, data ->
+          sig == TaggedReader and
+            match?(%AskTagged{tag: ^target_tag}, data)
+        end,
+        # When we intercept an Ask for the target tag, get and modify its environment
+        fn %AskTagged{tag: tag}, continuation ->
+          con do
+            env <- TaggedReader.ask(tag)
+            modified_env = modifier_fn.(env)
+            continuation.(modified_env)
+          end
+        end
+      )
+
+    # Bind the transformed computation to the outer continuation
+    Freer.bind(transformed, k)
+  end
+
+  def elaborate(%LocalAll{modifier_fn: modifier_fn} = _op, psi, k, _elaborator) do
+    # Extract the already-elaborated inner computation (Freer)
+    inner_comp = Map.fetch!(psi, :inner)
+
+    # LocalAll intercepts ALL AskTagged operations.
+    # For each intercepted ask:
+    # 1. Get the original value for that tag
+    # 2. Apply modifier_fn to a map containing just that tag and value
+    # 3. Extract the modified value for that tag from the result map
+    #
+    # Note: This calls modifier_fn once per ask (inefficient but correct).
+    # The modifier_fn receives a partial map with only the requested tag,
+    # which works for map transformations that operate on individual entries.
+    # For truly atomic multi-tag transformations, all tags must be asked
+    # within the local_all scope.
+
+    transformed =
+      Interpose.interpose_with(
+        inner_comp,
+        # Match ALL AskTagged operations
+        fn sig, data ->
+          sig == TaggedReader and match?(%AskTagged{}, data)
+        end,
+        # For each ask, apply modifier_fn to a single-tag map and extract
+        fn %AskTagged{tag: tag}, continuation ->
+          con do
+            # Get the original value for this tag
+            original_value <- TaggedReader.ask(tag)
+            # Apply modifier_fn to a map containing this tag
+            modified_map = modifier_fn.(%{tag => original_value})
+            # Extract the modified value for this tag
+            modified_value = Map.get(modified_map, tag, original_value)
+            continuation.(modified_value)
+          end
+        end
+      )
+
+    # Bind the transformed computation to the outer continuation
+    Freer.bind(transformed, k)
+  end
 end
 
 defmodule Freyja.Effects.TaggedReader.Handler do

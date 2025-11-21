@@ -1,8 +1,9 @@
 defmodule Freyja.Effects.TaggedReaderTest do
   use ExUnit.Case
 
-  import Freyja.Freer.FreerBlock
+  use Freyja.Syntax
 
+  alias Freyja.Effects.Lift
   alias Freyja.Effects.TaggedReader
   alias Freyja.Effects.Reader
   alias Freyja.Effects.State
@@ -367,6 +368,317 @@ defmodule Freyja.Effects.TaggedReaderTest do
       assert_raise ArgumentError, ~r/TaggedReader.Handler state must be a map/, fn ->
         Run.run(trigger_error(), [TaggedReader.Handler], %{TaggedReader.Handler => "not a map"})
       end
+    end
+  end
+
+  describe "TaggedReader.Local higher-order operation" do
+    test "basic local modification for single tag" do
+      computation =
+        hefty do
+          base_db <- TaggedReader.ask(:database)
+          base_api <- TaggedReader.ask(:api)
+
+          result <-
+            TaggedReader.local(
+              :database,
+              fn config -> %{config | port: 5433} end,
+              hefty do
+                db <- TaggedReader.ask(:database)
+                api <- TaggedReader.ask(:api)
+                return({db.port, api.url})
+              end
+            )
+
+          final_db <- TaggedReader.ask(:database)
+          final_api <- TaggedReader.ask(:api)
+          return({base_db.port, base_api.url, result, final_db.port, final_api.url})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{
+            TaggedReader.Handler => %{
+              database: %{host: "db.local", port: 5432},
+              api: %{url: "https://api.local"}
+            }
+          }
+        )
+
+      # Base db port: 5432, api unchanged, inside local db port: 5433, after local db port: 5432 again
+      assert outcome.result ==
+               {5432, "https://api.local", {5433, "https://api.local"}, 5432, "https://api.local"}
+    end
+
+    test "nested local scopes for same tag" do
+      computation =
+        hefty do
+          result <-
+            TaggedReader.local(
+              :config,
+              fn val -> val + 10 end,
+              hefty do
+                level1 <- TaggedReader.ask(:config)
+
+                result <-
+                  TaggedReader.local(
+                    :config,
+                    fn val -> val + 10 end,
+                    hefty do
+                      level2 <- TaggedReader.ask(:config)
+                      return(level2)
+                    end
+                  )
+
+                return({level1, result})
+              end
+            )
+
+          base <- TaggedReader.ask(:config)
+          return({base, result})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{TaggedReader.Handler => %{config: 5}}
+        )
+
+      # Base: 5, first local: 15, second local: 25
+      assert outcome.result == {5, {15, 25}}
+    end
+
+    test "local for different tags independently" do
+      computation =
+        hefty do
+          result1 <-
+            TaggedReader.local(
+              :db,
+              fn port -> port + 1 end,
+              hefty do
+                TaggedReader.ask(:db)
+              end
+            )
+
+          result2 <-
+            TaggedReader.local(
+              :api,
+              fn timeout -> timeout * 2 end,
+              hefty do
+                TaggedReader.ask(:api)
+              end
+            )
+
+          db <- TaggedReader.ask(:db)
+          api <- TaggedReader.ask(:api)
+          return({result1, result2, db, api})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{TaggedReader.Handler => %{db: 5432, api: 30}}
+        )
+
+      # result1: 5433 (5432+1), result2: 60 (30*2), final: 5432, 30
+      assert outcome.result == {5433, 60, 5432, 30}
+    end
+
+    test "local with state effects" do
+      computation =
+        hefty do
+          result <-
+            TaggedReader.local(
+              :multiplier,
+              fn mult -> mult * 2 end,
+              hefty do
+                mult <- TaggedReader.ask(:multiplier)
+                counter <- State.get()
+                _unit <- State.put(counter * mult)
+                new_counter <- State.get()
+                return(new_counter)
+              end
+            )
+
+          final_mult <- TaggedReader.ask(:multiplier)
+          final_counter <- State.get()
+          return({result, final_mult, final_counter})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler, State.Handler],
+          %{TaggedReader.Handler => %{multiplier: 3}, State.Handler => 5}
+        )
+
+      # Inside local: multiplier is 6 (3*2), counter becomes 30 (5*6)
+      # Outside local: multiplier is 3, counter is 30 (state persists)
+      assert outcome.result == {30, 3, 30}
+      assert outcome.outputs[State.Handler] == 30
+    end
+  end
+
+  describe "TaggedReader.LocalAll higher-order operation" do
+    test "basic local_all modification" do
+      computation =
+        hefty do
+          base_db <- TaggedReader.ask(:database)
+          base_api <- TaggedReader.ask(:api)
+
+          result <-
+            TaggedReader.local_all(
+              fn envs ->
+                envs
+                |> Map.update(:database, %{}, fn db -> %{db | port: 5433} end)
+                |> Map.update(:api, %{}, fn api -> %{api | timeout: 60} end)
+              end,
+              hefty do
+                db <- TaggedReader.ask(:database)
+                api <- TaggedReader.ask(:api)
+                return({db.port, api.timeout})
+              end
+            )
+
+          final_db <- TaggedReader.ask(:database)
+          final_api <- TaggedReader.ask(:api)
+          return({base_db.port, base_api.timeout, result, final_db.port, final_api.timeout})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{
+            TaggedReader.Handler => %{
+              database: %{host: "db.local", port: 5432},
+              api: %{url: "https://api.local", timeout: 30}
+            }
+          }
+        )
+
+      # Base: 5432, 30; inside local_all: 5433, 60; after: 5432, 30
+      assert outcome.result == {5432, 30, {5433, 60}, 5432, 30}
+    end
+
+    test "local_all with map transformation" do
+      computation =
+        hefty do
+          result <-
+            TaggedReader.local_all(
+              fn envs ->
+                # Double all numeric values
+                Map.new(envs, fn {k, v} -> {k, v * 2} end)
+              end,
+              hefty do
+                a <- TaggedReader.ask(:a)
+                b <- TaggedReader.ask(:b)
+                c <- TaggedReader.ask(:c)
+                return(a + b + c)
+              end
+            )
+
+          a <- TaggedReader.ask(:a)
+          b <- TaggedReader.ask(:b)
+          return({result, a + b})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{TaggedReader.Handler => %{a: 1, b: 2, c: 3}}
+        )
+
+      # Inside local_all: 2+4+6=12, outside: 1+2=3
+      assert outcome.result == {12, 3}
+    end
+
+    test "nested local_all scopes" do
+      computation =
+        hefty do
+          result <-
+            TaggedReader.local_all(
+              fn envs -> Map.new(envs, fn {k, v} -> {k, v + 10} end) end,
+              hefty do
+                level1 <- TaggedReader.ask(:value)
+
+                result <-
+                  TaggedReader.local_all(
+                    fn envs -> Map.new(envs, fn {k, v} -> {k, v + 10} end) end,
+                    hefty do
+                      level2 <- TaggedReader.ask(:value)
+                      return(level2)
+                    end
+                  )
+
+                return({level1, result})
+              end
+            )
+
+          base <- TaggedReader.ask(:value)
+          return({base, result})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{TaggedReader.Handler => %{value: 5}}
+        )
+
+      # Base: 5, first local_all: 15, second local_all: 25
+      assert outcome.result == {5, {15, 25}}
+    end
+
+    test "local_all with coroutine yield" do
+      alias Freyja.Effects.Coroutine
+
+      computation =
+        hefty do
+          result <-
+            TaggedReader.local_all(
+              fn envs -> Map.new(envs, fn {k, v} -> {k, v * 2} end) end,
+              hefty do
+                before <- TaggedReader.ask(:value)
+                resume_val <- Coroutine.yield({:yielded, before})
+                after_resume <- TaggedReader.ask(:value)
+                return({before, resume_val, after_resume})
+              end
+            )
+
+          final <- TaggedReader.ask(:value)
+          return({result, final})
+        end
+
+      # Initial run - suspends inside local_all scope
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler, Coroutine.Handler],
+          %{TaggedReader.Handler => %{value: 10}}
+        )
+
+      # Should suspend with modified value (10*2=20)
+      assert {:suspend, {:yielded, 20}, _continuation} = outcome.result
+
+      # Resume the computation
+      outcome2 = Run.resume(outcome, :resumed)
+
+      # After resume, local_all scope still applies, then restores
+      # Result: {{before, resume_val, after_resume}, final}
+      assert {:done, {{20, :resumed, 20}, 10}} = outcome2.result
     end
   end
 end

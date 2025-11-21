@@ -1,6 +1,8 @@
 # Freyja
 
 [![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/freyja.svg)](https://hex.pm/packages/freyja)
+[![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/freyja/)
 
 **Algebraic Effects for Elixir**
 

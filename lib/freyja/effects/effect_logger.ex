@@ -211,6 +211,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
     {computation, finalized_log}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def log_or_resume(%Impure{sig: sig, data: u, q: q} = computation, log) do
     current_log = ILog.current_log(log)
 

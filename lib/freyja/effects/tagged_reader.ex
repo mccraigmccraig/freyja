@@ -8,6 +8,7 @@ defmodule Freyja.Effects.TaggedReader do
   ## First-Order Operations
 
   - `ask/1` - Read the environment for a specific tag
+  - `ask_all/0` - Read all tagged environments as a map
 
   ## Higher-Order Operations
 
@@ -52,8 +53,9 @@ defmodule Freyja.Effects.TaggedReader do
   import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Hefty.Sig.DefHeftyStruct
 
-  # First-order operation
+  # First-order operations
   def_effect_struct(AskTagged, tag: nil)
+  def_effect_struct(AskAll)
 
   @doc """
   Ask for the environment value associated with the given tag.
@@ -61,6 +63,27 @@ defmodule Freyja.Effects.TaggedReader do
   Returns the read-only environment associated with `tag`.
   """
   def ask(tag), do: %AskTagged{tag: tag}
+
+  @doc """
+  Ask for all tagged environments as a map.
+
+  Returns the entire map of tagged environments from the handler state.
+  This is useful when you need to access multiple tags or perform operations
+  that require knowledge of all available tags.
+
+  ## Example
+
+      con [TaggedReader] do
+        all_envs <- ask_all()
+        # all_envs is a map: %{database: ..., api: ..., etc}
+
+        db <- ask(:database)
+        # Equivalent to: Map.get(all_envs, :database)
+
+        return({all_envs, db})
+      end
+  """
+  def ask_all, do: %AskAll{}
 
   # Higher-order operations
   def_hefty_struct(Local, tag: nil, modifier_fn: nil)
@@ -193,7 +216,7 @@ defmodule Freyja.Effects.TaggedReader.Algebra do
   import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.TaggedReader
-  alias Freyja.Effects.TaggedReader.{AskTagged, Local, LocalAll}
+  alias Freyja.Effects.TaggedReader.{AskTagged, AskAll, Local, LocalAll}
   alias Freyja.Freer
   alias Freyja.Freer.Interpose
 
@@ -233,36 +256,50 @@ defmodule Freyja.Effects.TaggedReader.Algebra do
     # Extract the already-elaborated inner computation (Freer)
     inner_comp = Map.fetch!(psi, :inner)
 
-    # LocalAll intercepts ALL AskTagged operations.
-    # For each intercepted ask:
+    # LocalAll intercepts ALL TaggedReader operations (both AskTagged and AskAll).
+    # For AskTagged operations:
     # 1. Get the original value for that tag
     # 2. Apply modifier_fn to a map containing just that tag and value
     # 3. Extract the modified value for that tag from the result map
     #
-    # Note: This calls modifier_fn once per ask (inefficient but correct).
+    # For AskAll operations:
+    # 1. Get all original values
+    # 2. Apply modifier_fn to the entire map
+    # 3. Return the modified map
+    #
+    # Note: For AskTagged, this calls modifier_fn once per ask (inefficient but correct).
     # The modifier_fn receives a partial map with only the requested tag,
     # which works for map transformations that operate on individual entries.
-    # For truly atomic multi-tag transformations, all tags must be asked
-    # within the local_all scope.
+    # For truly atomic multi-tag transformations, use ask_all within the local_all scope.
 
     transformed =
       Interpose.interpose_with(
         inner_comp,
-        # Match ALL AskTagged operations
+        # Match ALL TaggedReader operations
         fn sig, data ->
-          sig == TaggedReader and match?(%AskTagged{}, data)
+          sig == TaggedReader and (match?(%AskTagged{}, data) or match?(%AskAll{}, data))
         end,
-        # For each ask, apply modifier_fn to a single-tag map and extract
-        fn %AskTagged{tag: tag}, continuation ->
-          con do
-            # Get the original value for this tag
-            original_value <- TaggedReader.ask(tag)
-            # Apply modifier_fn to a map containing this tag
-            modified_map = modifier_fn.(%{tag => original_value})
-            # Extract the modified value for this tag
-            modified_value = Map.get(modified_map, tag, original_value)
-            continuation.(modified_value)
-          end
+        # Handle both AskTagged and AskAll
+        fn
+          %AskTagged{tag: tag}, continuation ->
+            con do
+              # Get the original value for this tag
+              original_value <- TaggedReader.ask(tag)
+              # Apply modifier_fn to a map containing this tag
+              modified_map = modifier_fn.(%{tag => original_value})
+              # Extract the modified value for this tag
+              modified_value = Map.get(modified_map, tag, original_value)
+              continuation.(modified_value)
+            end
+
+          %AskAll{}, continuation ->
+            con do
+              # Get all original values
+              original_map <- TaggedReader.ask_all()
+              # Apply modifier_fn to the entire map
+              modified_map = modifier_fn.(original_map)
+              continuation.(modified_map)
+            end
         end
       )
 
@@ -298,7 +335,7 @@ defmodule Freyja.Effects.TaggedReader.Handler do
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Effects.TaggedReader
-  alias Freyja.Effects.TaggedReader.AskTagged
+  alias Freyja.Effects.TaggedReader.{AskTagged, AskAll}
   alias Freyja.Run.RunState
 
   @behaviour Freyja.Freer.EffectHandler
@@ -325,6 +362,10 @@ defmodule Freyja.Effects.TaggedReader.Handler do
         value = Map.get(state, tag)
         # Reader effect doesn't modify state - it's read-only
         {Impl.q_apply(q, value), state}
+
+      %AskAll{} ->
+        # Return the entire state map
+        {Impl.q_apply(q, state), state}
     end
   end
 end

@@ -148,6 +148,42 @@ defmodule Freyja.Effects.TaggedReaderTest do
     ask(:config)
   end
 
+  defcon get_all_envs, [TaggedReader] do
+    ask_all()
+  end
+
+  defcon compare_all_and_individual, [TaggedReader] do
+    all_envs <- ask_all()
+    db <- ask(:database)
+    api <- ask(:api)
+
+    return(%{
+      all: all_envs,
+      db_from_all: Map.get(all_envs, :database),
+      api_from_all: Map.get(all_envs, :api),
+      db_individual: db,
+      api_individual: api
+    })
+  end
+
+  defcon get_all_empty, [TaggedReader] do
+    ask_all()
+  end
+
+  defcon process_all_tags, [TaggedReader] do
+    all <- ask_all()
+
+    result <-
+      return(
+        all
+        |> Map.keys()
+        |> Enum.sort()
+        |> Enum.map(fn key -> {key, Map.get(all, key)} end)
+      )
+
+    return(result)
+  end
+
   # Tests
   describe "basic tagged reader operations" do
     test "simple ask operation" do
@@ -180,6 +216,59 @@ defmodule Freyja.Effects.TaggedReaderTest do
       outcome = Run.run(ask_missing_tag(), [TaggedReader.Handler], %{TaggedReader.Handler => %{}})
 
       assert outcome.result == nil
+    end
+
+    test "ask_all returns entire environment map" do
+      state = %{
+        database: %{host: "db.example.com", port: 5432},
+        api: %{url: "https://api.example.com", timeout: 30},
+        environment: :production
+      }
+
+      outcome =
+        Run.run(get_all_envs(), [TaggedReader.Handler], %{TaggedReader.Handler => state})
+
+      assert outcome.result == state
+    end
+
+    test "ask_all with individual asks" do
+      state = %{
+        database: %{host: "db.local"},
+        api: %{url: "https://api.local"}
+      }
+
+      outcome =
+        Run.run(compare_all_and_individual(), [TaggedReader.Handler], %{
+          TaggedReader.Handler => state
+        })
+
+      result = outcome.result
+      assert result.all == state
+      assert result.db_from_all == result.db_individual
+      assert result.api_from_all == result.api_individual
+    end
+
+    test "ask_all returns empty map when no environments" do
+      outcome = Run.run(get_all_empty(), [TaggedReader.Handler], %{TaggedReader.Handler => %{}})
+
+      assert outcome.result == %{}
+    end
+
+    test "ask_all with computation using all tags" do
+      state = %{
+        database: %{host: "db"},
+        api: %{url: "api"},
+        cache: %{ttl: 300}
+      }
+
+      outcome =
+        Run.run(process_all_tags(), [TaggedReader.Handler], %{TaggedReader.Handler => state})
+
+      assert outcome.result == [
+               {:api, %{url: "api"}},
+               {:cache, %{ttl: 300}},
+               {:database, %{host: "db"}}
+             ]
     end
   end
 
@@ -679,6 +768,61 @@ defmodule Freyja.Effects.TaggedReaderTest do
       # After resume, local_all scope still applies, then restores
       # Result: {{before, resume_val, after_resume}, final}
       assert {:done, {{20, :resumed, 20}, 10}} = outcome2.result
+    end
+
+    test "local_all with ask_all" do
+      computation =
+        hefty do
+          base_all <- TaggedReader.ask_all()
+
+          result <-
+            TaggedReader.local_all(
+              fn envs ->
+                Map.new(envs, fn
+                  {:database, db} -> {:database, %{db | port: db.port + 1}}
+                  {:api, api} -> {:api, %{api | timeout: api.timeout * 2}}
+                  {k, v} -> {k, v}
+                end)
+              end,
+              hefty do
+                modified_all <- TaggedReader.ask_all()
+                db <- TaggedReader.ask(:database)
+                api <- TaggedReader.ask(:api)
+                return({modified_all, db, api})
+              end
+            )
+
+          final_all <- TaggedReader.ask_all()
+          return({base_all, result, final_all})
+        end
+
+      state = %{
+        database: %{host: "db.local", port: 5432},
+        api: %{url: "https://api.local", timeout: 30}
+      }
+
+      outcome =
+        Run.run(
+          computation,
+          [TaggedReader.Algebra, Lift.Algebra],
+          [TaggedReader.Handler],
+          %{TaggedReader.Handler => state}
+        )
+
+      {base_all, {modified_all, db, api}, final_all} = outcome.result
+
+      # Base state unchanged
+      assert base_all == state
+      assert final_all == state
+
+      # Modified state inside local_all
+      assert modified_all == %{
+               database: %{host: "db.local", port: 5433},
+               api: %{url: "https://api.local", timeout: 60}
+             }
+
+      assert db == %{host: "db.local", port: 5433}
+      assert api == %{url: "https://api.local", timeout: 60}
     end
   end
 end

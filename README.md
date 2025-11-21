@@ -1,5 +1,7 @@
 # Freyja
 
+[![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
+
 **Algebraic Effects for Elixir**
 
 ---

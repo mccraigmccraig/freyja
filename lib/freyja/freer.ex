@@ -36,6 +36,7 @@ defmodule Freyja.Freer do
   # this is terrible - but there's no way of specifying
   # the ISendable Protocol constraint in typespecs afaics
   @type freer() :: %Pure{} | %Impure{} | any
+  @type t() :: freer()
 
   def freer?(%Pure{}), do: true
   def freer?(%Impure{}), do: true

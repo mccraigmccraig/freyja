@@ -250,6 +250,7 @@ defmodule Freyja.Hefty.Elaborate do
       algebra.handles?(sig)
     rescue
       UndefinedFunctionError ->
+        # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
         raise ArgumentError, """
         Module #{inspect(algebra)} does not implement Freyja.Hefty.Algebra.
 

@@ -340,11 +340,10 @@ defmodule Freyja.Run do
     handlers
     |> Enum.reduce({computation, run_state}, fn {key, mod}, {pure, run_state} ->
       if function_exported?(mod, :finalize, 4) do
-        # Logger.error("#{inspect(pure)}\n#{inspect(key)}\n#{inspect(run_state)}")
         {pure, updated_state} = mod.finalize(pure, key, Map.get(run_state.states, key), run_state)
         {pure, %{run_state | states: Map.put(run_state.states, key, updated_state)}}
       else
-        {computation, run_state}
+        {pure, run_state}
       end
     end)
   end

@@ -270,7 +270,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       first_outcome = Run.run(computation, algebras, handlers, initial_states)
 
       assert %RunOutcome{
-               result: {:success, 10, 15},
+               result: {:ok, {:success, 10, 15}},
                outputs: outputs
              } = first_outcome
 
@@ -281,7 +281,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       second_outcome = Run.run(computation, algebras, handlers, outputs)
 
       assert %RunOutcome{
-               result: {:success, 10, 15},
+               result: {:ok, {:success, 10, 15}},
                outputs: replayed_outputs
              } = second_outcome
 

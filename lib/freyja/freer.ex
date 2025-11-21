@@ -76,6 +76,29 @@ defmodule Freyja.Freer do
   # this allows plain Sendable structs to behave just like Freer values
   # which have been sent with `etaf` / `send_effect`
   def bind(sendable, k), do: ISendable.send(sendable) |> bind(k)
+
+  @doc """
+  Monadic bind operator (>>=/2).
+
+  Infix version of `bind/2` for more readable computation chains.
+
+  ## Examples
+
+      use Freyja.Freer.Operators
+
+      computation =
+        some_operation()
+        ~>> fn x ->
+          another_operation(x)
+          ~>> fn y ->
+            pure(x + y)
+          end
+        end
+  """
+  @spec freer() ~>> (any -> freer()) :: freer()
+  def computation ~>> continuation do
+    bind(computation, continuation)
+  end
 end
 
 defimpl Freyja.Freer.Sig.ISendable, for: Freyja.Freer.Pure do

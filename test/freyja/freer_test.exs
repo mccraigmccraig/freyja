@@ -2,8 +2,13 @@ defmodule Freyja.FreerTest do
   use ExUnit.Case
 
   require Logger
+  import Freyja.Freer, only: [~>>: 2]
+  import Freyja.Freer.FreerBlock
+
+  alias Freyja.Effects.State
   alias Freyja.Freer
   alias Freyja.Freer.{Pure, Impure}
+  alias Freyja.Run
 
   describe "pure" do
     test "it wraps a value" do
@@ -63,6 +68,92 @@ defmodule Freyja.FreerTest do
       assert %Pure{val: 20} = step_2_2.(10)
       assert %Impure{sig: EffectMod, data: 20, q: [^pure, step_3_2]} = step_3.(20)
       assert %Pure{val: 25} = step_3_2.(20)
+    end
+  end
+
+  describe "~>> operator" do
+    test "chains pure computations" do
+      computation =
+        Freer.pure(5)
+        ~>> fn x ->
+          Freer.pure(x * 2)
+        end
+        ~>> fn y ->
+          Freer.pure(y + 3)
+        end
+
+      # (5 * 2) + 3 = 13
+      assert %Freer.Pure{val: 13} = computation
+    end
+
+    test "chains effect operations" do
+      computation =
+        State.get()
+        ~>> fn count ->
+          State.put(count + 10)
+          ~>> fn _unit ->
+            State.get()
+            ~>> fn new_count ->
+              Freer.pure(new_count)
+            end
+          end
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [State.Handler],
+          %{State.Handler => 5}
+        )
+
+      # Initial: 5, after put: 15
+      assert outcome.result == 15
+      assert outcome.outputs[State.Handler] == 15
+    end
+
+    test "equivalent to bind" do
+      # Using ~>>
+      comp1 =
+        Freer.pure(10)
+        ~>> fn x ->
+          Freer.pure(x + 5)
+        end
+
+      # Using bind
+      comp2 = Freer.bind(Freer.pure(10), fn x -> Freer.pure(x + 5) end)
+
+      assert comp1 == comp2
+    end
+
+    test "mixed with con do notation" do
+      computation =
+        con do
+          x <- State.get()
+          y <- State.put(x * 2) ~>> fn _unit -> State.get() end
+          return({x, y})
+        end
+
+      outcome =
+        Run.run(
+          computation,
+          [State.Handler],
+          %{State.Handler => 7}
+        )
+
+      # x = 7, y = 14
+      assert outcome.result == {7, 14}
+    end
+
+    test "operator precedence and associativity" do
+      # Test that ~>> is left-associative
+      computation =
+        Freer.pure(1)
+        ~>> fn x -> Freer.pure(x + 1) end
+        ~>> fn x -> Freer.pure(x * 2) end
+        ~>> fn x -> Freer.pure(x + 10) end
+
+      # ((1 + 1) * 2) + 10 = 14
+      assert %Freer.Pure{val: 14} = computation
     end
   end
 end

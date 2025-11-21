@@ -19,8 +19,6 @@ Freyja implements the **Hefty Algebras** architecture from [Poulsen & van der Re
 
 This architecture makes complex effect interactions (like error handling with suspensions) work correctly by construction, without requiring special handling or workarounds.
 
-Beyond clean architecture, Freyja's effect-based approach makes your application naturally ready for modern use cases like LLM agent integration via MCP (Model Context Protocol), where effects serve as serializable, composable tool interfaces. See [`MCP_EFFECTS_2.md`](MCP_EFFECTS_2.md) for details.
-
 ---
 
 ## Quick Example
@@ -419,7 +417,7 @@ outcome = Run.run(
 )
 ```
 
-Full example: [`lib/freyja/examples/hefty_change_capture.ex`](lib/freyja/examples/hefty_change_capture.ex)
+Full example: [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/hefty_change_capture.ex)
 
 ---
 
@@ -668,7 +666,7 @@ When the computation suspends (Coroutine.yield), the Throw interception is prese
 
 ### Change Tracking with Bulk Updates
 
-See [`lib/freyja/examples/hefty_change_capture.ex`](lib/freyja/examples/hefty_change_capture.ex) for a complete example showing:
+See [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/hefty_change_capture.ex) for a complete example showing:
 - Custom Storage effect with higher-order `apply_all_changes`
 - Using `TaggedWriter.listen` to capture changes
 - Composing with `FxList.fx_map` for batch processing
@@ -676,7 +674,7 @@ See [`lib/freyja/examples/hefty_change_capture.ex`](lib/freyja/examples/hefty_ch
 
 ### Error Handling Examples
 
-See [`test/freyja/hefty_macro_test.exs`](test/freyja/hefty_macro_test.exs) for comprehensive error handling patterns:
+See [`test/freyja/hefty_macro_test.exs`](https://github.com/mccraigmccraig/freyja/blob/main/test/freyja/hefty_macro_test.exs) for comprehensive error handling patterns:
 - Pattern matching in catch clauses
 - Nested error handlers
 - Error handling with state effects
@@ -684,7 +682,7 @@ See [`test/freyja/hefty_macro_test.exs`](test/freyja/hefty_macro_test.exs) for c
 
 ### Suspension and Resumption
 
-See [`test/freyja/effects/scoped_test.exs`](test/freyja/effects/scoped_test.exs) for examples of:
+See [`test/freyja/effects/scoped_test.exs`](https://github.com/mccraigmccraig/freyja/blob/main/test/freyja/effects/scoped_test.exs) for examples of:
 - Suspending inside error handlers
 - Resuming with catch scope preserved
 - Multiple suspensions with complex effect stacks
@@ -848,7 +846,7 @@ For higher-order effects, implement an Algebra - see existing algebras for patte
 
 ## Documentation
 
-- **MCP Integration**: [`MCP_EFFECTS_2.md`](MCP_EFFECTS_2.md) - LLM agent integration
+- **MCP Integration**: [`MCP_EFFECTS_2.md`](https://github.com/mccraigmccraig/freyja/blob/main/MCP_EFFECTS_2.md) - LLM agent integration
 - **Architecture**: Module docs in `lib/freyja/` explain implementation details
 - **Examples**: [`lib/freyja/examples/`](lib/freyja/examples/) - Real-world patterns
 - **Tests**: [`test/freyja/`](test/) - Comprehensive usage examples
@@ -865,7 +863,7 @@ Freyja uses interposition (from Heftia) for elaborating higher-order effects. Th
 - Single top-level interpreter
 - O(H + S) complexity instead of O(H × S)
 
-See [`lib/freyja/freer/interpose.ex`](lib/freyja/freer/interpose.ex) for the implementation.
+See [`lib/freyja/freer/interpose.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/freer/interpose.ex) for the implementation.
 
 ### No Special Cases
 

@@ -176,6 +176,6 @@ defmodule Freyja.Hefty.Algebra do
               operation :: struct,
               psi :: %{any => Freer.t()},
               k :: (any -> Freer.t()),
-              elaborator :: (Hefty.t() -> Freer.t())
+              elaborator :: (Freyja.Hefty.t() -> Freer.t())
             ) :: Freer.t()
 end

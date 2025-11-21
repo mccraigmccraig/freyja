@@ -15,6 +15,9 @@ defmodule Freyja.MixProject do
       docs: [
         main: "readme",
         extras: ["README.md"]
+      ],
+      dialyzer: [
+        ignore_warnings: ".dialyzer_ignore.exs"
       ]
     ]
   end

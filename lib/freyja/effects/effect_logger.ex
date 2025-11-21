@@ -21,7 +21,6 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Pure
   alias Freyja.Freer.Impure
-  alias Freyja.Effects.Coroutine
   alias Freyja.Effects.EffectLogger
   alias Freyja.Effects.EffectLogger.ILog
   alias Freyja.Effects.EffectLogger.Log
@@ -176,13 +175,6 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         # capturing the value of an executed effect
         updated_log = ILog.log_interpreted_effect_value(log, val)
         {Impl.q_apply(q, val), updated_log}
-
-      # don't touch ScopedYield effects, they reach through
-      # nested scopes and will be logged in their originating
-      # scope
-      {Coroutine, %Coroutine.ScopedYield{value: _yield_value}} ->
-        # Logger.error("#{__MODULE__} Coroutine.ScopedYield: #{inspect(yield_value, pretty: true)}")
-        {computation, log}
 
       _ ->
         # Logger.error("#{__MODULE__}.run_logger log_or_resume")

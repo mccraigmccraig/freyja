@@ -86,4 +86,19 @@ defmodule Freyja.Effects.Coroutine.Handler do
     # Suspensions already bypass finalize, so they stay as {:suspend, _, _}
     {%Pure{val: {:done, val}}, state}
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      computation |> Coroutine.Handler.run()
+
+      # With resume_value for resuming suspended computations
+      builder |> Coroutine.Handler.run(%{resume_value: 42})
+  """
+  def run(computation_or_builder, initial_state \\ :__default__) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end

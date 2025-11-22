@@ -95,4 +95,19 @@ defmodule Freyja.Effects.Throw.Handler do
 
     {%Pure{val: wrapped_val}, state}
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline (stateless, typically uses nil)
+      computation |> Throw.Handler.run()
+
+      # Can provide explicit state if needed
+      builder |> Throw.Handler.run(nil)
+  """
+  def run(computation_or_builder, initial_state \\ :__default__) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end

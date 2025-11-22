@@ -234,4 +234,19 @@ defmodule Freyja.Effects.Catch.Algebra do
     # Bind the transformed computation to the outer continuation
     Freer.bind(transformed, k)
   end
+
+  @doc """
+  Add this algebra to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      hefty_computation |> Catch.Algebra.run()
+
+      # Add to existing pipeline
+      builder |> Catch.Algebra.run()
+  """
+  def run(computation_or_builder) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, nil)
+  end
 end

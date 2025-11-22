@@ -271,4 +271,22 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         end
     end
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline with fresh log
+      computation |> EffectLogger.Handler.run(Log.new())
+
+      # Resume with existing log
+      builder |> EffectLogger.Handler.run(resume_log)
+
+      # For error resume with divergence allowed
+      builder |> EffectLogger.Handler.run(Log.for_error_resume(log))
+  """
+  def run(computation_or_builder, initial_state) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end

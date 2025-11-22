@@ -223,6 +223,24 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
     # Each tag's output will be in reverse chronological order (most recent first)
     {computation, state || %{}}
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      computation |> TaggedWriter.Handler.run(%{})
+
+      # With initial values per tag
+      builder |> TaggedWriter.Handler.run(%{log: ["initial"], audit: []})
+
+      # Use default empty map
+      builder |> TaggedWriter.Handler.run()
+  """
+  def run(computation_or_builder, initial_state \\ :__default__) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end
 
 defmodule Freyja.Effects.TaggedWriter.Algebra do
@@ -296,5 +314,20 @@ defmodule Freyja.Effects.TaggedWriter.Algebra do
       {tag, new_logs}
     end)
     |> Enum.into(%{})
+  end
+
+  @doc """
+  Add this algebra to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      hefty_computation |> TaggedWriter.Algebra.run()
+
+      # Add to existing pipeline
+      builder |> TaggedWriter.Algebra.run()
+  """
+  def run(computation_or_builder) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, nil)
   end
 end

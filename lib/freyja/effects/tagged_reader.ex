@@ -306,6 +306,21 @@ defmodule Freyja.Effects.TaggedReader.Algebra do
     # Bind the transformed computation to the outer continuation
     Freer.bind(transformed, k)
   end
+
+  @doc """
+  Add this algebra to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      hefty_computation |> TaggedReader.Algebra.run()
+
+      # Add to existing pipeline
+      builder |> TaggedReader.Algebra.run()
+  """
+  def run(computation_or_builder) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, nil)
+  end
 end
 
 defmodule Freyja.Effects.TaggedReader.Handler do
@@ -367,5 +382,20 @@ defmodule Freyja.Effects.TaggedReader.Handler do
         # Return the entire state map
         {Impl.q_apply(q, state), state}
     end
+  end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline with tagged environments
+      computation |> TaggedReader.Handler.run(%{db: db_config, api: api_config})
+
+      # Add to existing pipeline
+      builder |> TaggedReader.Handler.run(environments)
+  """
+  def run(computation_or_builder, initial_state) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
   end
 end

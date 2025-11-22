@@ -270,4 +270,19 @@ defmodule Freyja.Effects.Bracket.Algebra do
     # Bind the elaborated computation to the outer continuation
     Freer.bind(freer_comp, k)
   end
+
+  @doc """
+  Add this algebra to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      hefty_computation |> Bracket.Algebra.run()
+
+      # Add to existing pipeline
+      builder |> Bracket.Algebra.run()
+  """
+  def run(computation_or_builder) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, nil)
+  end
 end

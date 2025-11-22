@@ -148,4 +148,19 @@ defmodule Freyja.Effects.Lift.Algebra do
     # The computation is already first-order, no transformation needed
     Freer.bind(freer_comp, k)
   end
+
+  @doc """
+  Add this algebra to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      hefty_computation |> Lift.Algebra.run()
+
+      # Add to existing pipeline
+      builder |> Lift.Algebra.run()
+  """
+  def run(computation_or_builder) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, nil)
+  end
 end

@@ -192,4 +192,19 @@ defmodule Freyja.Effects.FxList.Algebra do
     rest_vals <- sequence(rest)
     return([val | rest_vals])
   end
+
+  @doc """
+  Add this algebra to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      hefty_computation |> FxList.Algebra.run()
+
+      # Add to existing pipeline
+      builder |> FxList.Algebra.run()
+  """
+  def run(computation_or_builder) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, nil)
+  end
 end

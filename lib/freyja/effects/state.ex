@@ -54,4 +54,19 @@ defmodule Freyja.Effects.State.Handler do
         {Impl.q_apply(q, state), state}
     end
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline with initial state
+      computation |> State.Handler.run(0)
+
+      # Add to existing pipeline
+      builder |> State.Handler.run(initial_state)
+  """
+  def run(computation_or_builder, initial_state) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end

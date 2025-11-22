@@ -50,4 +50,22 @@ defmodule Freyja.Effects.Writer.Handler do
     # Output will be in reverse chronological order (most recent first)
     {computation, state || []}
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline
+      computation |> Writer.Handler.run([])
+
+      # Add to existing pipeline
+      builder |> Writer.Handler.run(["initial"])
+
+      # Use default empty list
+      builder |> Writer.Handler.run()
+  """
+  def run(computation_or_builder, initial_state \\ :__default__) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end

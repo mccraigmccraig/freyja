@@ -144,4 +144,19 @@ defmodule Freyja.Effects.TaggedState.Handler do
         {Impl.q_apply(q, old_val), new_state}
     end
   end
+
+  @doc """
+  Add this handler to a computation or builder pipeline.
+
+  ## Examples
+
+      # Start new pipeline with tagged states
+      computation |> TaggedState.Handler.run(%{tag1: 0, tag2: 10})
+
+      # Add to existing pipeline
+      builder |> TaggedState.Handler.run(%{user: %{}, session: %{}})
+  """
+  def run(computation_or_builder, initial_state) do
+    Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+  end
 end

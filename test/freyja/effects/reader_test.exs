@@ -93,49 +93,55 @@ defmodule Freyja.Effects.ReaderTest do
   describe "Reader effect" do
     test "simple ask operation" do
       outcome =
-        Run.run(ReaderExamples.simple_ask(), [Reader.Handler], %{
-          Reader.Handler => %{config: "test"}
-        })
+        ReaderExamples.simple_ask()
+        |> Reader.Handler.run(%{config: "test"})
+        |> Run.run()
 
       assert outcome.result == %{config: "test"}
     end
 
     test "nested ask calls return same environment" do
       outcome =
-        Run.run(ReaderExamples.nested_ask(), [Reader.Handler], %{Reader.Handler => :test_env})
+        ReaderExamples.nested_ask()
+        |> Reader.Handler.run(:test_env)
+        |> Run.run()
 
       assert outcome.result == {:test_env, :test_env}
     end
 
     test "ask with different environment types - map" do
       outcome =
-        Run.run(ReaderExamples.ask_map(), [Reader.Handler], %{
-          Reader.Handler => %{host: "localhost", port: 8080}
-        })
+        ReaderExamples.ask_map()
+        |> Reader.Handler.run(%{host: "localhost", port: 8080})
+        |> Run.run()
 
       assert outcome.result == "localhost:8080"
     end
 
     test "ask with different environment types - atom" do
       outcome =
-        Run.run(ReaderExamples.ask_atom(), [Reader.Handler], %{Reader.Handler => :production})
+        ReaderExamples.ask_atom()
+        |> Reader.Handler.run(:production)
+        |> Run.run()
 
       assert outcome.result == {:got, :production}
     end
 
     test "ask with different environment types - string" do
       outcome =
-        Run.run(ReaderExamples.ask_string(), [Reader.Handler], %{Reader.Handler => "World"})
+        ReaderExamples.ask_string()
+        |> Reader.Handler.run("World")
+        |> Run.run()
 
       assert outcome.result == "Hello, World!"
     end
 
     test "Reader with State effect" do
       outcome =
-        Run.run(ReaderExamples.reader_with_state(), [Reader.Handler, State.Handler], %{
-          Reader.Handler => 3,
-          State.Handler => 5
-        })
+        ReaderExamples.reader_with_state()
+        |> Reader.Handler.run(3)
+        |> State.Handler.run(5)
+        |> Run.run()
 
       assert outcome.result == 15
       assert outcome.outputs[State.Handler] == 15
@@ -143,7 +149,9 @@ defmodule Freyja.Effects.ReaderTest do
 
     test "Reader used in function calls" do
       outcome =
-        Run.run(ReaderExamples.use_config(), [Reader.Handler], %{Reader.Handler => %{debug: true}})
+        ReaderExamples.use_config()
+        |> Reader.Handler.run(%{debug: true})
+        |> Run.run()
 
       assert outcome.result == {:using, %{debug: true}}
     end
@@ -152,9 +160,9 @@ defmodule Freyja.Effects.ReaderTest do
       original_env = %{value: 42}
 
       outcome =
-        Run.run(ReaderExamples.read_only_env(), [Reader.Handler], %{
-          Reader.Handler => original_env
-        })
+        ReaderExamples.read_only_env()
+        |> Reader.Handler.run(original_env)
+        |> Run.run()
 
       {env1, env2} = outcome.result
       assert env1 == original_env
@@ -169,7 +177,9 @@ defmodule Freyja.Effects.ReaderTest do
       }
 
       outcome =
-        Run.run(ReaderExamples.complex_nested(), [Reader.Handler], %{Reader.Handler => config})
+        ReaderExamples.complex_nested()
+        |> Reader.Handler.run(config)
+        |> Run.run()
 
       assert outcome.result == %{
                db: %{host: "db.example.com", port: 5432},
@@ -179,7 +189,9 @@ defmodule Freyja.Effects.ReaderTest do
 
     test "Reader propagates through multiple function calls" do
       outcome =
-        Run.run(ReaderExamples.level1(), [Reader.Handler], %{Reader.Handler => :deep_value})
+        ReaderExamples.level1()
+        |> Reader.Handler.run(:deep_value)
+        |> Run.run()
 
       assert outcome.result == :deep_value
     end
@@ -205,12 +217,11 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler],
-          %{Reader.Handler => %{debug: false}}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(%{debug: false})
+        |> Run.run()
 
       # Base config has debug: false, inside local it's true, after local it's false again
       assert outcome.result == {false, true, false}

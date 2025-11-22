@@ -53,6 +53,7 @@ defmodule Freyja.Run do
   alias Freyja.Hefty
   alias Freyja.Hefty.Elaborate
   alias Freyja.Hefty.Sig.IHeftySendable
+  alias Freyja.Run.RunBuilder
   alias Freyja.Run.RunState
   alias Freyja.Run.RunOutcome
 
@@ -98,6 +99,87 @@ defmodule Freyja.Run do
     end)
   end
 
+  # RunBuilder API - Pipe-friendly execution
+
+  @doc """
+  Execute a RunBuilder and return the full RunOutcome.
+
+  This is the primary execution function for the pipe-friendly builder API.
+
+  ## Examples
+
+      # Freer computation
+      outcome = computation
+        |> State.Handler.run(0)
+        |> Writer.Handler.run([])
+        |> Run.run()
+
+      # Hefty computation
+      outcome = hefty_computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> Run.run()
+  """
+  @spec run(RunBuilder.t()) :: RunOutcome.t()
+  def run(%RunBuilder{} = builder) do
+    case builder.computation_type do
+      :hefty ->
+        # Phase 1: Elaborate with algebras
+        freer = Elaborate.elaborate(builder.computation, builder.algebras)
+        # Phase 2: Interpret with handlers
+        run_freer(freer, builder.handlers)
+
+      :freer ->
+        # Just interpret with handlers
+        run_freer(builder.computation, builder.handlers)
+    end
+  end
+
+  @doc """
+  Execute a RunBuilder and return only the result value.
+
+  Equivalent to `run(builder).result`.
+
+  ## Examples
+
+      result = computation
+        |> State.Handler.run(5)
+        |> Run.eval()
+  """
+  @spec eval(RunBuilder.t()) :: any
+  def eval(%RunBuilder{} = builder) do
+    run(builder).result
+  end
+
+  @doc """
+  Execute a RunBuilder and return only the handler outputs/states.
+
+  Equivalent to `run(builder).outputs`.
+
+  ## Examples
+
+      outputs = computation
+        |> State.Handler.run(0)
+        |> Writer.Handler.run([])
+        |> Run.exec()
+  """
+  @spec exec(RunBuilder.t()) :: map
+  def exec(%RunBuilder{} = builder) do
+    run(builder).outputs
+  end
+
+
+  # Private helper for RunBuilder execution
+  defp run_freer(computation, handler_tuples) do
+    # Convert handler tuples to handlers list and states map
+    handlers = Enum.map(handler_tuples, &elem(&1, 0))
+    states = Map.new(handler_tuples)
+
+    # Use existing run implementation
+    run(computation, handlers, states)
+  end
+
   @doc """
   Resume a suspended computation with a value.
   """
@@ -112,9 +194,32 @@ defmodule Freyja.Run do
   end
 
   @doc """
-  Rerun a computation using the outputs from a previous run as the initial states.
+  Rerun a computation or builder using outputs from a previous run as the initial states.
   This is useful for replay/resume scenarios where you want to use logged states.
+
+  ## Examples
+
+      # With plain computation (old API)
+      outcome1 = Run.run(computation, handlers, states)
+      outcome2 = Run.rerun(computation, outcome1)
+
+      # With RunBuilder (new API)
+      builder = computation |> State.Handler.run(0)
+      outcome1 = Run.run(builder)
+      outcome2 = Run.rerun(builder, outcome1)
   """
+  def rerun(%RunBuilder{} = builder, %RunOutcome{} = outcome) do
+    # Update handler states from outcome
+    updated_handlers =
+      Enum.map(builder.handlers, fn {mod, _old_state} ->
+        new_state = Map.get(outcome.outputs, mod)
+        {mod, new_state}
+      end)
+
+    %{builder | handlers: updated_handlers}
+    |> run()
+  end
+
   def rerun(computation, %RunOutcome{outputs: outputs, run_state: previous_run_state}) do
     # Create new run state using outputs from previous run as initial states
     new_run_state = %{

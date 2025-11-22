@@ -29,7 +29,7 @@ Here's a simple program showing error handling with the Hefty `catch` syntax:
 
 ```elixir
 import Freyja.HeftyMacro
-alias Freyja.Effects.{State, Throw, Catch}
+alias Freyja.Effects.{State, Throw, Catch, Lift}
 
 defhefty safe_divide(a, b) do
   if b == 0 do
@@ -41,12 +41,12 @@ catch
   :division_by_zero -> return(:infinity)
 end
 
-# Run it
-outcome = Run.run(
-  safe_divide(10, 0),
-  [Catch.Algebra, Lift.Algebra],
-  [Throw.Handler]
-)
+# Run it with pipe-friendly API
+outcome = safe_divide(10, 0)
+  |> Catch.Algebra.run()
+  |> Lift.Algebra.run()
+  |> Throw.Handler.run()
+  |> Run.run()
 
 outcome.result  # => {:ok, :infinity}
 ```
@@ -57,35 +57,67 @@ The `catch` clause handles errors thrown during the computation, returning a fal
 
 ## Key Benefits
 
-### 1. Testability
+### 1. Domain/Plumbing Separation
+
+Effect-based programming lets you **build pure domain models** while keeping effectful code (I/O, state, errors) completely separated in handlers:
+
+```elixir
+# Pure domain logic - no mention of databases, APIs, or I/O!
+defcon process_user(user_id) do
+  user <- Storage.query(user_id)      # Effect as data
+  updated <- validate_and_update(user) # Pure business logic
+  _ <- Storage.save(updated)           # Effect as data
+  _ <- Audit.log({:updated, user_id})  # Effect as data
+  return(updated)
+end
+
+# All the "how" is in handlers:
+# - Storage.Handler: PostgreSQL, MongoDB, or in-memory mock
+# - Audit.Handler: Database, file, or no-op for tests
+# Your domain code knows nothing about implementation!
+```
+
+This separation means:
+- **Domain logic stays pure** - Easy to reason about, test, and refactor
+- **Infrastructure is pluggable** - Swap databases, logging, etc. without touching business logic
+- **No dependency injection** - Effects are data, handlers interpret them
+- **Tests are simple** - Mock handlers, no complex DI frameworks
+
+### 2. Testability
 
 Swap handlers to test programs without real side effects:
 
 ```elixir
 # Production: Real database
-Run.run(program, [Storage.PostgresHandler], %{})
+program
+|> Storage.PostgresHandler.run(db_config)
+|> Run.run()
 
 # Test: In-memory mock
-Run.run(program, [Storage.MockHandler], %{mock_data: fixtures})
+program
+|> Storage.MockHandler.run(fixtures)
+|> Run.run()
+
+# Same program, different interpretation!
 ```
 
-### 2. Clean Separation
+### 3. Pipe-Friendly API
 
-Programs describe effects as pure data. Handlers interpret them:
+Build effect pipelines naturally with Elixir's pipe operator:
 
 ```elixir
-# Pure program - just describes what to do
-defcon process_user(user_id) do
-  user <- Storage.query(user_id)
-  updated <- validate_and_update(user)
-  _ <- Storage.save(updated)
-  return(updated)
-end
+outcome = computation
+  |> State.Handler.run(0)
+  |> Writer.Handler.run([])
+  |> EffectLogger.Handler.run(Log.new())
+  |> Run.run()
 
-# Handler interprets effects (database, mock, logging, etc.)
+# Clear left-to-right flow
+# Handler names appear only once
+# Easy to add/remove handlers
 ```
 
-### 3. Effect Composition
+### 4. Effect Composition
 
 Higher-order effects compose cleanly with first-order effects:
 
@@ -109,7 +141,7 @@ end
 
 Error handling, list processing, and state management compose without interference.
 
-### 4. Suspensions Work Correctly
+### 5. Suspensions Work Correctly
 
 Computations can suspend and resume, even inside error handlers:
 
@@ -132,19 +164,49 @@ end
 
 The catch scope is preserved across suspensions - errors after resume are still caught!
 
-### 5. Auditability
+### 6. Serialization, Replay & Time Travel
 
-Effect operations are data structures that can be logged:
+Effect operations are data structures that can be logged, serialized, and replayed:
 
 ```elixir
-# Log all effects during execution
-outcome = EffectLogger.run_with_log(computation, handlers)
+# Run with effect logging
+outcome = computation
+  |> EffectLogger.Handler.run(EffectLogger.Log.new())
+  |> State.Handler.run(0)
+  |> Run.run()
 
-# Replay later for debugging
-replayed = EffectLogger.replay(outcome.log, handlers)
+# Serialize the log for storage/transmission
+log = outcome.outputs[EffectLogger.Handler]
+json = EffectLogger.Log.to_json(log)
+
+# Later: Deserialize and replay from the log
+resume_log = EffectLogger.Log.from_json(json)
+
+# Replay failed computation - uses logged effect results
+replayed_outcome = computation
+  |> EffectLogger.Handler.run(resume_log)
+  |> State.Handler.run(previous_state)
+  |> Run.rerun(outcome)  # Rerun with logged values!
+
+# Resume suspended computation from serialized checkpoint
+{:suspend, value, _k} = outcome.result
+checkpoint = %{log: json, state: outcome.outputs[State.Handler], value: value}
+
+# Later: Resume from checkpoint
+log = EffectLogger.Log.from_json(checkpoint.log)
+resumed = computation
+  |> EffectLogger.Handler.run(log)
+  |> State.Handler.run(checkpoint.state)
+  |> Run.run()
+  |> then(fn o -> Run.resume(o, input_value) end)
 ```
 
-Complete audit trail with deterministic replay.
+**Powerful capabilities:**
+- **Deterministic replay** - Rerun failed computations with exact same effect results
+- **Time travel debugging** - Step through execution with logged values
+- **Checkpoint/resume** - Save computation state, resume later (even in different process!)
+- **Audit trails** - Complete record of all effects for compliance
+- **Test from production logs** - Replay production failures in test environment
 
 ---
 
@@ -201,12 +263,12 @@ First-order effects are automatically lifted to Hefty when used in `hefty` block
 Hefty computations execute in two phases:
 
 ```elixir
-Run.run(
-  computation,
-  [Catch.Algebra, Lift.Algebra],  # Phase 1: Elaboration
-  [State.Handler, Throw.Handler],  # Phase 2: Interpretation
-  %{State.Handler => 0}             # Initial states
-)
+outcome = computation
+  |> Catch.Algebra.run()   # Phase 1: Elaboration
+  |> Lift.Algebra.run()    # Phase 1: Elaboration
+  |> State.Handler.run(0)  # Phase 2: Interpretation
+  |> Throw.Handler.run()   # Phase 2: Interpretation
+  |> Run.run()             # Execute!
 ```
 
 **Phase 1 (Elaboration)**: Algebras transform higher-order effects into first-order effects
@@ -410,13 +472,15 @@ defhefty process_users(user_ids) do
   })
 end
 
-# Run with handlers
-outcome = Run.run(
-  process_users([1, 2, 3]),
-  [Storage.Algebra, FxList.Algebra, Lift.Algebra],  # Elaboration
-  [Storage.Handler, TaggedWriter.Handler, State.Handler],  # Interpretation
-  %{State.Handler => 0}
-)
+# Run with handlers using pipe API
+outcome = process_users([1, 2, 3])
+  |> Storage.Algebra.run()
+  |> FxList.Algebra.run()
+  |> Lift.Algebra.run()
+  |> Storage.Handler.run(db_config)
+  |> TaggedWriter.Handler.run()
+  |> State.Handler.run(0)
+  |> Run.run()
 ```
 
 Full example: [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/hefty_change_capture.ex)
@@ -530,12 +594,11 @@ defcon calculate_sum(a, b) do
   return(result)
 end
 
-# Run it
-outcome = Run.run(
-  calculate_sum(10, 5),
-  [State.Handler, Writer.Handler],
-  %{State.Handler => 2}
-)
+# Run it with pipe API
+outcome = calculate_sum(10, 5)
+  |> State.Handler.run(2)
+  |> Writer.Handler.run()
+  |> Run.run()
 
 outcome.result  # => 30 (15 * 2)
 outcome.outputs[State.Handler]   # => 30
@@ -548,7 +611,7 @@ Use `hefty` with `Catch` for error handling:
 
 ```elixir
 import Freyja.HeftyMacro
-alias Freyja.Effects.{Catch, Throw}
+alias Freyja.Effects.{Catch, Lift, Throw}
 
 defhefty fetch_user(id) do
   Catch.catch_hefty(
@@ -569,6 +632,14 @@ catch
   :not_found -> return(:guest_user)
   error -> return({:error, error})
 end
+
+# Run with pipe API
+outcome = fetch_user_v2(123)
+  |> Catch.Algebra.run()
+  |> Lift.Algebra.run()
+  |> Database.Handler.run(db_config)
+  |> Throw.Handler.run()
+  |> Run.run()
 ```
 
 ### Composing Multiple Effects
@@ -697,6 +768,7 @@ See [`test/freyja/effects/scoped_test.exs`](https://github.com/mccraigmccraig/fr
 
 ```elixir
 import Freyja.Con
+alias Freyja.Effects.{State, Writer}
 
 computation = con do
   x <- State.get()
@@ -705,17 +777,24 @@ computation = con do
   return(x)
 end
 
-outcome = Run.run(
-  computation,
-  [State.Handler, Writer.Handler],
-  %{State.Handler => 0}
-)
+# Run with pipe API
+outcome = computation
+  |> State.Handler.run(0)
+  |> Writer.Handler.run()
+  |> Run.run()
+
+# Or just get the result
+result = computation
+  |> State.Handler.run(0)
+  |> Writer.Handler.run()
+  |> Run.eval()  # => 0
 ```
 
 ### Hefty Computations (With Higher-Order Effects)
 
 ```elixir
 import Freyja.HeftyMacro
+alias Freyja.Effects.{Catch, Lift, State, Throw}
 
 computation = hefty do
   Catch.catch_hefty(
@@ -726,23 +805,27 @@ computation = hefty do
   )
 end
 
-outcome = Run.run(
-  computation,
-  [Catch.Algebra, Lift.Algebra],  # Algebras for elaboration
-  [State.Handler, Throw.Handler],  # Handlers for interpretation
-  %{State.Handler => 42}
-)
+# Run with pipe API - algebras first, then handlers
+outcome = computation
+  |> Catch.Algebra.run()
+  |> Lift.Algebra.run()
+  |> State.Handler.run(42)
+  |> Throw.Handler.run()
+  |> Run.run()
 ```
 
 ### Handling Suspensions
 
 ```elixir
 # Initial run - might suspend
-outcome = Run.run(computation, handlers, initial_states)
+outcome = computation
+  |> Coroutine.Handler.run()
+  |> State.Handler.run(0)
+  |> Run.run()
 
 # Check if suspended
 case outcome.result do
-  {:suspend, value, continuation} ->
+  {:suspend, value, _continuation} ->
     # Resume with input
     next_outcome = Run.resume(outcome, input_value)
     # May suspend again or complete
@@ -762,19 +845,25 @@ end
 Log all effect operations for audit trails and debugging:
 
 ```elixir
-# Run with logging
-outcome = Run.run(
-  computation,
-  algebras,
-  [EffectLogger.Handler | other_handlers],
-  initial_states
-)
+# Run with logging (EffectLogger observes all effects)
+outcome = computation
+  |> EffectLogger.Handler.run(EffectLogger.Log.new())
+  |> State.Handler.run(0)
+  |> Writer.Handler.run()
+  |> Run.run()
 
-# Log contains all effect operations
+# Log contains all effect operations with results
 log = outcome.outputs[EffectLogger.Handler]
 
-# Replay for debugging (uses logged values)
-replayed = EffectLogger.replay(log, handlers)
+# Serialize for storage
+json = EffectLogger.Log.to_json(log)
+
+# Later: Replay from serialized log (uses logged values, not real effects!)
+resume_log = EffectLogger.Log.from_json(json)
+replayed = computation
+  |> EffectLogger.Handler.run(resume_log)
+  |> State.Handler.run(previous_state)
+  |> Run.rerun(outcome)
 ```
 
 ### Tagged Effects for Multiple Instances

@@ -143,7 +143,6 @@ defmodule Freyja.EffectLoggerYieldTest do
       assert outcome2.outputs[State.Handler] == 150
     end
 
-    @tag :skip
     # TODO: Multiple suspensions - incomplete entry lifecycle issue
     # After resuming from first yield (which doesn't consume the incomplete entry),
     # subsequent effects (Put 20, second Yield) are being added to the SAME incomplete entry
@@ -171,8 +170,11 @@ defmodule Freyja.EffectLoggerYieldTest do
 
       assert %RunOutcome{result: {:suspend, "first", _k}} = outcome1
 
+      log1 = outcome1.outputs[EffectLogger.Handler]
+      # Logger.error("#{__MODULE__}.log1 pre: \n#{inspect(log1, pretty: true)}")
       # Resume from log - should suspend at second yield
-      log1 = Log.prepare_for_retrace(outcome1.outputs[EffectLogger.Handler])
+      log1 = Log.prepare_for_retrace(log1)
+      # Logger.error("#{__MODULE__}.log1 post: \n#{inspect(log1, pretty: true)}")
       state1 = outcome1.outputs[State.Handler]
 
       outcome2 =
@@ -190,8 +192,12 @@ defmodule Freyja.EffectLoggerYieldTest do
       assert %RunOutcome{result: {:suspend, "second", _k2}} = outcome2
       assert outcome2.outputs[State.Handler] == 20
 
+      log2 = outcome2.outputs[EffectLogger.Handler]
+      # Logger.error("#{__MODULE__}.log2 pre: \n#{inspect(log2, pretty: true)}")
+
       # Resume from second yield
-      log2 = Log.prepare_for_retrace(outcome2.outputs[EffectLogger.Handler])
+      log2 = Log.prepare_for_retrace(log2)
+      # Logger.error("#{__MODULE__}.log2 post: \n#{inspect(log2, pretty: true)}")
       state2 = outcome2.outputs[State.Handler]
 
       outcome3 =

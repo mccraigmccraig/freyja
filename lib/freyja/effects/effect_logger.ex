@@ -223,6 +223,12 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
     case current_log.queue do
       [] ->
+        # Logger.error(
+        #   "#{__MODULE__}.log_or_resume UNSEEN\n" <>
+        #     "computation: #{inspect(computation, pretty: true)}\n" <>
+        #     "current_log: #{inspect(current_log, pretty: true)}"
+        # )
+
         # unseen computation - log and carry on
         updated_log = ILog.log_effect(log, computation)
         capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
@@ -245,6 +251,12 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         | _rest
       ]
       when sig == log_entry_sig and (u == log_entry_data or log_entry_data == nil) ->
+        # Logger.error(
+        #   "#{__MODULE__}.log_or_resume RESUME COMPLETE\n" <>
+        #     "computation: #{inspect(computation, pretty: true)}\n" <>
+        #     "current_log: #{inspect(current_log, pretty: true)}"
+        # )
+
         # NB: there may be unserializable things in the effect data - such as
         # continuations - so we allow the log_entry_data to be nil
         # TODO: maybe we should delegate matching deserialized effect
@@ -267,10 +279,18 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         | _rest
       ]
       when sig == log_entry_sig and (u == log_entry_data or log_entry_data == nil) ->
+        # Logger.error(
+        #   "#{__MODULE__}.log_or_resume RESUME INCOMPLETE\n" <>
+        #     "computation: #{inspect(computation, pretty: true)}\n" <>
+        #     "current_log: #{inspect(current_log, pretty: true)}"
+        # )
+
         # This is a suspension point (e.g., Coroutine.Yield)
         # Pass through to handler - it will either suspend (first run) or resume (if state has resume_value)
         # DON'T consume the entry yet - let LogInterpretedEffectValue complete it with the actual value
-        {computation, log}
+        capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
+        updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
+        {%Freer.Impure{sig: sig, data: u, q: updated_q}, log}
 
       # partially interpreted computation - effect doesn't match
       [
@@ -280,6 +300,12 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         } = _log_entry
         | _rest
       ] ->
+        # Logger.error(
+        #   "#{__MODULE__}.log_or_resume RESUME PARTIAL\n" <>
+        #     "computation: #{inspect(computation, pretty: true)}\n" <>
+        #     "current_log: #{inspect(current_log, pretty: true)}"
+        # )
+
         # push the new effect to the current log entry
         # and carry on
         updated_log = ILog.push_effect(log, computation)
@@ -289,6 +315,12 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         {computation, updated_log}
 
       _ ->
+        # Logger.error(
+        #   "#{__MODULE__}.log_or_resume DIVERGE\n" <>
+        #     "computation: #{inspect(computation, pretty: true)}\n" <>
+        #     "current_log: #{inspect(current_log, pretty: true)}"
+        # )
+
         raise ArgumentError,
           message:
             "Effect diverged from log:\n" <>

@@ -308,4 +308,3 @@ defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.Log do
     )
   end
 end
-

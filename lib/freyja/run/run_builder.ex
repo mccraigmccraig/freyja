@@ -84,13 +84,16 @@ defmodule Freyja.Run.RunBuilder do
         add_algebra(builder, module)
 
       :handler ->
-        state = if initial_state == :__default__, do: get_default_state(module), else: initial_state
+        state =
+          if initial_state == :__default__, do: get_default_state(module), else: initial_state
+
         add_handler(builder, module, state)
 
       :both ->
         # Module implements both Algebra and Handler!
         # Add to both queues
-        state = if initial_state == :__default__, do: get_default_state(module), else: initial_state
+        state =
+          if initial_state == :__default__, do: get_default_state(module), else: initial_state
 
         builder
         |> add_algebra(module)

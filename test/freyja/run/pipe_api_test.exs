@@ -12,12 +12,13 @@ defmodule Freyja.Run.PipeAPITest do
 
   describe "Pipe-friendly handler API" do
     test "single handler with State" do
-      computation = con State do
-        x <- get()
-        _ <- put(x + 10)
-        y <- get()
-        return(y)
-      end
+      computation =
+        con State do
+          x <- get()
+          _ <- put(x + 10)
+          y <- get()
+          return(y)
+        end
 
       builder = computation |> State.Handler.run(5)
 
@@ -28,12 +29,13 @@ defmodule Freyja.Run.PipeAPITest do
     end
 
     test "chain multiple handlers" do
-      computation = con [State, Writer] do
-        _ <- put(10)
-        _ <- tell("hello")
-        x <- get()
-        return(x)
-      end
+      computation =
+        con [State, Writer] do
+          _ <- put(10)
+          _ <- tell("hello")
+          x <- get()
+          return(x)
+        end
 
       builder =
         computation
@@ -49,10 +51,11 @@ defmodule Freyja.Run.PipeAPITest do
     end
 
     test "handler with default state" do
-      computation = con Writer do
-        _ <- tell("hello")
-        return(:ok)
-      end
+      computation =
+        con Writer do
+          _ <- tell("hello")
+          return(:ok)
+        end
 
       builder = computation |> Writer.Handler.run()
 
@@ -64,10 +67,11 @@ defmodule Freyja.Run.PipeAPITest do
 
   describe "Pipe-friendly algebra API" do
     test "single algebra" do
-      computation = hefty do
-        x <- Lift.lift(State.get())
-        return(x)
-      end
+      computation =
+        hefty do
+          x <- Lift.lift(State.get())
+          return(x)
+        end
 
       builder = computation |> Lift.Algebra.run()
 
@@ -78,13 +82,16 @@ defmodule Freyja.Run.PipeAPITest do
     end
 
     test "chain multiple algebras" do
-      computation = hefty do
-        result <- Catch.catch_hefty(
-          Freyja.Hefty.pure(42),
-          fn _err -> Freyja.Hefty.pure(:caught) end
-        )
-        return(result)
-      end
+      computation =
+        hefty do
+          result <-
+            Catch.catch_hefty(
+              Freyja.Hefty.pure(42),
+              fn _err -> Freyja.Hefty.pure(:caught) end
+            )
+
+          return(result)
+        end
 
       builder =
         computation
@@ -97,10 +104,11 @@ defmodule Freyja.Run.PipeAPITest do
     end
 
     test "mix algebras and handlers" do
-      computation = hefty do
-        x <- Lift.lift(State.get())
-        return(x * 2)
-      end
+      computation =
+        hefty do
+          x <- Lift.lift(State.get())
+          return(x * 2)
+        end
 
       builder =
         computation

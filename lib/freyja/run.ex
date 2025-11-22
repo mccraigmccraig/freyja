@@ -57,7 +57,6 @@ defmodule Freyja.Run do
 
   require Logger
 
-
   # RunBuilder API - Pipe-friendly execution
 
   @doc """

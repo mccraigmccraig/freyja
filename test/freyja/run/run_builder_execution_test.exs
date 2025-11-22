@@ -13,12 +13,13 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
 
   describe "Run.run/1 with RunBuilder" do
     test "executes Freer computation" do
-      computation = con State do
-        x <- get()
-        _ <- put(x + 10)
-        y <- get()
-        return(y)
-      end
+      computation =
+        con State do
+          x <- get()
+          _ <- put(x + 10)
+          y <- get()
+          return(y)
+        end
 
       outcome =
         computation
@@ -30,13 +31,14 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
     end
 
     test "executes Freer with multiple handlers" do
-      computation = con [State, Writer] do
-        _ <- put(10)
-        _ <- tell("hello")
-        x <- get()
-        _ <- tell("world")
-        return(x * 2)
-      end
+      computation =
+        con [State, Writer] do
+          _ <- put(10)
+          _ <- tell("hello")
+          x <- get()
+          _ <- tell("world")
+          return(x * 2)
+        end
 
       outcome =
         computation
@@ -50,12 +52,13 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
     end
 
     test "executes Hefty computation" do
-      computation = hefty do
-        x <- Lift.lift(State.get())
-        _ <- Lift.lift(State.put(x + 5))
-        y <- Lift.lift(State.get())
-        return(y)
-      end
+      computation =
+        hefty do
+          x <- Lift.lift(State.get())
+          _ <- Lift.lift(State.put(x + 5))
+          y <- Lift.lift(State.get())
+          return(y)
+        end
 
       outcome =
         computation
@@ -68,22 +71,24 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
     end
 
     test "executes Hefty with Catch" do
-      computation = hefty do
-        result <-
-          Catch.catch_hefty(
-            hefty do
-              x <- Lift.lift(State.get())
-              if x > 5 do
-                Lift.lift(Throw.throw_error(:too_big))
-              else
-                return({:ok, x})
-              end
-            end,
-            fn err -> Freyja.Hefty.pure({:error, err}) end
-          )
+      computation =
+        hefty do
+          result <-
+            Catch.catch_hefty(
+              hefty do
+                x <- Lift.lift(State.get())
 
-        return(result)
-      end
+                if x > 5 do
+                  Lift.lift(Throw.throw_error(:too_big))
+                else
+                  return({:ok, x})
+                end
+              end,
+              fn err -> Freyja.Hefty.pure({:error, err}) end
+            )
+
+          return(result)
+        end
 
       outcome =
         computation
@@ -101,10 +106,11 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
 
   describe "Run.eval/1" do
     test "returns only result value" do
-      computation = con State do
-        x <- get()
-        return(x * 2)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x * 2)
+        end
 
       result =
         computation
@@ -117,11 +123,12 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
 
   describe "Run.exec/1" do
     test "returns only outputs map" do
-      computation = con [State, Writer] do
-        _ <- put(10)
-        _ <- tell("hello")
-        return(:done)
-      end
+      computation =
+        con [State, Writer] do
+          _ <- put(10)
+          _ <- tell("hello")
+          return(:done)
+        end
 
       outputs =
         computation
@@ -136,11 +143,12 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
 
   describe "Run.rerun/2" do
     test "reruns with previous outputs as initial states" do
-      computation = con State do
-        x <- get()
-        _ <- put(x + 1)
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          _ <- put(x + 1)
+          return(x)
+        end
 
       builder = computation |> State.Handler.run(0)
 
@@ -160,12 +168,13 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
     end
 
     test "reruns with multiple handlers" do
-      computation = con [State, Writer] do
-        x <- get()
-        _ <- put(x + 1)
-        _ <- tell("iteration")
-        return(x)
-      end
+      computation =
+        con [State, Writer] do
+          x <- get()
+          _ <- put(x + 1)
+          _ <- tell("iteration")
+          return(x)
+        end
 
       builder =
         computation

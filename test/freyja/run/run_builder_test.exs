@@ -26,10 +26,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "creates builder from Freer.Impure computation" do
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       builder = RunBuilder.add(computation, State.Handler, 5)
 
@@ -54,10 +55,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "creates builder from Hefty.Impure computation" do
-      computation = hefty do
-        x <- Lift.lift(State.get())
-        return(x)
-      end
+      computation =
+        hefty do
+          x <- Lift.lift(State.get())
+          return(x)
+        end
 
       builder = RunBuilder.add(computation, Catch.Algebra, nil)
 
@@ -69,10 +71,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "adds handler to existing builder" do
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       builder =
         computation
@@ -88,9 +91,10 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "adds algebra to existing builder" do
-      computation = hefty do
-        return(42)
-      end
+      computation =
+        hefty do
+          return(42)
+        end
 
       builder =
         computation
@@ -103,10 +107,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "maintains order of additions" do
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       builder =
         computation
@@ -122,10 +127,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "uses default initial state when available" do
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       # Assume Throw.Handler has default_initial_state/0 returning nil
       # For now, just pass nil explicitly to test the pattern
@@ -137,10 +143,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "mixes algebras and handlers in Hefty builder" do
-      computation = hefty do
-        x <- Lift.lift(State.get())
-        return(x)
-      end
+      computation =
+        hefty do
+          x <- Lift.lift(State.get())
+          return(x)
+        end
 
       builder =
         computation
@@ -157,10 +164,11 @@ defmodule Freyja.Run.RunBuilderTest do
     end
 
     test "raises error for invalid module (neither algebra nor handler)" do
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       # Use a module that's neither
       assert_raise ArgumentError, ~r/implements neither/, fn ->
@@ -180,10 +188,11 @@ defmodule Freyja.Run.RunBuilderTest do
       # For this test, we'll assume Throw.Handler has default_initial_state/0
       # But we want to explicitly pass nil
 
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       # Pass explicit nil
       builder = RunBuilder.add(computation, Throw.Handler, nil)
@@ -196,10 +205,11 @@ defmodule Freyja.Run.RunBuilderTest do
 
     test "omitting state uses default" do
       # When state is not provided, use default
-      computation = con State do
-        x <- get()
-        return(x)
-      end
+      computation =
+        con State do
+          x <- get()
+          return(x)
+        end
 
       # Don't pass state argument (uses default sentinel)
       builder = RunBuilder.add(computation, Throw.Handler)

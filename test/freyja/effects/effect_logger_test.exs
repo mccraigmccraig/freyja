@@ -124,7 +124,7 @@ defmodule Freyja.EffectLoggerTest do
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
-                     data: %Freyja.Effects.State.Get{},
+                     data: %Freyja.Effects.State.Get{}
                    }
                  ]
                },
@@ -135,7 +135,7 @@ defmodule Freyja.EffectLoggerTest do
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.EffectLoggerTest.Numbers,
-                     data: {:number, 10},
+                     data: {:number, 10}
                    }
                  ]
                },
@@ -146,7 +146,7 @@ defmodule Freyja.EffectLoggerTest do
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
-                     data: %Freyja.Effects.State.Put{val: {:bar, 34}},
+                     data: %Freyja.Effects.State.Put{val: {:bar, 34}}
                    }
                  ]
                },
@@ -157,7 +157,7 @@ defmodule Freyja.EffectLoggerTest do
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.EffectLoggerTest.Numbers,
-                     data: {:multiply, 12, 10},
+                     data: {:multiply, 12, 10}
                    }
                  ]
                },
@@ -168,7 +168,7 @@ defmodule Freyja.EffectLoggerTest do
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
-                     data: %Freyja.Effects.State.Get{},
+                     data: %Freyja.Effects.State.Get{}
                    }
                  ]
                },
@@ -179,7 +179,7 @@ defmodule Freyja.EffectLoggerTest do
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.EffectLoggerTest.Numbers,
-                     data: {:subtract, 34, 120},
+                     data: {:subtract, 34, 120}
                    }
                  ]
                }

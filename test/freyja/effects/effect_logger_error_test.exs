@@ -150,7 +150,8 @@ defmodule Freyja.EffectLoggerErrorTest do
       make_computation = fn value_at_step2 ->
         con [State] do
           _ <- put(10)
-          _ <- put(value_at_step2)  # Step 2 - will diverge
+          # Step 2 - will diverge
+          _ <- put(value_at_step2)
           _ <- put(30)
           x <- get()
           return(x)

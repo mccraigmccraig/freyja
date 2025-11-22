@@ -315,17 +315,22 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         {computation, updated_log}
 
       _ ->
-        # Logger.error(
-        #   "#{__MODULE__}.log_or_resume DIVERGE\n" <>
-        #     "computation: #{inspect(computation, pretty: true)}\n" <>
-        #     "current_log: #{inspect(current_log, pretty: true)}"
-        # )
-
-        raise ArgumentError,
-          message:
-            "Effect diverged from log:\n" <>
-              "computation: #{inspect(computation, pretty: true)}\n" <>
-              "log: #{inspect(log, pretty: true)}"
+        # Effect diverged from log
+        if log.replay_allow_final_divergence? and length(current_log.queue) == 1 do
+          # Last entry, divergence allowed - discard it and execute normally
+          updated_log = ILog.consume_log_entry(log)
+          # Execute as unseen effect
+          updated_log = ILog.log_effect(updated_log, computation)
+          capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
+          updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
+          {%Freer.Impure{sig: sig, data: u, q: updated_q}, updated_log}
+        else
+          raise ArgumentError,
+            message:
+              "Effect diverged from log:\n" <>
+                "computation: #{inspect(computation, pretty: true)}\n" <>
+                "log: #{inspect(log, pretty: true)}"
+        end
     end
   end
 end

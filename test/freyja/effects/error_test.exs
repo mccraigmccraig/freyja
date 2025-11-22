@@ -24,7 +24,11 @@ defmodule Freyja.Effects.ErrorTest do
           return(:unreachable)
         end
 
-      outcome = Run.run(fv, [Lift.Algebra], [ThrowHandler])
+      outcome =
+        fv
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{result: {:error, :oops}} = outcome
     end
@@ -49,7 +53,10 @@ defmodule Freyja.Effects.ErrorTest do
       # note: we don't need the ThrowHandler because the Catch
       # elaboration catches all possible Throws
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       # no Throw.Handler means no {:ok, ...} wrapper
       assert %Freyja.Run.RunOutcome{
@@ -67,7 +74,10 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       assert %Freyja.Run.RunOutcome{result: 42} = outcome
     end
@@ -94,9 +104,11 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
-          Writer.Handler
-        ])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %Freyja.Run.RunOutcome{
                result: 42,
@@ -132,10 +144,12 @@ defmodule Freyja.Effects.ErrorTest do
       # we do need the Throw.Handler here, because
       # throws bubble outside the Catch scope
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
-          ThrowHandler,
-          Writer.Handler
-        ])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
       assert %Freyja.Run.RunOutcome{
@@ -165,10 +179,12 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
-          ThrowHandler,
-          Writer.Handler
-        ])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %Freyja.Run.RunOutcome{
                result: {:ok, {:recovered, :bad}},
@@ -198,10 +214,12 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
-          State.Handler,
-          ThrowHandler
-        ])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(nil)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %Freyja.Run.RunOutcome{
                result: {:ok, 42},
@@ -237,10 +255,12 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        Run.run(fv, [Catch.Algebra, Lift.Algebra], [
-          State.Handler,
-          ThrowHandler
-        ])
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(nil)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       # Hefty Catch uses non-transactional semantics - state changes persist even on error
       # Initial state: nil -> put(5) = 5 -> put(10) in try block = 10
@@ -274,11 +294,13 @@ defmodule Freyja.Effects.ErrorTest do
         end
 
       outcome =
-        Run.run(
-          fv,
-          [Catch.Algebra, Lift.Algebra],
-          [EffectLogger.Handler, State.Handler, ThrowHandler]
-        )
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> State.Handler.run(nil)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %Freyja.Run.RunOutcome{
                result: {:ok, {:recovered, :bad}},

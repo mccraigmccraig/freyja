@@ -143,7 +143,10 @@ defmodule Freyja.Effects.WriterTest do
 
   describe "Writer effect" do
     test "single tell operation" do
-      outcome = Run.run(WriterExamples.single_tell(), [Writer.Handler])
+      outcome =
+        WriterExamples.single_tell()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :done
       # Note: Writer accumulates in reverse order (most recent first)
@@ -151,7 +154,10 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "multiple tell operations accumulate" do
-      outcome = Run.run(WriterExamples.multiple_tells(), [Writer.Handler])
+      outcome =
+        WriterExamples.multiple_tells()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :done
       # Most recent first (reverse chronological order)
@@ -159,19 +165,28 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "tell with different data types - strings" do
-      outcome = Run.run(WriterExamples.tell_strings(), [Writer.Handler])
+      outcome =
+        WriterExamples.tell_strings()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.outputs[Writer.Handler] == ["world", "hello"]
     end
 
     test "tell with different data types - numbers" do
-      outcome = Run.run(WriterExamples.tell_numbers(), [Writer.Handler])
+      outcome =
+        WriterExamples.tell_numbers()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.outputs[Writer.Handler] == [3, 2, 1]
     end
 
     test "tell with different data types - maps" do
-      outcome = Run.run(WriterExamples.tell_maps(), [Writer.Handler])
+      outcome =
+        WriterExamples.tell_maps()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.outputs[Writer.Handler] == [
                %{event: "finished", timestamp: 200},
@@ -180,16 +195,20 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "tell with different data types - mixed" do
-      outcome = Run.run(WriterExamples.tell_mixed(), [Writer.Handler])
+      outcome =
+        WriterExamples.tell_mixed()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.outputs[Writer.Handler] == [%{key: "value"}, 42, "string", :atom]
     end
 
     test "Writer with State effect" do
       outcome =
-        Run.run(WriterExamples.writer_with_state(), [Writer.Handler, State.Handler], %{
-          State.Handler => 0
-        })
+        WriterExamples.writer_with_state()
+        |> Writer.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert outcome.result == 1
       assert outcome.outputs[State.Handler] == 1
@@ -197,14 +216,21 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "Writer with Error effect - success path" do
-      outcome = Run.run(WriterExamples.success_path(), [Writer.Handler])
+      outcome =
+        WriterExamples.success_path()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == 42
       assert outcome.outputs[Writer.Handler] == ["succeeded", "starting"]
     end
 
     test "Writer with Error effect - error path logs until error" do
-      outcome = Run.run(WriterExamples.error_path(), [Writer.Handler, Throw.Handler])
+      outcome =
+        WriterExamples.error_path()
+        |> Writer.Handler.run()
+        |> Throw.Handler.run()
+        |> Run.run()
 
       assert outcome.result == {:error, :error}
       # Only logs before the error are captured
@@ -212,21 +238,30 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "Writer in nested function calls" do
-      outcome = Run.run(WriterExamples.process(), [Writer.Handler])
+      outcome =
+        WriterExamples.process()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :done
       assert outcome.outputs[Writer.Handler] == ["step 3", "step 2", "step 1"]
     end
 
     test "Writer tracks execution flow - success" do
-      outcome = Run.run(WriterExamples.divide_success(10, 2), [Writer.Handler])
+      outcome =
+        WriterExamples.divide_success(10, 2)
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == {:ok, 5}
       assert outcome.outputs[Writer.Handler] == [{:result, 5}, {:dividing, 10, 2}]
     end
 
     test "Writer tracks execution flow - error case" do
-      outcome = Run.run(WriterExamples.divide_error(10, 0), [Writer.Handler])
+      outcome =
+        WriterExamples.divide_error(10, 0)
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == {:error, :division_by_zero}
 
@@ -237,7 +272,10 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "Writer accumulates across multiple computation branches" do
-      outcome = Run.run(WriterExamples.multi_branch(), [Writer.Handler])
+      outcome =
+        WriterExamples.multi_branch()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :all_done
 
@@ -254,9 +292,9 @@ defmodule Freyja.Effects.WriterTest do
     test "Writer with initial state" do
       # Start with some existing log entries
       outcome =
-        Run.run(WriterExamples.single_tell(), [Writer.Handler], %{
-          Writer.Handler => ["existing1", "existing2"]
-        })
+        WriterExamples.single_tell()
+        |> Writer.Handler.run(["existing1", "existing2"])
+        |> Run.run()
 
       assert outcome.result == :done
       # New entries are prepended (most recent first)
@@ -264,28 +302,40 @@ defmodule Freyja.Effects.WriterTest do
     end
 
     test "Writer produces empty output when no tells" do
-      outcome = Run.run(WriterExamples.no_tells(), [Writer.Handler])
+      outcome =
+        WriterExamples.no_tells()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :no_logs
       assert outcome.outputs[Writer.Handler] == []
     end
 
     test "Writer with conditional logging - enabled" do
-      outcome = Run.run(WriterExamples.conditional_log(true, "logged"), [Writer.Handler])
+      outcome =
+        WriterExamples.conditional_log(true, "logged")
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :done
       assert outcome.outputs[Writer.Handler] == ["logged"]
     end
 
     test "Writer with conditional logging - disabled" do
-      outcome = Run.run(WriterExamples.conditional_log(false, "not logged"), [Writer.Handler])
+      outcome =
+        WriterExamples.conditional_log(false, "not logged")
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :done
       assert outcome.outputs[Writer.Handler] == []
     end
 
     test "Writer can log structured audit trail" do
-      outcome = Run.run(WriterExamples.audit_trail(), [Writer.Handler])
+      outcome =
+        WriterExamples.audit_trail()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert outcome.result == :session_complete
 

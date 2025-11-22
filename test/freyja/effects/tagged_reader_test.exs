@@ -188,22 +188,22 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "basic tagged reader operations" do
     test "simple ask operation" do
       outcome =
-        Run.run(simple_ask_tagged(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{database: %{host: "localhost"}}
-        })
+        simple_ask_tagged()
+        |> TaggedReader.Handler.run(%{database: %{host: "localhost"}})
+        |> Run.run()
 
       assert outcome.result == %{host: "localhost"}
     end
 
     test "ask multiple tags" do
       outcome =
-        Run.run(ask_multiple_tags(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{
-            database: %{host: "db.example.com"},
-            api: %{url: "https://api.example.com"},
-            environment: :production
-          }
+        ask_multiple_tags()
+        |> TaggedReader.Handler.run(%{
+          database: %{host: "db.example.com"},
+          api: %{url: "https://api.example.com"},
+          environment: :production
         })
+        |> Run.run()
 
       assert outcome.result == %{
                db: %{host: "db.example.com"},
@@ -213,7 +213,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
     end
 
     test "ask returns nil for missing tag" do
-      outcome = Run.run(ask_missing_tag(), [TaggedReader.Handler], %{TaggedReader.Handler => %{}})
+      outcome =
+        ask_missing_tag()
+        |> TaggedReader.Handler.run(%{})
+        |> Run.run()
 
       assert outcome.result == nil
     end
@@ -226,7 +229,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }
 
       outcome =
-        Run.run(get_all_envs(), [TaggedReader.Handler], %{TaggedReader.Handler => state})
+        get_all_envs()
+        |> TaggedReader.Handler.run(state)
+        |> Run.run()
 
       assert outcome.result == state
     end
@@ -238,9 +243,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }
 
       outcome =
-        Run.run(compare_all_and_individual(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => state
-        })
+        compare_all_and_individual()
+        |> TaggedReader.Handler.run(state)
+        |> Run.run()
 
       result = outcome.result
       assert result.all == state
@@ -249,7 +254,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
     end
 
     test "ask_all returns empty map when no environments" do
-      outcome = Run.run(get_all_empty(), [TaggedReader.Handler], %{TaggedReader.Handler => %{}})
+      outcome =
+        get_all_empty()
+        |> TaggedReader.Handler.run(%{})
+        |> Run.run()
 
       assert outcome.result == %{}
     end
@@ -262,7 +270,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }
 
       outcome =
-        Run.run(process_all_tags(), [TaggedReader.Handler], %{TaggedReader.Handler => state})
+        process_all_tags()
+        |> TaggedReader.Handler.run(state)
+        |> Run.run()
 
       assert outcome.result == [
                {:api, %{url: "api"}},
@@ -275,9 +285,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "read-only behavior" do
     test "asking twice returns same value" do
       outcome =
-        Run.run(ask_twice_same_tag(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{config: %{setting: "value"}}
-        })
+        ask_twice_same_tag()
+        |> TaggedReader.Handler.run(%{config: %{setting: "value"}})
+        |> Run.run()
 
       {val1, val2} = outcome.result
       assert val1 == %{setting: "value"}
@@ -289,9 +299,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
       original = %{value: 42}
 
       outcome =
-        Run.run(modify_and_ask_again(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{data: original}
-        })
+        modify_and_ask_again()
+        |> TaggedReader.Handler.run(%{data: original})
+        |> Run.run()
 
       {env1, env2} = outcome.result
       assert env1 == original
@@ -303,10 +313,10 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "composition with other effects" do
     test "TaggedReader with State" do
       outcome =
-        Run.run(reader_state_composition(), [TaggedReader.Handler, State.Handler], %{
-          TaggedReader.Handler => %{multiplier: 3},
-          State.Handler => 5
-        })
+        reader_state_composition()
+        |> TaggedReader.Handler.run(%{multiplier: 3})
+        |> State.Handler.run(5)
+        |> Run.run()
 
       assert outcome.result == 15
       assert outcome.outputs[State.Handler] == 15
@@ -314,13 +324,13 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
     test "TaggedReader with Writer" do
       outcome =
-        Run.run(reader_writer_composition(), [TaggedReader.Handler, Writer.Handler], %{
-          TaggedReader.Handler => %{
-            database: %{host: "db.local"},
-            api: %{url: "https://api.local"}
-          },
-          Writer.Handler => []
+        reader_writer_composition()
+        |> TaggedReader.Handler.run(%{
+          database: %{host: "db.local"},
+          api: %{url: "https://api.local"}
         })
+        |> Writer.Handler.run([])
+        |> Run.run()
 
       assert outcome.result == {:configured, %{host: "db.local"}, %{url: "https://api.local"}}
 
@@ -332,15 +342,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
     test "TaggedReader with State and Writer" do
       outcome =
-        Run.run(
-          all_effects_composition(),
-          [TaggedReader.Handler, State.Handler, Writer.Handler],
-          %{
-            TaggedReader.Handler => %{multiplier: 4},
-            State.Handler => 7,
-            Writer.Handler => []
-          }
-        )
+        all_effects_composition()
+        |> TaggedReader.Handler.run(%{multiplier: 4})
+        |> State.Handler.run(7)
+        |> Writer.Handler.run([])
+        |> Run.run()
 
       assert outcome.result == 28
       assert outcome.outputs[State.Handler] == 28
@@ -353,13 +359,13 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
     test "TaggedReader with regular Reader" do
       outcome =
-        Run.run(use_both_readers(), [Reader.Handler, TaggedReader.Handler], %{
-          Reader.Handler => %{global: "config"},
-          TaggedReader.Handler => %{
-            database: %{host: "db.example.com"},
-            api: %{url: "https://api.example.com"}
-          }
+        use_both_readers()
+        |> Reader.Handler.run(%{global: "config"})
+        |> TaggedReader.Handler.run(%{
+          database: %{host: "db.example.com"},
+          api: %{url: "https://api.example.com"}
         })
+        |> Run.run()
 
       assert outcome.result == %{
                regular: %{global: "config"},
@@ -372,12 +378,12 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "nested computations" do
     test "nested function calls" do
       outcome =
-        Run.run(nested_config_fetch(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{
-            database: %{host: "nested.db"},
-            api: %{url: "https://nested.api"}
-          }
+        nested_config_fetch()
+        |> TaggedReader.Handler.run(%{
+          database: %{host: "nested.db"},
+          api: %{url: "https://nested.api"}
         })
+        |> Run.run()
 
       assert outcome.result == %{
                database: %{host: "nested.db"},
@@ -387,9 +393,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
     test "deep nesting propagates environment" do
       outcome =
-        Run.run(level1(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{deep: :deeply_nested_value}
-        })
+        level1()
+        |> TaggedReader.Handler.run(%{deep: :deeply_nested_value})
+        |> Run.run()
 
       assert outcome.result == :deeply_nested_value
     end
@@ -403,9 +409,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }
 
       outcome =
-        Run.run(complex_nested_env(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{config: config}
-        })
+        complex_nested_env()
+        |> TaggedReader.Handler.run(%{config: config})
+        |> Run.run()
 
       assert outcome.result == "db: complex.db:5432, api: https://complex.api"
     end
@@ -414,39 +420,39 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "tag types" do
     test "supports atom tags" do
       outcome =
-        Run.run(use_atom_tag(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{atom_tag: :atom_value}
-        })
+        use_atom_tag()
+        |> TaggedReader.Handler.run(%{atom_tag: :atom_value})
+        |> Run.run()
 
       assert outcome.result == :atom_value
     end
 
     test "supports string tags" do
       outcome =
-        Run.run(use_string_tag(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{"string_tag" => "string_value"}
-        })
+        use_string_tag()
+        |> TaggedReader.Handler.run(%{"string_tag" => "string_value"})
+        |> Run.run()
 
       assert outcome.result == "string_value"
     end
 
     test "supports number tags" do
       outcome =
-        Run.run(use_number_tag(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{1 => "first", 2 => "second"}
-        })
+        use_number_tag()
+        |> TaggedReader.Handler.run(%{1 => "first", 2 => "second"})
+        |> Run.run()
 
       assert outcome.result == {"first", "second"}
     end
 
     test "supports tuple tags" do
       outcome =
-        Run.run(use_tuple_tag(), [TaggedReader.Handler], %{
-          TaggedReader.Handler => %{
-            {:user, 123} => %{name: "Alice"},
-            {:user, 456} => %{name: "Bob"}
-          }
+        use_tuple_tag()
+        |> TaggedReader.Handler.run(%{
+          {:user, 123} => %{name: "Alice"},
+          {:user, 456} => %{name: "Bob"}
         })
+        |> Run.run()
 
       assert outcome.result == {%{name: "Alice"}, %{name: "Bob"}}
     end
@@ -455,7 +461,9 @@ defmodule Freyja.Effects.TaggedReaderTest do
   describe "error handling" do
     test "raises ArgumentError if handler state is not a map" do
       assert_raise ArgumentError, ~r/TaggedReader.Handler state must be a map/, fn ->
-        Run.run(trigger_error(), [TaggedReader.Handler], %{TaggedReader.Handler => "not a map"})
+        trigger_error()
+        |> TaggedReader.Handler.run("not a map")
+        |> Run.run()
       end
     end
   end
@@ -484,17 +492,14 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{
-            TaggedReader.Handler => %{
-              database: %{host: "db.local", port: 5432},
-              api: %{url: "https://api.local"}
-            }
-          }
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{
+          database: %{host: "db.local", port: 5432},
+          api: %{url: "https://api.local"}
+        })
+        |> Run.run()
 
       # Base db port: 5432, api unchanged, inside local db port: 5433, after local db port: 5432 again
       assert outcome.result ==
@@ -530,12 +535,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{TaggedReader.Handler => %{config: 5}}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{config: 5})
+        |> Run.run()
 
       # Base: 5, first local: 15, second local: 25
       assert outcome.result == {5, {15, 25}}
@@ -568,12 +572,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{TaggedReader.Handler => %{db: 5432, api: 30}}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{db: 5432, api: 30})
+        |> Run.run()
 
       # result1: 5433 (5432+1), result2: 60 (30*2), final: 5432, 30
       assert outcome.result == {5433, 60, 5432, 30}
@@ -601,12 +604,12 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler, State.Handler],
-          %{TaggedReader.Handler => %{multiplier: 3}, State.Handler => 5}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{multiplier: 3})
+        |> State.Handler.run(5)
+        |> Run.run()
 
       # Inside local: multiplier is 6 (3*2), counter becomes 30 (5*6)
       # Outside local: multiplier is 3, counter is 30 (state persists)
@@ -642,17 +645,14 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{
-            TaggedReader.Handler => %{
-              database: %{host: "db.local", port: 5432},
-              api: %{url: "https://api.local", timeout: 30}
-            }
-          }
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{
+          database: %{host: "db.local", port: 5432},
+          api: %{url: "https://api.local", timeout: 30}
+        })
+        |> Run.run()
 
       # Base: 5432, 30; inside local_all: 5433, 60; after: 5432, 30
       assert outcome.result == {5432, 30, {5433, 60}, 5432, 30}
@@ -681,12 +681,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{TaggedReader.Handler => %{a: 1, b: 2, c: 3}}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{a: 1, b: 2, c: 3})
+        |> Run.run()
 
       # Inside local_all: 2+4+6=12, outside: 1+2=3
       assert outcome.result == {12, 3}
@@ -719,12 +718,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{TaggedReader.Handler => %{value: 5}}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{value: 5})
+        |> Run.run()
 
       # Base: 5, first local_all: 15, second local_all: 25
       assert outcome.result == {5, {15, 25}}
@@ -752,12 +750,12 @@ defmodule Freyja.Effects.TaggedReaderTest do
 
       # Initial run - suspends inside local_all scope
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler, Coroutine.Handler],
-          %{TaggedReader.Handler => %{value: 10}}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(%{value: 10})
+        |> Coroutine.Handler.run()
+        |> Run.run()
 
       # Should suspend with modified value (10*2=20)
       assert {:suspend, {:yielded, 20}, _continuation} = outcome.result
@@ -802,12 +800,11 @@ defmodule Freyja.Effects.TaggedReaderTest do
       }
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedReader.Algebra, Lift.Algebra],
-          [TaggedReader.Handler],
-          %{TaggedReader.Handler => state}
-        )
+        computation
+        |> TaggedReader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedReader.Handler.run(state)
+        |> Run.run()
 
       {base_all, {modified_all, db, api}, final_all} = outcome.result
 

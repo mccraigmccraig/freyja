@@ -31,7 +31,7 @@ defmodule Freyja.Effects.TaggedReader do
   The handler state must be a map where keys are tags and values are the
   environment for each tag:
 
-      Run.with_handlers(
+      RunState.new(
         tr: {TaggedReader.Handler, %{
           database: %{host: "db.example.com", port: 5432},
           api: %{base_url: "https://api.example.com"},

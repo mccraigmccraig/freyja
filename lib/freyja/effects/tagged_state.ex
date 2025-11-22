@@ -23,7 +23,7 @@ defmodule Freyja.Effects.TaggedState do
   The handler state must be a map where keys are tags and values are the
   state for each tag:
 
-      Run.with_handlers(
+      RunState.new(
         ts: {TaggedState.Handler, %{
           cache: %{},
           config: %{host: "localhost"},

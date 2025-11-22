@@ -57,45 +57,6 @@ defmodule Freyja.Run do
 
   require Logger
 
-  @type handler_mod_with_state :: {RunState.handler_key(), any}
-  @type handler_spec :: RunState.handler_mod() | handler_mod_with_state()
-  @type handler_spec_list :: list({RunState.handler_key(), handler_spec})
-
-  @doc """
-  Build a RunState struct with the provided EffectHandlers, and their initial state
-  """
-  @spec with_handlers(handler_spec_list()) :: RunState.t()
-  def with_handlers(handler_specs) do
-    handler_specs
-    |> Enum.map(fn
-      {key, mod} when is_atom(key) and is_atom(mod) -> {key, {mod, nil}}
-      {key, {mod, _state}} = spec_with_state when is_atom(key) and is_atom(mod) -> spec_with_state
-    end)
-    |> Enum.reduce(
-      %RunState{handlers: [], states: %{}},
-      fn {key, {mod, state}}, acc ->
-        if Map.has_key?(acc, key) do
-          raise ArgumentError,
-            message:
-              "#{__MODULE__}.register_handler haneler_key already exists\n" <>
-                "handler_key: #{inspect(key)}\n" <>
-                "%run{}: #{inspect(acc, pretty: true)}"
-        end
-
-        # make sure the EffectHandler behaviours are loaded!
-        Code.ensure_loaded(mod)
-
-        %{
-          acc
-          | handlers: [{key, mod} | acc.handlers],
-            states: Map.put(acc.states, key, state)
-        }
-      end
-    )
-    |> then(fn %RunState{handlers: handlers} = self ->
-      %{self | handlers: Enum.reverse(handlers)}
-    end)
-  end
 
   # RunBuilder API - Pipe-friendly execution
 
@@ -175,7 +136,7 @@ defmodule Freyja.Run do
         {mod, {mod, state}}
       end)
 
-    run_state = with_handlers(handler_specs)
+    run_state = RunState.new(handler_specs)
     Impl.run_with_state(computation, run_state)
   end
 
@@ -314,7 +275,7 @@ defmodule Freyja.Run do
         {handler_mod, {handler_mod, state}}
       end)
 
-    run_state = with_handlers(handler_specs)
+    run_state = RunState.new(handler_specs)
     Impl.run_with_state(computation, run_state)
   end
 

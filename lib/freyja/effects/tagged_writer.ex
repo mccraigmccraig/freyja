@@ -44,7 +44,7 @@ defmodule Freyja.Effects.TaggedWriter do
   The handler state must be a map where keys are tags and values are the
   log list for each tag:
 
-      Run.with_handlers(
+      RunState.new(
         tw: {TaggedWriter.Handler, %{
           audit: [],
           debug: [],

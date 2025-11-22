@@ -254,12 +254,11 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler],
-          %{Reader.Handler => %{level: 0}}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(%{level: 0})
+        |> Run.run()
 
       # Base is 0, first local sees 1, second local sees 2
       assert outcome.result == {0, {1, 2}}
@@ -288,12 +287,12 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler, State.Handler],
-          %{Reader.Handler => 3, State.Handler => 5}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(3)
+        |> State.Handler.run(5)
+        |> Run.run()
 
       # Inside local: multiplier is 6 (3 * 2), counter becomes 30 (5 * 6)
       # Outside local: multiplier is 3, counter is 30 (state persists)
@@ -327,12 +326,11 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler],
-          %{Reader.Handler => 5}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(5)
+        |> Run.run()
 
       # First local: 5 + 10 = 15
       # Second local: 5 * 2 = 10
@@ -357,12 +355,11 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler],
-          %{Reader.Handler => %{host: "api.example.com"}}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(%{host: "api.example.com"})
+        |> Run.run()
 
       # Inside local: auth header is present
       # Outside local: auth header is absent
@@ -390,12 +387,11 @@ defmodule Freyja.Effects.ReaderTest do
       original_config = %{original: "config", value: 42}
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler],
-          %{Reader.Handler => original_config}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(original_config)
+        |> Run.run()
 
       # Environment is restored after local scope
       {before, after_local} = outcome.result
@@ -427,12 +423,12 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler, State.Handler],
-          %{Reader.Handler => %{api_version: "v1"}, State.Handler => "none"}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(%{api_version: "v1"})
+        |> State.Handler.run("none")
+        |> Run.run()
 
       # Inside local: api_version is "v2", state becomes "v2"
       # Outside local: api_version is "v1", state is "v2" (persists)
@@ -455,12 +451,11 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler],
-          %{Reader.Handler => %{value: 123}}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(%{value: 123})
+        |> Run.run()
 
       # Identity function doesn't change environment
       assert outcome.result == %{value: 123}
@@ -494,12 +489,12 @@ defmodule Freyja.Effects.ReaderTest do
 
       # Initial run - suspends inside local scope
       outcome =
-        Run.run(
-          computation,
-          [Reader.Algebra, Lift.Algebra],
-          [Reader.Handler, Coroutine.Handler],
-          %{Reader.Handler => %{scope: "base"}}
-        )
+        computation
+        |> Reader.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Reader.Handler.run(%{scope: "base"})
+        |> Coroutine.Handler.run()
+        |> Run.run()
 
       # Should suspend with modified environment visible
       assert {:suspend, {:yielded, "local"}, _continuation} = outcome.result

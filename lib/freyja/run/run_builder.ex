@@ -114,34 +114,53 @@ defmodule Freyja.Run.RunBuilder do
   # Private functions
 
   defp new(computation) do
-    type = detect_computation_type(computation)
+    {type, converted_computation} = detect_and_convert_computation(computation)
 
     %__MODULE__{
-      computation: computation,
+      computation: converted_computation,
       computation_type: type
     }
   end
 
-  defp detect_computation_type(computation) do
+  defp detect_and_convert_computation(computation) do
     case computation do
       %Freyja.Freer.Pure{} ->
-        :freer
+        {:freer, computation}
 
       %Freyja.Freer.Impure{} ->
-        :freer
+        {:freer, computation}
 
       %Freyja.Hefty.Pure{} ->
-        :hefty
+        {:hefty, computation}
 
       %Freyja.Hefty.Impure{} ->
-        :hefty
+        {:hefty, computation}
 
       _ ->
-        # Try protocols - but protocols always return an impl (Any fallback)
-        # So we can't reliably use this for detection
-        # Just raise an error for unknown types
-        raise ArgumentError,
-              "Cannot detect computation type for: #{inspect(computation)}"
+        # Try auto-lifting via protocols
+        # Try ISendable first (more common for first-order effects)
+        try_protocol_conversion(computation)
+    end
+  end
+
+  defp try_protocol_conversion(computation) do
+    # Try ISendable first (for first-order effects - more common)
+    try do
+      freer = Freyja.Freer.Sig.ISendable.send(computation)
+      {:freer, freer}
+    rescue
+      _e in [Protocol.UndefinedError, ArgumentError] ->
+        # Try IHeftySendable (for higher-order effects)
+        try do
+          hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(computation)
+          {:hefty, hefty}
+        rescue
+          _e2 in [Protocol.UndefinedError, ArgumentError] ->
+            # Neither protocol works - provide a clear error message
+            raise ArgumentError,
+                  "Cannot detect computation type for: #{inspect(computation)}. " <>
+                    "Value must be a Freer/Hefty computation or implement ISendable/IHeftySendable protocol."
+        end
     end
   end
 

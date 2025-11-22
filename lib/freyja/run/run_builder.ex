@@ -111,9 +111,18 @@ defmodule Freyja.Run.RunBuilder do
     add(builder, module, initial_state)
   end
 
-  # Private functions
+  @doc """
+  Create a new RunBuilder from a computation with no handlers or algebras.
 
-  defp new(computation) do
+  This is useful for pure computations that don't require any effect handling.
+
+  ## Examples
+
+      builder = RunBuilder.new(Hefty.pure(42))
+      outcome = Run.run(builder)
+  """
+  @spec new(Freer.t() | Hefty.t()) :: t()
+  def new(computation) do
     {type, converted_computation} = detect_and_convert_computation(computation)
 
     %__MODULE__{
@@ -121,6 +130,8 @@ defmodule Freyja.Run.RunBuilder do
       computation_type: type
     }
   end
+
+  # Private functions
 
   defp detect_and_convert_computation(computation) do
     case computation do

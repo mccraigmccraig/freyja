@@ -157,8 +157,8 @@ defmodule Freyja.HeftyMacroTest do
           Hefty.pure(x + y)
         end
 
-      # Pure computations need no interpretation - use legacy Run API or extract value
-      outcome = Run.run(computation, [], [])
+      # Pure computations need no interpretation - just run them
+      outcome = computation |> Run.run()
 
       assert 15 = outcome.result
     end

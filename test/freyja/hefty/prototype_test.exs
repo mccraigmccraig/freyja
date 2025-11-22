@@ -405,17 +405,11 @@ defmodule Freyja.Hefty.PrototypeTest do
       assert {:ok, 42} = outcome.result
     end
 
-    test "run_simple convenience function" do
-      # run_simple doesn't provide handlers, so can't use Catch
-      # Use pure computation instead
+    test "pure computation with no algebras or handlers" do
+      # Pure computations can be run directly
       computation = Hefty.pure(100)
 
-      outcome =
-        Run.run_simple(
-          computation,
-          # No algebras needed for pure
-          []
-        )
+      outcome = computation |> Run.run()
 
       assert 100 = outcome.result
     end

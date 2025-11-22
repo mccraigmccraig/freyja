@@ -26,11 +26,11 @@ defmodule Freyja.EffectLoggerYieldTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Coroutine.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:suspend, "suspend here", _k}} = outcome
 
@@ -59,11 +59,11 @@ defmodule Freyja.EffectLoggerYieldTest do
 
       # First run - suspends
       outcome1 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Coroutine.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:suspend, "suspend here", _k}} = outcome1
       log_after_suspend = outcome1.outputs[EffectLogger.Handler]
@@ -74,15 +74,11 @@ defmodule Freyja.EffectLoggerYieldTest do
 
       # Second run - resume from log with resume_value
       outcome2 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            Coroutine.Handler => %{resume_value: 999},
-            State.Handler => state_after_suspend
-          }
-        )
+        computation
+        |> EffectLogger.Handler.run(resume_log)
+        |> Coroutine.Handler.run(%{resume_value: 999})
+        |> State.Handler.run(state_after_suspend)
+        |> Run.run()
 
       # Should complete successfully
       # Note: result format depends on handlers - without Coroutine wrapping it's just the value
@@ -111,11 +107,11 @@ defmodule Freyja.EffectLoggerYieldTest do
 
       # First run - suspends
       outcome1 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Coroutine.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:suspend, 100, _k}} = outcome1
 
@@ -128,15 +124,11 @@ defmodule Freyja.EffectLoggerYieldTest do
       resume_log = json_log |> Jason.decode!() |> Log.from_json()
 
       outcome2 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            Coroutine.Handler => %{resume_value: 50},
-            State.Handler => state
-          }
-        )
+        computation
+        |> EffectLogger.Handler.run(resume_log)
+        |> Coroutine.Handler.run(%{resume_value: 50})
+        |> State.Handler.run(state)
+        |> Run.run()
 
       # Should complete: 100 + 50 = 150
       assert %RunOutcome{result: {:done, 150}} = outcome2
@@ -162,11 +154,11 @@ defmodule Freyja.EffectLoggerYieldTest do
 
       # First run - suspends at first yield
       outcome1 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Coroutine.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:suspend, "first", _k}} = outcome1
 
@@ -178,15 +170,11 @@ defmodule Freyja.EffectLoggerYieldTest do
       state1 = outcome1.outputs[State.Handler]
 
       outcome2 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => log1,
-            Coroutine.Handler => %{resume_value: 20},
-            State.Handler => state1
-          }
-        )
+        computation
+        |> EffectLogger.Handler.run(log1)
+        |> Coroutine.Handler.run(%{resume_value: 20})
+        |> State.Handler.run(state1)
+        |> Run.run()
 
       # Should suspend at second yield
       assert %RunOutcome{result: {:suspend, "second", _k2}} = outcome2
@@ -201,15 +189,11 @@ defmodule Freyja.EffectLoggerYieldTest do
       state2 = outcome2.outputs[State.Handler]
 
       outcome3 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Coroutine.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => log2,
-            Coroutine.Handler => %{resume_value: 30},
-            State.Handler => state2
-          }
-        )
+        computation
+        |> EffectLogger.Handler.run(log2)
+        |> Coroutine.Handler.run(%{resume_value: 30})
+        |> State.Handler.run(state2)
+        |> Run.run()
 
       # Should complete
       assert %RunOutcome{result: result3} = outcome3

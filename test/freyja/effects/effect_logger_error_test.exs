@@ -28,11 +28,11 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # First run - errors
       outcome1 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Throw.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:error, :validation_failed}} = outcome1
       log = outcome1.outputs[EffectLogger.Handler]
@@ -44,14 +44,11 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # Resume - error should happen again (effect matches, uses logged value)
       outcome2 =
-        Run.run(
-          computation,
-          [EffectLogger.Handler, Throw.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            State.Handler => state
-          }
-        )
+        computation
+        |> EffectLogger.Handler.run(resume_log)
+        |> Throw.Handler.run()
+        |> State.Handler.run(state)
+        |> Run.run()
 
       # Should get the same error
       assert %RunOutcome{result: {:error, :validation_failed}} = outcome2
@@ -76,11 +73,11 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # First run - errors with old logic
       outcome1 =
-        Run.run(
-          make_computation.(true),
-          [EffectLogger.Handler, Throw.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        make_computation.(true)
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:error, :validation_failed}} = outcome1
       log = outcome1.outputs[EffectLogger.Handler]
@@ -92,14 +89,11 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # Resume with fixed logic - should diverge at error point and continue
       outcome2 =
-        Run.run(
-          make_computation.(false),
-          [EffectLogger.Handler, Throw.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            State.Handler => state
-          }
-        )
+        make_computation.(false)
+        |> EffectLogger.Handler.run(resume_log)
+        |> Throw.Handler.run()
+        |> State.Handler.run(state)
+        |> Run.run()
 
       # Should succeed now (bug fixed)
       assert %RunOutcome{result: {:ok, :ok}} = outcome2
@@ -118,11 +112,10 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # First run with put(20)
       outcome1 =
-        Run.run(
-          make_computation.(20),
-          [EffectLogger.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        make_computation.(20)
+        |> EffectLogger.Handler.run(Log.new())
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: :done} = outcome1
       log = outcome1.outputs[EffectLogger.Handler]
@@ -135,14 +128,10 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # Resume with different final put value - should raise on divergence
       assert_raise ArgumentError, ~r/Effect diverged from log/, fn ->
-        Run.run(
-          make_computation.(999),
-          [EffectLogger.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            State.Handler => state
-          }
-        )
+        make_computation.(999)
+        |> EffectLogger.Handler.run(resume_log)
+        |> State.Handler.run(state)
+        |> Run.run()
       end
     end
 
@@ -160,11 +149,10 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # First run
       outcome1 =
-        Run.run(
-          make_computation.(20),
-          [EffectLogger.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        make_computation.(20)
+        |> EffectLogger.Handler.run(Log.new())
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: 30} = outcome1
       log = outcome1.outputs[EffectLogger.Handler]
@@ -175,14 +163,10 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # Resume with different value at step 2 - should still raise (not final step)
       assert_raise ArgumentError, ~r/Effect diverged from log/, fn ->
-        Run.run(
-          make_computation.(999),
-          [EffectLogger.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            State.Handler => 0
-          }
-        )
+        make_computation.(999)
+        |> EffectLogger.Handler.run(resume_log)
+        |> State.Handler.run(0)
+        |> Run.run()
       end
     end
 
@@ -206,11 +190,11 @@ defmodule Freyja.EffectLoggerErrorTest do
 
       # First run - errors
       outcome1 =
-        Run.run(
-          make_computation.(true),
-          [EffectLogger.Handler, Throw.Handler, State.Handler],
-          %{State.Handler => 0}
-        )
+        make_computation.(true)
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{result: {:error, :fail}} = outcome1
       # State should be 150 at error point
@@ -222,14 +206,11 @@ defmodule Freyja.EffectLoggerErrorTest do
       resume_log = json_log |> Jason.decode!() |> Log.from_json() |> Log.for_error_resume()
 
       outcome2 =
-        Run.run(
-          make_computation.(false),
-          [EffectLogger.Handler, Throw.Handler, State.Handler],
-          %{
-            EffectLogger.Handler => resume_log,
-            State.Handler => 150
-          }
-        )
+        make_computation.(false)
+        |> EffectLogger.Handler.run(resume_log)
+        |> Throw.Handler.run()
+        |> State.Handler.run(150)
+        |> Run.run()
 
       # Should complete with state preserved
       assert %RunOutcome{result: {:ok, 150}} = outcome2

@@ -81,6 +81,10 @@ defmodule Freyja.EffectLoggerTest do
 
       {next, nil}
     end
+
+    def run(computation_or_builder, initial_state \\ :__default__) do
+      Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+    end
   end
 
   describe "logger handler" do
@@ -98,9 +102,10 @@ defmodule Freyja.EffectLoggerTest do
 
       result =
         fv
-        |> Run.run([EffectLogger.Handler, Numbers.Handler, State.Handler], %{
-          State.Handler => {:foo, 12}
-        })
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Numbers.Handler.run()
+        |> State.Handler.run({:foo, 12})
+        |> Run.run()
 
       assert %Freyja.Run.RunOutcome{
                result: _final_val,

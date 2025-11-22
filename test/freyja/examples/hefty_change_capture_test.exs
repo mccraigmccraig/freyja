@@ -16,38 +16,19 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         3 => %{id: 3, name: "Charlie", email: "charlie@example.com", created_at: ~D[2020-03-01]}
       }
 
-      # Algebras for higher-order effects
-      algebras = [
-        Lift.Algebra,
-        Storage.Algebra,
-        FxList.Algebra,
-        TaggedWriter.Algebra
-      ]
-
-      # Handlers for first-order effects (including runner effects)
-      handlers = [
-        Storage.Handler,
-        TaggedWriter.Handler,
-        State.Handler,
-        TaggedWriter.RunListenHandler
-      ]
-
-      initial_states = %{
-        Storage.Handler => initial_users,
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      }
-
       outcome =
-        Run.run(
-          HeftyChangeCapture.process_users(
-            [1, 2, 3],
-            &HeftyChangeCapture.remove_email_from_user/1
-          ),
-          algebras,
-          handlers,
-          initial_states
+        HeftyChangeCapture.process_users(
+          [1, 2, 3],
+          &HeftyChangeCapture.remove_email_from_user/1
         )
+        |> Lift.Algebra.run()
+        |> Storage.Algebra.run()
+        |> FxList.Algebra.run()
+        |> TaggedWriter.Algebra.run()
+        |> Storage.Handler.run(initial_users)
+        |> TaggedWriter.Handler.run(%{})
+        |> State.Handler.run(0)
+        |> Run.run()
 
       result = outcome.result
 
@@ -74,28 +55,16 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
     end
 
     test "handles empty user list" do
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
-
-      handlers = [
-        Storage.Handler,
-        TaggedWriter.Handler,
-        State.Handler,
-        TaggedWriter.RunListenHandler
-      ]
-
-      initial_states = %{
-        Storage.Handler => %{},
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      }
-
       outcome =
-        Run.run(
-          HeftyChangeCapture.process_users([], &HeftyChangeCapture.remove_email_from_user/1),
-          algebras,
-          handlers,
-          initial_states
-        )
+        HeftyChangeCapture.process_users([], &HeftyChangeCapture.remove_email_from_user/1)
+        |> Lift.Algebra.run()
+        |> Storage.Algebra.run()
+        |> FxList.Algebra.run()
+        |> TaggedWriter.Algebra.run()
+        |> Storage.Handler.run(%{})
+        |> TaggedWriter.Handler.run(%{})
+        |> State.Handler.run(0)
+        |> Run.run()
 
       result = outcome.result
 
@@ -113,34 +82,22 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         3 => %{id: 3, name: "Charlie", email: "charlie@test.com", created_at: ~D[2020-03-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
-
-      handlers = [
-        Storage.Handler,
-        TaggedWriter.Handler,
-        State.Handler,
-        TaggedWriter.RunListenHandler
-      ]
-
-      initial_states = %{
-        Storage.Handler => initial_users,
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      }
-
       # KEY POINT: Same process_users function, different processing logic!
       # The validate_and_update_user function uses MORE effects (TaggedWriter for validation)
       # but process_users doesn't need to know or care!
       outcome =
-        Run.run(
-          HeftyChangeCapture.process_users(
-            [1, 2, 3],
-            &HeftyChangeCapture.validate_and_update_user/1
-          ),
-          algebras,
-          handlers,
-          initial_states
+        HeftyChangeCapture.process_users(
+          [1, 2, 3],
+          &HeftyChangeCapture.validate_and_update_user/1
         )
+        |> Lift.Algebra.run()
+        |> Storage.Algebra.run()
+        |> FxList.Algebra.run()
+        |> TaggedWriter.Algebra.run()
+        |> Storage.Handler.run(initial_users)
+        |> TaggedWriter.Handler.run(%{})
+        |> State.Handler.run(0)
+        |> Run.run()
 
       result = outcome.result
 
@@ -174,31 +131,19 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         1 => %{id: 1, name: "Alice", email: "alice@example.com", created_at: ~D[2020-01-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
-
-      handlers = [
-        Storage.Handler,
-        TaggedWriter.Handler,
-        State.Handler,
-        TaggedWriter.RunListenHandler
-      ]
-
-      initial_states = %{
-        Storage.Handler => initial_users,
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      }
-
       # KEY POINT: audit_user uses DIFFERENT effects than the other functions!
       # It uses TaggedWriter for audit logs but NOT Storage.change
       # Yet it works with the same process_users function!
       outcome =
-        Run.run(
-          HeftyChangeCapture.process_users([1], &HeftyChangeCapture.audit_user/1),
-          algebras,
-          handlers,
-          initial_states
-        )
+        HeftyChangeCapture.process_users([1], &HeftyChangeCapture.audit_user/1)
+        |> Lift.Algebra.run()
+        |> Storage.Algebra.run()
+        |> FxList.Algebra.run()
+        |> TaggedWriter.Algebra.run()
+        |> Storage.Handler.run(initial_users)
+        |> TaggedWriter.Handler.run(%{})
+        |> State.Handler.run(0)
+        |> Run.run()
 
       result = outcome.result
 
@@ -229,28 +174,16 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         2 => %{id: 2, name: "Bob", email: "bob@example.com", created_at: ~D[2020-02-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
-
-      handlers = [
-        Storage.Handler,
-        TaggedWriter.Handler,
-        State.Handler,
-        TaggedWriter.RunListenHandler
-      ]
-
-      initial_states = %{
-        Storage.Handler => initial_users,
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      }
-
       outcome =
-        Run.run(
-          HeftyChangeCapture.multi_stage_process([1, 2]),
-          algebras,
-          handlers,
-          initial_states
-        )
+        HeftyChangeCapture.multi_stage_process([1, 2])
+        |> Lift.Algebra.run()
+        |> Storage.Algebra.run()
+        |> FxList.Algebra.run()
+        |> TaggedWriter.Algebra.run()
+        |> Storage.Handler.run(initial_users)
+        |> TaggedWriter.Handler.run(%{})
+        |> State.Handler.run(0)
+        |> Run.run()
 
       result = outcome.result
 
@@ -286,30 +219,18 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
         1 => %{id: 1, name: "Alice", email: "alice@example.com", created_at: ~D[2020-01-01]}
       }
 
-      algebras = [Lift.Algebra, Storage.Algebra, FxList.Algebra, TaggedWriter.Algebra]
-
-      handlers = [
-        Storage.Handler,
-        TaggedWriter.Handler,
-        State.Handler,
-        TaggedWriter.RunListenHandler
-      ]
-
-      initial_states = %{
-        Storage.Handler => initial_users,
-        TaggedWriter.Handler => %{},
-        State.Handler => 0
-      }
-
       # OLD WAY: Would need separate process_users, process_users_with_validation, etc.
       # NEW WAY: Single process_users function, pass different processing functions!
       outcome =
-        Run.run(
-          HeftyChangeCapture.process_users([1], &HeftyChangeCapture.remove_email_from_user/1),
-          algebras,
-          handlers,
-          initial_states
-        )
+        HeftyChangeCapture.process_users([1], &HeftyChangeCapture.remove_email_from_user/1)
+        |> Lift.Algebra.run()
+        |> Storage.Algebra.run()
+        |> FxList.Algebra.run()
+        |> TaggedWriter.Algebra.run()
+        |> Storage.Handler.run(initial_users)
+        |> TaggedWriter.Handler.run(%{})
+        |> State.Handler.run(0)
+        |> Run.run()
 
       result = outcome.result
 

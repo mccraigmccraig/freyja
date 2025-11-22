@@ -100,11 +100,9 @@ defmodule Freyja.FreerTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [State.Handler],
-          %{State.Handler => 5}
-        )
+        computation
+        |> State.Handler.run(5)
+        |> Run.run()
 
       # Initial: 5, after put: 15
       assert outcome.result == 15
@@ -134,11 +132,9 @@ defmodule Freyja.FreerTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [State.Handler],
-          %{State.Handler => 7}
-        )
+        computation
+        |> State.Handler.run(7)
+        |> Run.run()
 
       # x = 7, y = 14
       assert outcome.result == {7, 14}

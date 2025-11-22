@@ -204,6 +204,11 @@ defmodule Freyja.Examples.HeftyChangeCapture do
           {Freer.Impl.q_apply(q, length(changes)), updated_state}
       end
     end
+
+    @doc "Add Storage.Handler to the run pipeline with initial state"
+    def run(computation_or_builder, initial_state) do
+      Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
+    end
   end
 
   # Storage Algebra - elaborates ONLY higher-order operations
@@ -281,6 +286,11 @@ defmodule Freyja.Examples.HeftyChangeCapture do
         {tag, new_logs}
       end)
       |> Enum.into(%{})
+    end
+
+    @doc "Add Storage.Algebra to the run pipeline"
+    def run(computation_or_builder) do
+      Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__)
     end
   end
 

@@ -157,7 +157,8 @@ defmodule Freyja.HeftyMacroTest do
           Hefty.pure(x + y)
         end
 
-      outcome = Run.run_simple(computation, [])
+      # Pure computations need no interpretation - use legacy Run API or extract value
+      outcome = Run.run(computation, [], [])
 
       assert 15 = outcome.result
     end
@@ -171,12 +172,10 @@ defmodule Freyja.HeftyMacroTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Lift.Algebra],
-          [State.Handler],
-          %{State.Handler => 21}
-        )
+        computation
+        |> Lift.Algebra.run()
+        |> State.Handler.run(21)
+        |> Run.run()
 
       assert 42 = outcome.result
     end
@@ -205,23 +204,23 @@ defmodule Freyja.HeftyMacroTest do
 
       # With positive state
       outcome1 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => 5}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(5)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 10} = outcome1.result
 
       # With negative state
       outcome2 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => -3}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(-3)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 0} = outcome2.result
     end
@@ -275,11 +274,11 @@ defmodule Freyja.HeftyMacroTest do
       result1 = with_catch(5)
 
       outcome1 =
-        Run.run(
-          result1,
-          [Catch.Algebra, Lift.Algebra],
-          [ThrowHandler]
-        )
+        result1
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 10} = outcome1.result
 
@@ -287,11 +286,11 @@ defmodule Freyja.HeftyMacroTest do
       result2 = with_catch(-3)
 
       outcome2 =
-        Run.run(
-          result2,
-          [Catch.Algebra, Lift.Algebra],
-          [ThrowHandler]
-        )
+        result2
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 0} = outcome2.result
     end
@@ -353,23 +352,23 @@ defmodule Freyja.HeftyMacroTest do
 
       # Test success case (no error)
       outcome1 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => 5}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(5)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 10} = outcome1.result
 
       # Test error case (caught)
       outcome2 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => -3}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(-3)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 0} = outcome2.result
     end
@@ -391,34 +390,34 @@ defmodule Freyja.HeftyMacroTest do
 
       # Test negative error
       outcome1 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => :throw_negative}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(:throw_negative)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, :handled_negative} = outcome1.result
 
       # Test overflow error
       outcome2 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => :throw_overflow}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(:throw_overflow)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, :handled_overflow} = outcome2.result
 
       # Test success case
       outcome3 =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => 42}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(42)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 42} = outcome3.result
     end
@@ -433,12 +432,12 @@ defmodule Freyja.HeftyMacroTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, {:caught, "any error"}} = outcome.result
     end
@@ -452,12 +451,12 @@ defmodule Freyja.HeftyMacroTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       # Should propagate error since "unhandled" doesn't match "handled"
       assert {:error, "unhandled"} = outcome.result
@@ -479,12 +478,12 @@ defmodule Freyja.HeftyMacroTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Catch.Algebra, Lift.Algebra],
-          [State.Handler, ThrowHandler],
-          %{State.Handler => -5}
-        )
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(-5)
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, {:handled, -5}} = outcome.result
     end
@@ -506,11 +505,11 @@ defmodule Freyja.HeftyMacroTest do
       result1 = safe_divide(10, 2)
 
       outcome1 =
-        Run.run(
-          result1,
-          [Catch.Algebra, Lift.Algebra],
-          [ThrowHandler]
-        )
+        result1
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 5} = outcome1.result
 
@@ -518,11 +517,11 @@ defmodule Freyja.HeftyMacroTest do
       result2 = safe_divide(10, 0)
 
       outcome2 =
-        Run.run(
-          result2,
-          [Catch.Algebra, Lift.Algebra],
-          [ThrowHandler]
-        )
+        result2
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, :infinity} = outcome2.result
     end
@@ -548,11 +547,11 @@ defmodule Freyja.HeftyMacroTest do
       result = public_wrapper(-5)
 
       outcome =
-        Run.run(
-          result,
-          [Catch.Algebra, Lift.Algebra],
-          [ThrowHandler]
-        )
+        result
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert {:ok, 100} = outcome.result
     end

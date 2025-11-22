@@ -18,12 +18,12 @@ defmodule Freyja.ConElseErrorTest do
           {:invalid, n} -> return({:fixed, n + 1})
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler]
-      initial_states = %{}
-
       %Freyja.Run.RunOutcome{result: res, outputs: _out} =
-        Run.run(fv, algebras, handlers, initial_states)
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
 
       assert res == {:ok, {:fixed, 4}}
     end
@@ -39,11 +39,13 @@ defmodule Freyja.ConElseErrorTest do
           :other -> return(:ok)
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler]
-      initial_states = %{}
+      %Freyja.Run.RunOutcome{result: res} =
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
 
-      %Freyja.Run.RunOutcome{result: res} = Run.run(fv, algebras, handlers, initial_states)
       assert res == {:error, :nope}
     end
 
@@ -60,12 +62,13 @@ defmodule Freyja.ConElseErrorTest do
             return(:ok)
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler, Writer.Handler]
-      initial_states = %{}
-
       %Freyja.Run.RunOutcome{result: res, outputs: out} =
-        Run.run(fv, algebras, handlers, initial_states)
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert res == {:ok, :ok}
       # Writer output is in reverse order (most recent first)
@@ -83,12 +86,12 @@ defmodule Freyja.ConElseErrorTest do
           _ -> return(:handled)
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler]
-      initial_states = %{}
-
       %Freyja.Run.RunOutcome{result: res, outputs: _out} =
-        Run.run(fv, algebras, handlers, initial_states)
+        fv
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
 
       assert res == {:ok, :handled}
     end

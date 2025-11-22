@@ -4,6 +4,7 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   use Freyja.Syntax
 
   alias Freyja.Effects.EffectLogger
+  alias Freyja.Effects.EffectLogger.Log
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
   alias Freyja.Hefty
@@ -23,11 +24,12 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return(result)
         end
 
-      algebras = [Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler]
-      initial_states = %{}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> Run.run()
 
       assert %RunOutcome{
                result: [2, 4, 6],
@@ -39,7 +41,12 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
 
       # Replay - re-elaborate and re-run with outputs as initial states
       # The log should contain the ELABORATED first-order operations
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> Run.run()
 
       assert %RunOutcome{
                result: [2, 4, 6],
@@ -69,11 +76,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return({result, final_state})
         end
 
-      algebras = [Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, State.Handler]
-      initial_states = %{State.Handler => 0}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {[2, 4, 6], 6},
@@ -84,7 +93,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> State.Handler.run(Map.get(outputs, State.Handler))
+        |> Run.run()
 
       assert %RunOutcome{
                result: {[2, 4, 6], 6},
@@ -113,11 +128,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return(result)
         end
 
-      algebras = [Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, Writer.Handler]
-      initial_states = %{}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: [15, 25, 35],
@@ -133,7 +150,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> Writer.Handler.run(Map.get(outputs, Writer.Handler))
+        |> Run.run()
 
       assert %RunOutcome{
                result: [15, 25, 35],
@@ -167,11 +190,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return(result)
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ThrowHandler]
-      initial_states = %{}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, 42},
@@ -181,7 +206,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, 42},
@@ -210,11 +241,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           end
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ThrowHandler]
-      initial_states = %{}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, {:recovered, :oops}},
@@ -224,7 +257,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, {:recovered, :oops}},
@@ -263,11 +302,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           end
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [EffectLogger.Handler, ThrowHandler, State.Handler]
-      initial_states = %{State.Handler => 0}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> ThrowHandler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, {:success, 10, 15}},
@@ -278,7 +320,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> ThrowHandler.run()
+        |> State.Handler.run(Map.get(outputs, State.Handler))
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, {:success, 10, 15}},
@@ -311,11 +360,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return(result)
         end
 
-      algebras = [Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, State.Handler, Writer.Handler]
-      initial_states = %{State.Handler => 0}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> State.Handler.run(0)
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: [{:a, 0}, {:b, 1}, {:c, 2}],
@@ -327,7 +379,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> State.Handler.run(Map.get(outputs, State.Handler))
+        |> Writer.Handler.run(Map.get(outputs, Writer.Handler))
+        |> Run.run()
 
       assert %RunOutcome{
                result: [{:a, 0}, {:b, 1}, {:c, 2}],
@@ -367,11 +426,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return(result)
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, ThrowHandler]
-      initial_states = %{}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> ThrowHandler.run()
+        |> Run.run()
 
       ok_val = 10 / 3
 
@@ -383,7 +445,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, [{:ok, 10.0}, {:error, :divide_by_zero}, {:ok, ^ok_val}]},
@@ -418,11 +487,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           end
         end
 
-      algebras = [Catch.Algebra, Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, ThrowHandler]
-      initial_states = %{}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, {:success, 60}},
@@ -432,7 +504,14 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       assert Map.has_key?(outputs, EffectLogger.Handler)
 
       # Replay - re-elaborate and re-run with outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, outputs)
+      second_outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Map.get(outputs, EffectLogger.Handler))
+        |> ThrowHandler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:ok, {:success, 60}},
@@ -463,11 +542,13 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
           return(result)
         end
 
-      algebras = [Lift.Algebra, FxList.Algebra]
-      handlers = [EffectLogger.Handler, State.Handler]
-      initial_states = %{State.Handler => 0}
-
-      first_outcome = Run.run(computation, algebras, handlers, initial_states)
+      first_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(Log.new())
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert %RunOutcome{
                result: [%{"a" => 0}, %{"b" => 1}, %{"c" => 2}],
@@ -484,15 +565,19 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
       json = Jason.encode!(%{l: log, s: state})
       decoded_map = Jason.decode!(json)
 
-      deserialized_outputs = %{
-        EffectLogger.Handler => Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
-        State.Handler => decoded_map["s"]
-      }
+      deserialized_log = Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"])
+      deserialized_state = decoded_map["s"]
 
       # IO.puts("\nFirst outcome deserialized: :\n#{inspect(first_outcome, pretty: true)}")
 
       # Replay - re-elaborate and re-run with deserialized outputs as initial states
-      second_outcome = Run.run(computation, algebras, handlers, deserialized_outputs)
+      second_outcome =
+        computation
+        |> Lift.Algebra.run()
+        |> FxList.Algebra.run()
+        |> EffectLogger.Handler.run(deserialized_log)
+        |> State.Handler.run(deserialized_state)
+        |> Run.run()
 
       assert %RunOutcome{
                result: [%{"a" => 0}, %{"b" => 1}, %{"c" => 2}],

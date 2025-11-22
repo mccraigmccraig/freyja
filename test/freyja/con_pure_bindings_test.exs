@@ -10,13 +10,16 @@ defmodule Freyja.ConPureBindingsTest do
   describe "pure variable bindings with =" do
     test "simple pure binding" do
       computation =
-        con [State] do
+        con State do
           x <- get()
           doubled = x * 2
           return(doubled)
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 10})
+      outcome =
+        computation
+        |> State.Handler.run(10)
+        |> Run.run()
 
       assert %RunOutcome{
                result: 20
@@ -25,7 +28,7 @@ defmodule Freyja.ConPureBindingsTest do
 
     test "multiple pure bindings" do
       computation =
-        con [State] do
+        con State do
           x <- get()
           doubled = x * 2
           tripled = x * 3
@@ -33,7 +36,10 @@ defmodule Freyja.ConPureBindingsTest do
           return(sum)
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 5})
+      outcome =
+        computation
+        |> State.Handler.run(5)
+        |> Run.run()
 
       assert %RunOutcome{
                result: 25
@@ -42,7 +48,7 @@ defmodule Freyja.ConPureBindingsTest do
 
     test "pure bindings mixed with effects" do
       computation =
-        con [State] do
+        con State do
           x <- get()
           doubled = x * 2
           _ <- put(doubled)
@@ -51,7 +57,10 @@ defmodule Freyja.ConPureBindingsTest do
           return({doubled, y, halved})
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 10})
+      outcome =
+        computation
+        |> State.Handler.run(10)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {20, 20, 10.0},
@@ -63,14 +72,17 @@ defmodule Freyja.ConPureBindingsTest do
       pure_fn = fn a, b -> a * b + 100 end
 
       computation =
-        con [State] do
+        con State do
           x <- get()
           result = pure_fn.(x, 3)
           _ <- put(result)
           return(result)
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 7})
+      outcome =
+        computation
+        |> State.Handler.run(7)
+        |> Run.run()
 
       assert %RunOutcome{
                result: 121,
@@ -80,14 +92,17 @@ defmodule Freyja.ConPureBindingsTest do
 
     test "pure bindings with pattern matching" do
       computation =
-        con [State] do
+        con State do
           x <- get()
           {a, b} = {x * 2, x * 3}
           sum = a + b
           return(sum)
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 4})
+      outcome =
+        computation
+        |> State.Handler.run(4)
+        |> Run.run()
 
       assert %RunOutcome{
                result: 20
@@ -96,7 +111,7 @@ defmodule Freyja.ConPureBindingsTest do
 
     test "pure bindings with complex expressions" do
       computation =
-        con [State] do
+        con State do
           x <- get()
 
           # Complex pure computation
@@ -111,7 +126,10 @@ defmodule Freyja.ConPureBindingsTest do
           return({x, calculated, final})
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 5})
+      outcome =
+        computation
+        |> State.Handler.run(5)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {5, 15, 15},
@@ -121,7 +139,7 @@ defmodule Freyja.ConPureBindingsTest do
 
     test "pure bindings referencing previous pure bindings" do
       computation =
-        con [State] do
+        con State do
           x <- get()
           a = x + 10
           b = a * 2
@@ -130,7 +148,10 @@ defmodule Freyja.ConPureBindingsTest do
           return({a, b, c})
         end
 
-      outcome = computation |> Run.run([State.Handler], %{State.Handler => 5})
+      outcome =
+        computation
+        |> State.Handler.run(5)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {15, 30, 25},

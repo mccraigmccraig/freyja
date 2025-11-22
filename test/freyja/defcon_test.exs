@@ -51,12 +51,19 @@ defmodule Freyja.DefconTest do
   end
 
   test "defcon with Reader returns expected sum" do
-    out = Run.run(DefconExample.sum_env(1, 2), [Reader.Handler], %{Reader.Handler => 3})
+    out =
+      DefconExample.sum_env(1, 2)
+      |> Reader.Handler.run(3)
+      |> Run.run()
+
     assert %Freyja.Run.RunOutcome{result: 6} = out
   end
 
   test "defconp with Writer accumulates outputs" do
-    out = Run.run(DefconExample.call_private(4, 5), [Writer.Handler])
+    out =
+      DefconExample.call_private(4, 5)
+      |> Writer.Handler.run()
+      |> Run.run()
 
     assert %Freyja.Run.RunOutcome{
              result: 9,
@@ -66,23 +73,31 @@ defmodule Freyja.DefconTest do
   end
 
   test "defhefty with Throw and catch clause handles divide by zero" do
-    algebras = [Catch.Algebra, Lift.Algebra]
-    handlers = [Throw.Handler]
+    out =
+      DefconExample.safe_div(10, 0)
+      |> Catch.Algebra.run()
+      |> Lift.Algebra.run()
+      |> Throw.Handler.run()
+      |> Run.run()
 
-    out = Run.run(DefconExample.safe_div(10, 0), algebras, handlers)
     assert %Freyja.Run.RunOutcome{result: {:ok, :infty}} = out
 
-    out2 = Run.run(DefconExample.safe_div(10, 2), algebras, handlers)
+    out2 =
+      DefconExample.safe_div(10, 2)
+      |> Catch.Algebra.run()
+      |> Lift.Algebra.run()
+      |> Throw.Handler.run()
+      |> Run.run()
+
     assert %Freyja.Run.RunOutcome{result: {:ok, 5.0}} = out2
   end
 
   test "defcon composition: sum_and_log composes Reader and Writer and calls another defcon" do
     out =
-      Run.run(
-        DefconExample.sum_and_log(1, 2),
-        [Reader.Handler, Writer.Handler],
-        %{Reader.Handler => 3}
-      )
+      DefconExample.sum_and_log(1, 2)
+      |> Reader.Handler.run(3)
+      |> Writer.Handler.run()
+      |> Run.run()
 
     assert %Freyja.Run.RunOutcome{
              result: 6,
@@ -91,7 +106,10 @@ defmodule Freyja.DefconTest do
   end
 
   test "defcon composition: sum_twice calls another defcon twice" do
-    out = Run.run(DefconExample.sum_twice(1, 2), [Reader.Handler], %{Reader.Handler => 3})
+    out =
+      DefconExample.sum_twice(1, 2)
+      |> Reader.Handler.run(3)
+      |> Run.run()
 
     # First sum_env: 1+2+3 = 6; second: 6+0+3 = 9
     assert %Freyja.Run.RunOutcome{result: 9} = out

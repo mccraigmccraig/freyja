@@ -26,12 +26,11 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         )
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler],
-          %{TaggedWriter.Handler => %{}}
-        )
+        computation
+        |> TaggedWriter.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedWriter.Handler.run()
+        |> Run.run()
 
       assert {:ok, captured} = outcome.result
       assert captured[:audit] == ["event 2", "event 1"]
@@ -49,12 +48,11 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         )
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler],
-          %{TaggedWriter.Handler => %{}}
-        )
+        computation
+        |> TaggedWriter.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedWriter.Handler.run()
+        |> Run.run()
 
       assert {42, captured} = outcome.result
       assert captured[:audit] == ["audit 2", "audit 1"]
@@ -70,12 +68,11 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         )
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler],
-          %{TaggedWriter.Handler => %{}}
-        )
+        computation
+        |> TaggedWriter.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedWriter.Handler.run()
+        |> Run.run()
 
       assert {:done, captured} = outcome.result
       assert captured == %{}
@@ -100,12 +97,11 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler],
-          %{TaggedWriter.Handler => %{}}
-        )
+        computation
+        |> TaggedWriter.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedWriter.Handler.run()
+        |> Run.run()
 
       assert {captured, all_logs} = outcome.result
       # Captured only has the inner log
@@ -145,12 +141,11 @@ defmodule Freyja.Hefty.Effects.HeftyTaggedWriterTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [TaggedWriter.Algebra, Lift.Algebra],
-          [TaggedWriter.Handler],
-          %{TaggedWriter.Handler => %{}}
-        )
+        computation
+        |> TaggedWriter.Algebra.run()
+        |> Lift.Algebra.run()
+        |> TaggedWriter.Handler.run()
+        |> Run.run()
 
       assert outer_captured = outcome.result
       # Outer captured should have middle 1, inner 1, inner 2, middle 2

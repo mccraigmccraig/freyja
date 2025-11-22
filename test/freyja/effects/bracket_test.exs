@@ -4,6 +4,7 @@ defmodule Freyja.Effects.BracketTest do
   use Freyja.Syntax
 
   alias Freyja.Effects.Bracket
+  alias Freyja.Effects.Catch
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Lift
   alias Freyja.Effects.State
@@ -45,12 +46,13 @@ defmodule Freyja.Effects.BracketTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Bracket.Algebra, Freyja.Effects.Catch.Algebra, Lift.Algebra],
-          [State.Handler, Throw.Handler],
-          %{State.Handler => []}
-        )
+        computation
+        |> Bracket.Algebra.run()
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run([])
+        |> Throw.Handler.run()
+        |> Run.run()
 
       # Result should be {:ok, {:result, :resource}}
       # Log should show: acquired, used, released
@@ -85,12 +87,13 @@ defmodule Freyja.Effects.BracketTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Bracket.Algebra, Freyja.Effects.Catch.Algebra, Lift.Algebra],
-          [State.Handler, Throw.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> Bracket.Algebra.run()
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> Throw.Handler.run()
+        |> Run.run()
 
       # Release should run exactly once
       assert {:ok, {{:used, :resource}, 1}} = outcome.result
@@ -102,7 +105,7 @@ defmodule Freyja.Effects.BracketTest do
       computation =
         hefty do
           result <-
-            Freyja.Effects.Catch.catch_hefty(
+            Catch.catch_hefty(
               hefty do
                 Bracket.bracket(
                   hefty do
@@ -140,12 +143,13 @@ defmodule Freyja.Effects.BracketTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [Bracket.Algebra, Freyja.Effects.Catch.Algebra, Lift.Algebra],
-          [State.Handler, Throw.Handler],
-          %{State.Handler => []}
-        )
+        computation
+        |> Bracket.Algebra.run()
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run([])
+        |> Throw.Handler.run()
+        |> Run.run()
 
       # Release should run before error is caught
       # Log should show: acquired, used, released
@@ -192,12 +196,14 @@ defmodule Freyja.Effects.BracketTest do
 
       # Initial run - suspends
       outcome =
-        Run.run(
-          computation,
-          [Bracket.Algebra, Freyja.Effects.Catch.Algebra, Lift.Algebra],
-          [State.Handler, Throw.Handler, Coroutine.Handler],
-          %{State.Handler => []}
-        )
+        computation
+        |> Bracket.Algebra.run()
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run([])
+        |> Throw.Handler.run()
+        |> Coroutine.Handler.run()
+        |> Run.run()
 
       # Should suspend, release has NOT run yet
       assert {:suspend, {:yielded, :resource}, _continuation} = outcome.result

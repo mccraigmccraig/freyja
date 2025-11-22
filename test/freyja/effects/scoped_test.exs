@@ -53,12 +53,14 @@ defmodule Freyja.Effects.ScopedTest do
   # the computation structure, so it IS preserved across suspensions.
   describe "suspending a scoped effect" do
     test "it suspends" do
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
-      initial_states = %{}
-
       outcome_one =
-        Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+        ScopedFx.safe_suspend_twice(10, 20)
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Coroutine.Handler.run()
+        |> Writer.Handler.run([])
+        |> Run.run()
 
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "two")
@@ -82,12 +84,14 @@ defmodule Freyja.Effects.ScopedTest do
     end
 
     test "the scope is still in effect after resume" do
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
-      initial_states = %{}
-
       outcome_one =
-        Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+        ScopedFx.safe_suspend_twice(10, 20)
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Coroutine.Handler.run()
+        |> Writer.Handler.run([])
+        |> Run.run()
 
       # Logger.error("#{__MODULE__}.outcome_one: #{inspect(outcome_one, pretty: true)}")
 
@@ -99,12 +103,14 @@ defmodule Freyja.Effects.ScopedTest do
     end
 
     test "uncaught errors propagate out" do
-      algebras = [Catch.Algebra, Lift.Algebra]
-      handlers = [Throw.Handler, Coroutine.Handler, Writer.Handler]
-      initial_states = %{}
-
       outcome_one =
-        Run.run(ScopedFx.safe_suspend_twice(10, 20), algebras, handlers, initial_states)
+        ScopedFx.safe_suspend_twice(10, 20)
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Coroutine.Handler.run()
+        |> Writer.Handler.run([])
+        |> Run.run()
 
       outcome_two = Run.resume(outcome_one, "one")
       outcome_three = Run.resume(outcome_two, "hoo")

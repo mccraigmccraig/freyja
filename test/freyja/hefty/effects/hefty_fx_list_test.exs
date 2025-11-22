@@ -40,11 +40,10 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          []
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       assert [2, 4, 6] = outcome.result
     end
@@ -56,11 +55,10 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          []
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       assert [] = outcome.result
     end
@@ -72,11 +70,10 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          []
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       assert [43] = outcome.result
     end
@@ -92,11 +89,10 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          []
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       assert [3, 5, 7] = outcome.result
     end
@@ -116,12 +112,11 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          [State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       assert [2, 4, 6] = outcome.result
       # State should be incremented 3 times
@@ -140,12 +135,11 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          [State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       # 0 + 10 = 10, 10 + 20 = 30, 30 + 30 = 60
       assert [10, 30, 60] = outcome.result
@@ -160,11 +154,10 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         |> Hefty.bind(fn results -> Hefty.pure(Enum.sum(results)) end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          []
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       # [2, 4, 6] → sum = 12
       assert 12 = outcome.result
@@ -189,12 +182,11 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          [State.Handler],
-          %{State.Handler => 0}
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> Run.run()
 
       # count: 0, 1, 2 → results: [0, 2, 6]
       assert {[0, 2, 6], 3} = outcome.result
@@ -209,11 +201,10 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
         end)
 
       outcome =
-        Run.run(
-          computation,
-          [FxList.Algebra, Lift.Algebra],
-          []
-        )
+        computation
+        |> FxList.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Run.run()
 
       # [[11, 21], [12, 22]]
       assert [[11, 21], [12, 22]] = outcome.result
@@ -250,8 +241,8 @@ defmodule Freyja.Hefty.Effects.HeftyFxListTest do
       # In more complex cases with effects, would be Impure
       assert %Freyja.Freer.Pure{val: [2, 4, 6]} = freer_tree
 
-      # Run it
-      outcome = Freyja.Run.run(freer_tree, [], %{})
+      # Run it using 3-arity API (no handlers needed for Pure computation)
+      outcome = Run.run(freer_tree, [], %{})
 
       assert [2, 4, 6] = outcome.result
     end

@@ -23,7 +23,10 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       # Run once to generate the log
       first_outcome =
-        computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> State.Handler.run(nil)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {:initial_value, :updated_value},
@@ -31,7 +34,12 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
              } = first_outcome
 
       # Rerun using the outputs (including log) from first run
-      second_outcome = Run.rerun(computation, first_outcome)
+      builder =
+        computation
+        |> EffectLogger.Handler.run(first_outcome.outputs[EffectLogger.Handler])
+        |> State.Handler.run(first_outcome.outputs[State.Handler])
+
+      second_outcome = Run.rerun(builder, first_outcome)
 
       # Should get the same result
       assert %RunOutcome{
@@ -53,7 +61,11 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return(:done)
         end
 
-      first_outcome = computation |> Run.run([EffectLogger.Handler, Writer.Handler])
+      first_outcome =
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: :done,
@@ -64,7 +76,12 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
              } = first_outcome
 
       # Replay using rerun
-      second_outcome = Run.rerun(computation, first_outcome)
+      builder =
+        computation
+        |> EffectLogger.Handler.run(first_outcome.outputs[EffectLogger.Handler])
+        |> Writer.Handler.run(first_outcome.outputs[Writer.Handler])
+
+      second_outcome = Run.rerun(builder, first_outcome)
 
       assert %RunOutcome{
                result: :done,
@@ -89,7 +106,10 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
 
       first_outcome =
         computation
-        |> Run.run([EffectLogger.Handler, State.Handler, Writer.Handler], %{State.Handler => nil})
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> State.Handler.run(nil)
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: 30,
@@ -101,7 +121,13 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
              } = first_outcome
 
       # Replay using rerun
-      second_outcome = Run.rerun(computation, first_outcome)
+      builder =
+        computation
+        |> EffectLogger.Handler.run(first_outcome.outputs[EffectLogger.Handler])
+        |> State.Handler.run(first_outcome.outputs[State.Handler])
+        |> Writer.Handler.run(first_outcome.outputs[Writer.Handler])
+
+      second_outcome = Run.rerun(builder, first_outcome)
 
       assert %RunOutcome{
                result: 30,
@@ -126,7 +152,10 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
         end
 
       first_outcome =
-        computation |> Run.run([EffectLogger.Handler, State.Handler], %{State.Handler => nil})
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> State.Handler.run(nil)
+        |> Run.run()
 
       assert %RunOutcome{
                result: {"value_one", "value_two"},
@@ -137,19 +166,28 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       json = Jason.encode!(%{l: log, s: state})
       decoded_map = Jason.decode!(json)
 
-      deserialized_outputs = %{
-        EffectLogger.Handler => Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
-        State.Handler => decoded_map["s"]
-      }
+      deserialized_log = Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"])
+      deserialized_state = decoded_map["s"]
 
       # IO.puts("\nOriginal log:\n#{inspect(log, pretty: true)}")
-      # IO.puts("\nDeserialized log:\n#{inspect(deserialized_outputs.l, pretty: true)}")
+      # IO.puts("\nDeserialized log:\n#{inspect(deserialized_log, pretty: true)}")
 
       # Create outcome with deserialized outputs for rerun
-      deserialized_outcome = %{first_outcome | outputs: deserialized_outputs}
+      deserialized_outcome = %{
+        first_outcome
+        | outputs: %{
+            EffectLogger.Handler => deserialized_log,
+            State.Handler => deserialized_state
+          }
+      }
 
       # Rerun with deserialized state
-      second_outcome = Run.rerun(computation, deserialized_outcome)
+      builder =
+        computation
+        |> EffectLogger.Handler.run(deserialized_log)
+        |> State.Handler.run(deserialized_state)
+
+      second_outcome = Run.rerun(builder, deserialized_outcome)
 
       # Should get the same result
       assert %RunOutcome{
@@ -166,7 +204,11 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
           return(:complete)
         end
 
-      first_outcome = computation |> Run.run([EffectLogger.Handler, Writer.Handler])
+      first_outcome =
+        computation
+        |> EffectLogger.Handler.run(EffectLogger.Log.new())
+        |> Writer.Handler.run()
+        |> Run.run()
 
       assert %RunOutcome{
                result: :complete,
@@ -180,14 +222,24 @@ defmodule Freyja.Effects.EffectLogger.UnscopedReplayTest do
       json = Jason.encode!(%{l: log, w: writer_output})
       decoded_map = Jason.decode!(json)
 
-      deserialized_outputs = %{
-        EffectLogger.Handler => Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"]),
-        Writer.Handler => decoded_map["w"]
-      }
+      deserialized_log = Freyja.Effects.EffectLogger.Log.from_json(decoded_map["l"])
+      deserialized_writer_output = decoded_map["w"]
 
       # Rerun with deserialized state
-      deserialized_outcome = %{first_outcome | outputs: deserialized_outputs}
-      second_outcome = Run.rerun(computation, deserialized_outcome)
+      deserialized_outcome = %{
+        first_outcome
+        | outputs: %{
+            EffectLogger.Handler => deserialized_log,
+            Writer.Handler => deserialized_writer_output
+          }
+      }
+
+      builder =
+        computation
+        |> EffectLogger.Handler.run(deserialized_log)
+        |> Writer.Handler.run(deserialized_writer_output)
+
+      second_outcome = Run.rerun(builder, deserialized_outcome)
 
       assert %RunOutcome{
                result: :complete,

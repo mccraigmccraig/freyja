@@ -1,6 +1,6 @@
 defmodule Freyja.Effects.EffectLogger.SerializationTest do
   use ExUnit.Case
-  alias Freyja.Effects.EffectLogger.{Log, ScopedLogs}
+  alias Freyja.Effects.EffectLogger.Log
   alias Freyja.Freer.Impure
 
   describe "Jason.Encoder for Log structures" do
@@ -48,33 +48,6 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       assert step_entry["value"] == 99
     end
 
-    test "encodes ScopedLogs" do
-      log1 =
-        Log.new()
-        |> Log.log_effect(%Impure{sig: :test1, data: "data1"})
-        |> Log.log_interpreted_effect_value(:result1)
-        |> Log.prepare_for_retrace()
-
-      log2 =
-        Log.new()
-        |> Log.log_effect(%Impure{sig: :test2, data: "data2"})
-        |> Log.log_interpreted_effect_value(:result2)
-        |> Log.prepare_for_retrace()
-
-      scoped_logs = %ScopedLogs{
-        scoped_log_queue: [log1],
-        scoped_log_stack: [log2]
-      }
-
-      json = Jason.encode!(scoped_logs)
-      decoded = Jason.decode!(json)
-
-      assert Map.has_key?(decoded, "scoped_log_queue")
-      assert Map.has_key?(decoded, "scoped_log_stack")
-      assert length(decoded["scoped_log_queue"]) == 1
-      assert length(decoded["scoped_log_stack"]) == 1
-    end
-
     test "round-trip encoding preserves structure for serializable data" do
       log =
         Log.new()
@@ -118,29 +91,7 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       assert effect.data == %{"foo" => "bar"}
     end
 
-    test "from_json handles ScopedLogs" do
-      log1 =
-        Log.new()
-        |> Log.log_effect(%Impure{sig: :test1, data: "data1"})
-        |> Log.log_interpreted_effect_value(:result1)
-
-      scoped_logs = %ScopedLogs{
-        scoped_log_queue: [log1],
-        scoped_log_stack: []
-      }
-
-      json = Jason.encode!(scoped_logs)
-      decoded_map = Jason.decode!(json)
-      reconstructed = ScopedLogs.from_json(decoded_map)
-
-      # Verify proper struct types
-      assert %ScopedLogs{} = reconstructed
-      assert [log] = reconstructed.scoped_log_queue
-      assert %Log{} = log
-      assert reconstructed.scoped_log_stack == []
-    end
-
-    test "from_json handles nil scoped_logs" do
+    test "from_json round-trip" do
       log =
         Log.new()
         |> Log.log_effect(%Impure{sig: :simple, data: "test"})
@@ -152,8 +103,9 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
 
       [step] = reconstructed.stack
       [effect] = step.effects_stack
-      # scoped_logs should be nil
-      assert effect.scoped_logs == nil
+      # Verify effect is properly reconstructed
+      assert effect.sig == :simple
+      assert effect.data == "test"
     end
   end
 end

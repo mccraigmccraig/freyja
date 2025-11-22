@@ -125,7 +125,6 @@ defmodule Freyja.EffectLoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
                      data: %Freyja.Effects.State.Get{},
-                     scoped_logs: nil
                    }
                  ]
                },
@@ -137,7 +136,6 @@ defmodule Freyja.EffectLoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.EffectLoggerTest.Numbers,
                      data: {:number, 10},
-                     scoped_logs: nil
                    }
                  ]
                },
@@ -149,7 +147,6 @@ defmodule Freyja.EffectLoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
                      data: %Freyja.Effects.State.Put{val: {:bar, 34}},
-                     scoped_logs: nil
                    }
                  ]
                },
@@ -161,7 +158,6 @@ defmodule Freyja.EffectLoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.EffectLoggerTest.Numbers,
                      data: {:multiply, 12, 10},
-                     scoped_logs: nil
                    }
                  ]
                },
@@ -173,7 +169,6 @@ defmodule Freyja.EffectLoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.Effects.State,
                      data: %Freyja.Effects.State.Get{},
-                     scoped_logs: nil
                    }
                  ]
                },
@@ -185,7 +180,6 @@ defmodule Freyja.EffectLoggerTest do
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
                      sig: Freyja.EffectLoggerTest.Numbers,
                      data: {:subtract, 34, 120},
-                     scoped_logs: nil
                    }
                  ]
                }

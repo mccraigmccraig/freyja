@@ -2,20 +2,15 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
   @moduledoc """
   A single effect
   """
-  defstruct sig: nil, data: nil, scoped_logs: nil
+  defstruct sig: nil, data: nil
 
   @type t :: %__MODULE__{
           sig: any,
-          data: any,
-          scoped_logs: any
+          data: any
         }
 
   def new(sig, data) do
     %__MODULE__{sig: sig, data: data}
-  end
-
-  def set_scoped_logs(self, scoped_logs) do
-    Map.put(self, :scoped_logs, scoped_logs)
   end
 
   @doc """
@@ -25,9 +20,7 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
   def from_json(map) when is_map(map) do
     %__MODULE__{
       sig: map["sig"] && String.to_existing_atom(map["sig"]),
-      data: reconstruct_data(map["data"]),
-      scoped_logs:
-        map["scoped_logs"] && Freyja.Effects.EffectLogger.ScopedLogs.from_json(map["scoped_logs"])
+      data: reconstruct_data(map["data"])
     }
   end
 
@@ -67,8 +60,7 @@ defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.EffectLogEntry do
     Jason.Encode.map(
       %{
         sig: value.sig,
-        data: data_value,
-        scoped_logs: value.scoped_logs
+        data: data_value
       },
       opts
     )
@@ -130,22 +122,6 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
             "effect diverged from log:\n " <>
               "effect: sig: #{inspect(sig, pretty: true)}, data: #{inspect(data, pretty: true)}" <>
               "log: #{inspect(self, pretty: true)}\n"
-    end
-  end
-
-  def set_scoped_logs(%__MODULE__{} = self, scoped_logs) do
-    case self.effects_queue do
-      [%EffectLogEntry{} = int_log_entry | rest] ->
-        %{
-          self
-          | effects_queue: [EffectLogEntry.set_scoped_logs(int_log_entry, scoped_logs) | rest]
-        }
-
-      _ ->
-        raise ArgumentError,
-          message:
-            "unexpected scoped_logs: #{inspect(self, pretty: true)}\n" <>
-              "#{inspect(scoped_logs, pretty: true)}"
     end
   end
 
@@ -262,33 +238,6 @@ defmodule Freyja.Effects.EffectLogger.Log do
   currently open step of the log - closes the step in the process
   because a scoped computation always returns a value
   """
-  def set_scoped_logs(
-        %__MODULE__{} = parent_log,
-        # ideally this would be a ScopedLogs match - but it's a
-        # circular reference so it's not
-        %_{} = scoped_logs
-      ) do
-    case parent_log.queue do
-      [%StepLogEntry{} = parent_step_log_entry | rest] ->
-        %{
-          parent_log
-          | queue: [
-              StepLogEntry.set_scoped_logs(
-                parent_step_log_entry,
-                scoped_logs
-              )
-              | rest
-            ]
-        }
-
-      _ ->
-        raise ArgumentError,
-          message:
-            "unexpected scoped_logs: #{inspect(scoped_logs, pretty: true)}\n" <>
-              "parent_log: #{inspect(parent_log, pretty: true)}"
-    end
-  end
-
   def log_interpreted_effect_value(%__MODULE__{} = log, effect_value) do
     case log.queue do
       [%StepLogEntry{} = log_entry] ->
@@ -360,145 +309,3 @@ defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.Log do
   end
 end
 
-defmodule Freyja.Effects.EffectLogger.ScopedLogs do
-  @moduledoc """
-  Holds multiple sibling scoped logs (e.g., from List.fx_map iterations)
-  Uses queue/stack pattern for replay support.
-  """
-  alias Freyja.Effects.EffectLogger.Log
-
-  defstruct scoped_log_queue: [], scoped_log_stack: []
-
-  @type t :: %__MODULE__{
-          scoped_log_queue: list(Log.t()),
-          scoped_log_stack: list(Log.t())
-        }
-
-  def new() do
-    %__MODULE__{scoped_log_queue: [], scoped_log_stack: []}
-  end
-
-  def new(%Log{} = first_log) do
-    %__MODULE__{scoped_log_queue: [first_log], scoped_log_stack: []}
-  end
-
-  @doc """
-  Moves current log from queue to stack, adds new log to queue
-  Called when a sibling scoped computation completes
-  """
-  def push_scoped_log(%__MODULE__{scoped_log_queue: [current | rest]} = scoped_logs, new_log) do
-    finalized_current = Log.prepare_for_retrace(current)
-
-    %{
-      scoped_logs
-      | scoped_log_queue: [new_log | rest],
-        scoped_log_stack: [finalized_current | scoped_logs.scoped_log_stack]
-    }
-  end
-
-  @doc """
-  Prepares ScopedLogs for retrace by moving all logs from stack to queue.
-  Similar to Log.prepare_for_retrace - reverses stack, concatenates with queue, clears stack.
-  Called when parent computation receives ScopedLogs via scoped_ok/scoped_error.
-  """
-  def prepare_scoped_logs_for_retrace(%__MODULE__{} = scoped_logs) do
-    %{
-      scoped_logs
-      | scoped_log_stack: [],
-        scoped_log_queue:
-          Enum.reverse(scoped_logs.scoped_log_stack) ++ scoped_logs.scoped_log_queue
-    }
-  end
-
-  @doc """
-  Reconstruct ScopedLogs from decoded JSON map.
-  """
-  def from_json(map) when is_map(map) do
-    %__MODULE__{
-      scoped_log_queue: Enum.map(map["scoped_log_queue"] || [], &Log.from_json/1),
-      scoped_log_stack: Enum.map(map["scoped_log_stack"] || [], &Log.from_json/1)
-    }
-  end
-end
-
-defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.ScopedLogs do
-  def encode(value, opts) do
-    Jason.Encode.map(
-      %{
-        scoped_log_queue: value.scoped_log_queue,
-        scoped_log_stack: value.scoped_log_stack
-      },
-      opts
-    )
-  end
-end
-
-defprotocol Freyja.Effects.EffectLogger.ILog do
-  @moduledoc """
-  Common interface for Log and ScopedLogs
-  """
-  def log_effect(log, impure)
-  def push_effect(log, impure)
-  def log_interpreted_effect_value(log, value)
-  def consume_log_entry(log)
-  def prepare_for_retrace(log)
-  def set_scoped_logs(log, scoped_log)
-  def current_log(log)
-end
-
-defimpl Freyja.Effects.EffectLogger.ILog, for: Freyja.Effects.EffectLogger.Log do
-  alias Freyja.Effects.EffectLogger.Log
-
-  def log_effect(log, impure), do: Log.log_effect(log, impure)
-  def push_effect(log, impure), do: Log.push_effect(log, impure)
-  def log_interpreted_effect_value(log, value), do: Log.log_interpreted_effect_value(log, value)
-  def consume_log_entry(log), do: Log.consume_log_entry(log)
-  def prepare_for_retrace(log), do: Log.prepare_for_retrace(log)
-  def set_scoped_logs(log, scoped_logs), do: Log.set_scoped_logs(log, scoped_logs)
-  def current_log(log), do: log
-end
-
-defimpl Freyja.Effects.EffectLogger.ILog, for: Freyja.Effects.EffectLogger.ScopedLogs do
-  alias Freyja.Effects.EffectLogger.Log
-  alias Freyja.Effects.EffectLogger.ScopedLogs
-
-  def log_effect(%ScopedLogs{scoped_log_queue: [current | rest]} = scoped_logs, impure) do
-    updated_current = Log.log_effect(current, impure)
-    %{scoped_logs | scoped_log_queue: [updated_current | rest]}
-  end
-
-  def push_effect(%ScopedLogs{scoped_log_queue: [current | rest]} = scoped_logs, impure) do
-    updated_current = Log.push_effect(current, impure)
-    %{scoped_logs | scoped_log_queue: [updated_current | rest]}
-  end
-
-  def log_interpreted_effect_value(
-        %ScopedLogs{scoped_log_queue: [current | rest]} = scoped_logs,
-        value
-      ) do
-    updated_current = Log.log_interpreted_effect_value(current, value)
-    %{scoped_logs | scoped_log_queue: [updated_current | rest]}
-  end
-
-  def consume_log_entry(%ScopedLogs{scoped_log_queue: [current | rest]} = scoped_logs) do
-    updated_current = Log.consume_log_entry(current)
-    %{scoped_logs | scoped_log_queue: [updated_current | rest]}
-  end
-
-  def prepare_for_retrace(%ScopedLogs{scoped_log_queue: [current | rest]} = scoped_logs) do
-    # Just prepare the current log - sibling logs were already prepared when they finalized
-    updated_current = Log.prepare_for_retrace(current)
-    %{scoped_logs | scoped_log_queue: [updated_current | rest]}
-  end
-
-  def set_scoped_logs(
-        %ScopedLogs{scoped_log_queue: [current | rest]} = scoped_logs,
-        inner_scoped_logs
-      ) do
-    # Delegate to current log - handles nested scoped effect
-    updated_current = Log.set_scoped_logs(current, inner_scoped_logs)
-    %{scoped_logs | scoped_log_queue: [updated_current | rest]}
-  end
-
-  def current_log(%ScopedLogs{scoped_log_queue: [current | _]}), do: current
-end

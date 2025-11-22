@@ -22,9 +22,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   alias Freyja.Freer.Pure
   alias Freyja.Freer.Impure
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.EffectLogger.ILog
   alias Freyja.Effects.EffectLogger.Log
-  alias Freyja.Effects.EffectLogger.ScopedLogs
   alias Freyja.Effects.EffectLogger.EffectLogEntry
   alias Freyja.Effects.EffectLogger.LogInterpretedEffectValue
   alias Freyja.Effects.EffectLogger.StepLogEntry
@@ -73,15 +71,13 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   end
 
   # Check if we have a logged value to replay for this effect
-  defp can_replay?(sig, data, log) when is_struct(log, Log) or is_struct(log, ScopedLogs) do
-    current_log = ILog.current_log(log)
-
+  defp can_replay?(sig, data, %Log{} = log) do
     # Logger.error(
     #   "#{__MODULE__}.can_replay? #{sig}\n" <>
-    #     "current_log: #{inspect(current_log, pretty: true)}"
+    #     "log: #{inspect(log, pretty: true)}"
     # )
 
-    case current_log.queue do
+    case log.queue do
       [
         %StepLogEntry{
           effects_queue: [
@@ -110,51 +106,12 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         %RunState{} = _run_state
       ) do
     case log do
-      %Log{queue: [%StepLogEntry{completed?: true} | _]} ->
-        # Replay mode - log has completed entries ready for replay
-        # Just return the log as-is
-        log
-
-      %ScopedLogs{
-        scoped_log_queue: [
-          %Log{queue: [%StepLogEntry{completed?: true} | _]} | _
-        ]
-      } = _scoped_logs ->
-        # replay mode in a nested scope
-        log
-
-      %Log{queue: [%StepLogEntry{completed?: false}]} ->
-        # Scoped computation starting - create ScopedLogs with fresh Log
-        ScopedLogs.new(Log.new())
-
-      %ScopedLogs{
-        scoped_log_queue: [
-          %Log{queue: [%StepLogEntry{completed?: false}]}
-        ]
-      } = _scoped_logs ->
-        # it's a nested scoped computation
-        # Logger.error(
-        #   "#{__MODULE__} nested scoped computation\n" <>
-        #     "scoped_logs: #{inspect(scoped_logs, pretty: true)}"
-        # )
-
-        ScopedLogs.new(Log.new())
-
-      %ScopedLogs{} = scoped_logs ->
-        # Another sibling - push new empty Log
-        # Logger.error(
-        #   "#{__MODULE__}.push_scoped_log\n" <>
-        #     "scoped_logs: #{inspect(scoped_logs, pretty: true)}"
-        # )
-
-        ScopedLogs.push_scoped_log(scoped_logs, Log.new())
-
-      %Log{queue: []} ->
-        # Empty log - either first run with no effects or replay with no effects
-        # Just return as-is (will remain empty)
+      %Log{} ->
+        # Return existing log as-is (replay mode or empty)
         log
 
       nil ->
+        # Create new log
         Log.new()
     end
   end
@@ -172,7 +129,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
       {EffectLogger, %LogInterpretedEffectValue{value: val}} ->
         # Logger.error("#{__MODULE__}.run_logger handling")
         # capturing the value of an executed effect
-        updated_log = ILog.log_interpreted_effect_value(log, val)
+        updated_log = Log.log_interpreted_effect_value(log, val)
         {Impl.q_apply(q, val), updated_log}
 
       _ ->
@@ -188,23 +145,21 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         log,
         %RunState{} = _run_state
       ) do
-    finalized_log = ILog.prepare_for_retrace(log)
+    finalized_log = Log.prepare_for_retrace(log)
 
     # Logger.error("#{__MODULE__}.finalize #{inspect(finalized_log, pretty: true)}")
     {computation, finalized_log}
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def log_or_resume(%Impure{sig: sig, data: u, q: q} = computation, log) do
-    current_log = ILog.current_log(log)
-
+  def log_or_resume(%Impure{sig: sig, data: u, q: q} = computation, %Log{} = log) do
     # Logger.error(
     #   "#{__MODULE__}.log_or_resume\n" <>
     #     "computation: #{inspect(computation, pretty: true)}\n" <>
-    #     "current_log: #{inspect(current_log, pretty: true)}"
+    #     "log: #{inspect(log, pretty: true)}"
     # )
 
-    case current_log.queue do
+    case log.queue do
       [] ->
         # Logger.error(
         #   "#{__MODULE__}.log_or_resume UNSEEN\n" <>
@@ -213,7 +168,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         # )
 
         # unseen computation - log and carry on
-        updated_log = ILog.log_effect(log, computation)
+        updated_log = Log.log_effect(log, computation)
         capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
         updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
         {%Freer.Impure{sig: sig, data: u, q: updated_q}, updated_log}
@@ -244,7 +199,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         # continuations - so we allow the log_entry_data to be nil
         # TODO: maybe we should delegate matching deserialized effect
         # values to the effect modules ?
-        updated_log = ILog.consume_log_entry(log)
+        updated_log = Log.consume_log_entry(log)
         {Freyja.Freer.Impl.q_apply(q, value), updated_log}
 
       # incomplete entry that matches current effect - for resuming from suspension
@@ -291,7 +246,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
         # push the new effect to the current log entry
         # and carry on
-        updated_log = ILog.push_effect(log, computation)
+        updated_log = Log.push_effect(log, computation)
 
         # Logger.error("#{__MODULE__}.partial #{inspect(updated_log, pretty: true)}")
 
@@ -299,11 +254,11 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
       _ ->
         # Effect diverged from log
-        if log.replay_allow_final_divergence? and length(current_log.queue) == 1 do
+        if log.replay_allow_final_divergence? and length(log.queue) == 1 do
           # Last entry, divergence allowed - discard it and execute normally
-          updated_log = ILog.consume_log_entry(log)
+          updated_log = Log.consume_log_entry(log)
           # Execute as unseen effect
-          updated_log = ILog.log_effect(updated_log, computation)
+          updated_log = Log.log_effect(updated_log, computation)
           capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
           updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
           {%Freer.Impure{sig: sig, data: u, q: updated_q}, updated_log}

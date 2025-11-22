@@ -75,5 +75,21 @@ defmodule Freyja.Freer.EffectHandler do
               run_state :: RunState.t()
             ) :: {Freer.Pure.t(), any}
 
-  @optional_callbacks initialize: 4, finalize: 4
+  @doc """
+  Optional default initial state for this handler.
+
+  If not provided, nil is used as the default.
+  Useful for handlers that have a sensible default (e.g., Writer with empty list,
+  or stateless handlers that use nil).
+
+  ## Example
+
+      defmodule MyEffect.Handler do
+        @impl true
+        def default_initial_state(), do: []
+      end
+  """
+  @callback default_initial_state() :: any
+
+  @optional_callbacks initialize: 4, finalize: 4, default_initial_state: 0
 end

@@ -171,7 +171,10 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
 
   @behaviour Freyja.Freer.EffectHandler
 
-  @impl Freyja.Freer.EffectHandler
+  @impl true
+  def default_initial_state(), do: %{}
+
+  @impl true
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do
     sig == TaggedWriter
   end

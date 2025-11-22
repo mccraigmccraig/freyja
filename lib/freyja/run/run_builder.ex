@@ -168,6 +168,7 @@ defmodule Freyja.Run.RunBuilder do
         rescue
           _e2 in [Protocol.UndefinedError, ArgumentError] ->
             # Neither protocol works - provide a clear error message
+            # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
             raise ArgumentError,
                   "Cannot detect computation type for: #{inspect(computation)}. " <>
                     "Value must be a Freer/Hefty computation or implement ISendable/IHeftySendable protocol."

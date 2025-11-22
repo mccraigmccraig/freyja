@@ -135,11 +135,6 @@ defmodule Freyja.EffectLoggerYieldTest do
       assert outcome2.outputs[State.Handler] == 150
     end
 
-    # TODO: Multiple suspensions - incomplete entry lifecycle issue
-    # After resuming from first yield (which doesn't consume the incomplete entry),
-    # subsequent effects (Put 20, second Yield) are being added to the SAME incomplete entry
-    # instead of the first Yield being completed by LogInterpretedEffectValue first.
-    # Need to investigate the ordering of LogInterpretedEffectValue vs subsequent effects.
     test "multiple yields - resume from first yield" do
       computation =
         con [Coroutine, State] do

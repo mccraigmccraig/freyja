@@ -75,7 +75,7 @@ defmodule Freyja.Run.RunBuilder do
       builder = RunBuilder.add(builder, Throw.Handler)
   """
   @spec add(Freer.t() | Hefty.t() | t(), module, any) :: t()
-  def add(computation_or_builder, module, initial_state \\ nil)
+  def add(computation_or_builder, module, initial_state \\ :__default__)
 
   # Case 1: Adding to existing builder
   def add(%__MODULE__{} = builder, module, initial_state) do
@@ -84,13 +84,13 @@ defmodule Freyja.Run.RunBuilder do
         add_algebra(builder, module)
 
       :handler ->
-        state = initial_state || get_default_state(module)
+        state = if initial_state == :__default__, do: get_default_state(module), else: initial_state
         add_handler(builder, module, state)
 
       :both ->
         # Module implements both Algebra and Handler!
         # Add to both queues
-        state = initial_state || get_default_state(module)
+        state = if initial_state == :__default__, do: get_default_state(module), else: initial_state
 
         builder
         |> add_algebra(module)

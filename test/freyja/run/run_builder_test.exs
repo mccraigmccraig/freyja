@@ -174,5 +174,41 @@ defmodule Freyja.Run.RunBuilderTest do
         RunBuilder.add("not a computation", State.Handler, 0)
       end
     end
+
+    test "explicit nil overrides default state" do
+      # Create a mock module that would have a default
+      # For this test, we'll assume Throw.Handler has default_initial_state/0
+      # But we want to explicitly pass nil
+
+      computation = con State do
+        x <- get()
+        return(x)
+      end
+
+      # Pass explicit nil
+      builder = RunBuilder.add(computation, Throw.Handler, nil)
+
+      # Should use nil, not the default
+      assert %RunBuilder{
+               handlers: [{Throw.Handler, nil}]
+             } = builder
+    end
+
+    test "omitting state uses default" do
+      # When state is not provided, use default
+      computation = con State do
+        x <- get()
+        return(x)
+      end
+
+      # Don't pass state argument (uses default sentinel)
+      builder = RunBuilder.add(computation, Throw.Handler)
+
+      # Should use whatever get_default_state returns for Throw.Handler
+      # (which will be nil since Throw.Handler doesn't have default_initial_state/0 yet)
+      assert %RunBuilder{
+               handlers: [{Throw.Handler, nil}]
+             } = builder
+    end
   end
 end

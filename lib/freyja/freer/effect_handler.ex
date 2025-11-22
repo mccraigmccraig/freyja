@@ -9,7 +9,6 @@ defmodule Freyja.Freer.EffectHandler do
   """
 
   alias Freyja.Freer
-  alias Freyja.Run.RunOutcome
   alias Freyja.Run.RunState
 
   @doc """
@@ -65,41 +64,10 @@ defmodule Freyja.Freer.EffectHandler do
             ) :: {Freer.freer(), any}
 
   @doc """
-  determines what to do with state from a scoped effect when
-  that effect returns having completed successfully. If not provided
-  then the default behaviour is to keep scoped state
-
-  suspend returns from a scoped effect will not cause any change to the
-  parent computation state - the scoped effect will be repeatedly resumed
-  until a success or error return is reached
+  Finalize the handler state after computation completes.
+  Called after the computation reaches a Pure value, before returning the final result.
+  Handlers can transform their state or the final value here.
   """
-  @callback scoped_ok(
-              result :: any,
-              value :: any,
-              handler_key :: atom,
-              state :: any,
-              scoped_state :: any,
-              run_outcome :: RunOutcome.t()
-            ) :: any
-
-  @doc """
-  determines what to do with state from a scoped effect when
-  that effect returns an error. If not provided then the default behaviour is
-  to discard scoped state
-
-  suspend returns from a scoped effect will not cause any change to the
-  parent computation state - the scoped effect will be repeatedly resumed
-  until a success or error return is reached
-  """
-  @callback scoped_error(
-              result :: any,
-              error :: any,
-              handler_key :: atom,
-              state :: any,
-              scoped_state :: any,
-              run_outcome :: RunOutcome.t()
-            ) :: any
-
   @callback finalize(
               computation :: Freer.Pure.t(),
               handler_key :: atom,
@@ -107,5 +75,5 @@ defmodule Freyja.Freer.EffectHandler do
               run_state :: RunState.t()
             ) :: {Freer.Pure.t(), any}
 
-  @optional_callbacks initialize: 4, scoped_ok: 6, scoped_error: 6, finalize: 4
+  @optional_callbacks initialize: 4, finalize: 4
 end

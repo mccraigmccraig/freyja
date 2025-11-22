@@ -29,7 +29,6 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   alias Freyja.Effects.EffectLogger.LogInterpretedEffectValue
   alias Freyja.Effects.EffectLogger.StepLogEntry
   alias Freyja.Run.RunState
-  alias Freyja.Run.RunOutcome
 
   @behaviour Freyja.Freer.EffectHandler
 
@@ -180,22 +179,6 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         # Logger.error("#{__MODULE__}.run_logger log_or_resume")
         log_or_resume(computation, log)
     end
-  end
-
-  @impl Freyja.Freer.EffectHandler
-  def scoped_error(
-        _result,
-        _error,
-        handler_key,
-        state,
-        _scoped_state,
-        %RunOutcome{} = scoped_run_outcome
-      ) do
-    scoped_log = Map.get(scoped_run_outcome.outputs, handler_key)
-    prepared_scoped_log = ScopedLogs.prepare_scoped_logs_for_retrace(scoped_log)
-    updated_state = ILog.set_scoped_logs(state, prepared_scoped_log)
-    # Logger.error("#{__MODULE__}.scoped_error #{inspect(updated_state, pretty: true)}")
-    updated_state
   end
 
   @impl Freyja.Freer.EffectHandler

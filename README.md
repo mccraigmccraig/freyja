@@ -1,5 +1,10 @@
 # Freyja
 
+[![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/freyja.svg)](https://hex.pm/packages/freyja)
+[![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/freyja/)
+
+
 ## What is Freyja?
 
 Freyja is an Algebraic Effects system for Elixir, enabling you to write programs as pure functions that describe all their side effects as "effect" data structures. These effects are then interpreted by handlers, providing a clean separation between **what** your program does (the effects) and **how** it does it (the handlers).
@@ -926,7 +931,7 @@ Add `freyja` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:freyja, "~> 0.1.0"}
+    {:freyja, "~> 0.1.1"}
   ]
 end
 ```

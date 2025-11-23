@@ -213,6 +213,12 @@ log them, or feed them manually—no extra glue code required.
 
 ### 2.2 EffectLogger: Log, Replay, and Resume Anything
 
+#### (a) Automatic Log Collection
+
+By inserting `EffectLogger.Handler.run/1` at the start of the Handler 
+pipeline, you get full logs of every effect emitted—perfect for audit, 
+tracing, or offline debugging.
+
 ```elixir
 outcome =
   con do
@@ -249,12 +255,6 @@ Example output (abridged):
   }
 }
 ```
-
-#### (a) Automatic Log Collection
-
-By inserting `EffectLogger.Handler.run/1` at the start of the pipeline, you get
-full logs of every effect emitted—perfect for audit, tracing, or
-offline debugging.
 
 #### (b) Rerun to Debug (Even After Serialization)
 

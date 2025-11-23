@@ -2,7 +2,6 @@ defmodule Freyja.Examples.CommandProcessorTest do
   use ExUnit.Case, async: true
 
   alias Freyja.Examples.CommandProcessor
-  alias Freyja.Examples.CommandProcessor.Commands
   alias Freyja.Examples.CommandProcessor.{Storage, Notifications}
   alias Freyja.Run
 
@@ -18,10 +17,10 @@ defmodule Freyja.Examples.CommandProcessorTest do
 
     outcome =
       outcome
-      |> run_resume(builder, Commands.query(:products, "sku-1"))
-      |> run_resume(builder, Commands.change(:users, %{id: 1, name: "Ann"}))
-      |> run_resume(builder, Commands.notify(1, "hello!"))
-      |> run_resume(builder, Commands.stop())
+      |> run_resume(builder, Storage.query(:products, "sku-1"))
+      |> run_resume(builder, Storage.change(:users, %{id: 1, name: "Ann"}))
+      |> run_resume(builder, Notifications.send_push(1, "hello!"))
+      |> run_resume(builder, :stop)
 
     assert {:done, {:ok, :stopped}} = outcome.result
 

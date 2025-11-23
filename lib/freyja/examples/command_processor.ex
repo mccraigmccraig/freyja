@@ -30,17 +30,6 @@ defmodule Freyja.Examples.CommandProcessor do
     def send_push(user_id, message), do: %SendPush{user_id: user_id, message: message}
   end
 
-  # Command structs -----------------------------------------------------------
-
-  defmodule Commands do
-    defstruct [:type, :payload]
-
-    def query(table, id), do: %__MODULE__{type: :query, payload: {table, id}}
-    def change(table, record), do: %__MODULE__{type: :change, payload: {table, record}}
-    def notify(user_id, message), do: %__MODULE__{type: :notify, payload: {user_id, message}}
-    def stop(), do: %__MODULE__{type: :stop}
-  end
-
   @doc """
   Build a runnable pipeline for the command processor so it can be executed from
   IEx (or tests) with `Run.run/1` followed by calls to `Run.resume/3`.
@@ -48,12 +37,11 @@ defmodule Freyja.Examples.CommandProcessor do
   Example usage:
 
   ```
-  alias Freyja.Examples.CommandProcessor.Commands
+  alias Freyja.Examples.CommandProcessor.Storage
 
   builder = Freyja.Examples.CommandProcessor.builder()
   processor = Freyja.Run.run(builder)
-  processor = Freyja.Run.resume(builder, processor, Commands.query(:products, "A1"))
-  outcome = Freyja.Run.resume(builder, processor, Commands.stop())
+  outcome = Freyja.Run.resume(builder, processor, Storage.query(:products, "A1"))
   # => %RunOutcome{result: {:done, {:ok, :stopped}}, ...}
 
   # inspect the commands that were run
@@ -63,13 +51,19 @@ defmodule Freyja.Examples.CommandProcessor do
   Running a list of commands:
 
   ```
-  alias Freyja.Examples.CommandProcessor.Commands
+  alias Freyja.Examples.CommandProcessor.Storage
+  alias Freyja.Examples.CommandProcessor.Notifications
 
   builder = Freyja.Examples.CommandProcessor.builder()
   processor = Freyja.Run.run(builder)
 
   # run some commands
-  commands = [Commands.query(:products, "A1"), Commands.notify(1, "Hello!"), Commands.stop()]
+  commands = [
+    Storage.query(:products, "A1"),
+    Storage.change(:users, %{id: 1, name: "Ann"}),
+    Notifications.send_push(1, "Hello!"),
+    :stop
+  ]
   final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->
     Freyja.Run.resume(builder, outcome, cmd)
   end)
@@ -154,29 +148,27 @@ defmodule Freyja.Examples.CommandProcessor do
 
   defcon loop, [Coroutine, Throw] do
     command <- Coroutine.yield(:next_command)
-    loop_dispatch(command)
+
+    case command do
+      %Storage.Query{} = effect ->
+        handle_effect(effect)
+
+      %Storage.Change{} = effect ->
+        handle_effect(effect)
+
+      %Notifications.SendPush{} = effect ->
+        handle_effect(effect)
+
+      :stop ->
+        return(:stopped)
+
+      other ->
+        Throw.throw_error({:unknown_command, other})
+    end
   end
 
-  defconp loop_dispatch(%Commands{type: :stop}), [Throw] do
-    return(:stopped)
-  end
-
-  defconp loop_dispatch(%Commands{type: :query, payload: {table, id}}) do
-    _ <- Storage.query(table, id)
+  defconp handle_effect(effect) do
+    _ <- effect
     loop()
-  end
-
-  defconp loop_dispatch(%Commands{type: :change, payload: {table, record}}) do
-    _ <- Storage.change(table, record)
-    loop()
-  end
-
-  defconp loop_dispatch(%Commands{type: :notify, payload: {user_id, message}}) do
-    _ <- Notifications.send_push(user_id, message)
-    loop()
-  end
-
-  defconp loop_dispatch(other), [Throw] do
-    Throw.throw_error({:unknown_command, other})
   end
 end

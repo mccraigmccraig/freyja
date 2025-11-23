@@ -300,45 +300,42 @@ Effects are a ready-made command language. In the example
 the processor loops forever, yielding for the next command:
 
 ```elixir
-defmodule Freyja.Examples.CommandProcessor.Commands do
-  def query(table, id), do: %__MODULE__{type: :query, payload: {table, id}}
-  def notify(user_id, message), do: %__MODULE__{type: :notify, payload: {user_id, message}}
-  def stop(), do: %__MODULE__{type: :stop}
-end
-
 defcon loop, [Coroutine, Throw] do
   command <- Coroutine.yield(:next_command)
-  dispatch(command)
+
+  case command do
+    %Storage.Query{} = effect ->
+      _ <- effect
+      loop()
+    %Storage.Change{} = effect ->
+      _ <- effect
+      loop()
+    %Notifications.SendPush{} = effect ->
+      _ <- effect
+      loop()
+    :stop ->
+      return(:stopped)
+    other ->
+      Throw.throw_error({:unknown_command, other})
+  end
 end
 ```
 
-The `dispatch/1` functions simply emit storage or notification effects—or stop:
-
-```elixir
-defconp dispatch(%Commands{type: :query, payload: {table, id}}), [Storage, Coroutine, Throw] do
-  _ <- Storage.query(table, id)
-  loop()
-end
-
-defconp dispatch(%Commands{type: :stop}), [Throw] do
-  return(:stopped)
-end
-```
-
-To run it in IEx:
+Running the processor:
 
 ```elixir
 builder = Freyja.Examples.CommandProcessor.builder()
 processor = Run.run(builder)
 
 commands = [
-  Commands.query(:products, "A1"),
-  Commands.notify(1, "Hello!"),
-  Commands.stop()
+  Storage.query(:products, "A1"),
+  Storage.change(:users, %{id: 1, name: "Ann"}),
+  Notifications.send_push(1, "Hello!"),
+  :stop
 ]
 
-Enum.reduce(commands, processor, fn cmd, outcome ->
-  Run.resume(builder, outcome, cmd)
+Enum.reduce(commands, processor, fn cmd, acc ->
+  Run.resume(builder, acc, cmd)
 end)
 ```
 

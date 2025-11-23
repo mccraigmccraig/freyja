@@ -38,7 +38,7 @@ defmodule Freyja.Run do
 
   - `Run.eval(builder)` - Execute and return only the result value
   - `Run.exec(builder)` - Execute and return only the handler outputs
-  - `Run.resume(outcome, value)` - Resume a suspended computation
+  - `Run.resume(builder, outcome_or_map, value)` - Resume a suspended computation (live or serialized)
   - `Run.rerun(builder, outcome)` - Rerun with outputs from previous run as initial states
 
   ## Two-Phase Execution for Hefty
@@ -171,15 +171,40 @@ defmodule Freyja.Run do
 
   @doc """
   Resume a suspended computation with a value.
+
+  Accepts the original builder along with either the live `RunOutcome` returned by
+  `Run.run/1` or a serialized map (e.g., decoded JSON). When the outcome contains
+  runtime continuation state the resume happens immediately. Otherwise the builder
+  is rerun using the recorded outputs to reconstruct the continuation before resuming.
   """
-  def resume(
-        %RunOutcome{
-          result: {:suspend, _value, k},
-          run_state: run_state
-        },
-        input
-      ) do
+  def resume(%RunBuilder{} = builder, %RunOutcome{} = outcome, input) do
+    resume_with_builder(builder, outcome, input)
+  end
+
+  def resume(%RunBuilder{} = builder, outcome_map, input) when is_map(outcome_map) do
+    outcome = RunOutcome.from_json(outcome_map)
+    resume_with_builder(builder, outcome, input)
+  end
+
+  defp resume_with_builder(
+         _builder,
+         %RunOutcome{result: {:suspend, _value, k}, run_state: %RunState{} = run_state},
+         input
+       )
+       when is_function(k, 1) do
     Impl.do_run(k.(input), run_state)
+  end
+
+  defp resume_with_builder(%RunBuilder{} = builder, %RunOutcome{} = outcome, input) do
+    case outcome.result do
+      {:suspend, _value, _k} ->
+        rerun_outcome = rerun(builder, outcome)
+        resume_with_builder(builder, rerun_outcome, input)
+
+      other ->
+        raise ArgumentError,
+              "Run.resume expected a suspended outcome, got: #{inspect(other)}"
+    end
   end
 
   @doc """

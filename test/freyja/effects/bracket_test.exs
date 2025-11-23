@@ -195,7 +195,7 @@ defmodule Freyja.Effects.BracketTest do
         end
 
       # Initial run - suspends
-      outcome =
+      builder =
         computation
         |> Bracket.Algebra.run()
         |> Catch.Algebra.run()
@@ -203,14 +203,15 @@ defmodule Freyja.Effects.BracketTest do
         |> State.Handler.run([])
         |> Throw.Handler.run()
         |> Coroutine.Handler.run()
-        |> Run.run()
+
+      outcome = builder |> Run.run()
 
       # Should suspend, release has NOT run yet
       assert {:suspend, {:yielded, :resource}, _continuation} = outcome.result
       assert [:acquired, :before_yield] = outcome.outputs[State.Handler]
 
       # Resume
-      outcome2 = Run.resume(outcome, :resumed_value)
+      outcome2 = Run.resume(builder, outcome, :resumed_value)
 
       # After resume, release should run
       assert {:done, {:ok, {{:result, :resource, :resumed_value}, log}}} = outcome2.result

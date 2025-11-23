@@ -488,19 +488,20 @@ defmodule Freyja.Effects.ReaderTest do
         end
 
       # Initial run - suspends inside local scope
-      outcome =
+      builder =
         computation
         |> Reader.Algebra.run()
         |> Lift.Algebra.run()
         |> Reader.Handler.run(%{scope: "base"})
         |> Coroutine.Handler.run()
-        |> Run.run()
+
+      outcome = builder |> Run.run()
 
       # Should suspend with modified environment visible
       assert {:suspend, {:yielded, "local"}, _continuation} = outcome.result
 
       # Resume the computation
-      outcome2 = Run.resume(outcome, :resumed)
+      outcome2 = Run.resume(builder, outcome, :resumed)
 
       # After resume, local scope still applies, then restores to base
       # Result structure: {base_scope, {before_scope, resume_value, after_scope}, final_scope}

@@ -749,19 +749,20 @@ defmodule Freyja.Effects.TaggedReaderTest do
         end
 
       # Initial run - suspends inside local_all scope
-      outcome =
+      builder =
         computation
         |> TaggedReader.Algebra.run()
         |> Lift.Algebra.run()
         |> TaggedReader.Handler.run(%{value: 10})
         |> Coroutine.Handler.run()
-        |> Run.run()
+
+      outcome = builder |> Run.run()
 
       # Should suspend with modified value (10*2=20)
       assert {:suspend, {:yielded, 20}, _continuation} = outcome.result
 
       # Resume the computation
-      outcome2 = Run.resume(outcome, :resumed)
+      outcome2 = Run.resume(builder, outcome, :resumed)
 
       # After resume, local_all scope still applies, then restores
       # Result: {{before, resume_val, after_resume}, final}

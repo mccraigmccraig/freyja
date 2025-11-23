@@ -194,11 +194,15 @@ checkpoint = %{log: json, state: outcome.outputs[State.Handler], value: value}
 
 # Later: Resume from checkpoint
 log = EffectLogger.Log.from_json(checkpoint.log)
-resumed = computation
+builder =
+  computation
   |> EffectLogger.Handler.run(log)
   |> State.Handler.run(checkpoint.state)
+
+resumed =
+  builder
   |> Run.run()
-  |> then(fn o -> Run.resume(o, input_value) end)
+  |> then(fn outcome -> Run.resume(builder, outcome, input_value) end)
 ```
 
 **Powerful capabilities:**
@@ -339,7 +343,7 @@ These are simple operations interpreted by handlers:
 - **`Coroutine`** - Suspend and resume
   ```elixir
   result <- Coroutine.yield(value)  # Suspend with value
-  # Resumed later with Run.resume(outcome, input)
+  # Resumed later with Run.resume(builder, outcome, input)
   ```
 
 ### Higher-Order Effects
@@ -818,16 +822,18 @@ outcome = computation
 
 ```elixir
 # Initial run - might suspend
-outcome = computation
+builder =
+  computation
   |> Coroutine.Handler.run()
   |> State.Handler.run(0)
-  |> Run.run()
+
+outcome = builder |> Run.run()
 
 # Check if suspended
 case outcome.result do
   {:suspend, value, _continuation} ->
-    # Resume with input
-    next_outcome = Run.resume(outcome, input_value)
+    # Resume with input (works for live or serialized outcomes)
+    next_outcome = Run.resume(builder, outcome, input_value)
     # May suspend again or complete
 
   final_result ->

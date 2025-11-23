@@ -20,14 +20,15 @@ defmodule Freyja.Effects.CoroutineTest do
           return("finished: " <> inspect(a))
         end
 
-      outcome =
+      builder =
         computation
         |> Coroutine.Handler.run()
-        |> Run.run()
+
+      outcome = builder |> Run.run()
 
       assert %RunOutcome{result: {:suspend, 42, _k}} = outcome
 
-      outcome2 = Run.resume(outcome, 100)
+      outcome2 = Run.resume(builder, outcome, 100)
       assert %Freyja.Run.RunOutcome{result: {:done, "finished: 100"}} = outcome2
     end
 
@@ -43,11 +44,12 @@ defmodule Freyja.Effects.CoroutineTest do
         end
 
       # First yield
-      outcome =
+      builder =
         computation
         |> EffectLogger.Handler.run(EffectLogger.Log.new())
         |> Coroutine.Handler.run()
-        |> Run.run()
+
+      outcome = builder |> Run.run()
 
       assert %RunOutcome{result: {:suspend, "first", _k}} = outcome
 
@@ -55,12 +57,12 @@ defmodule Freyja.Effects.CoroutineTest do
       # "resuming" after suspend... "resuming" after suspend should have the
       # log in its partially consumed state, while "rerunning" will follow
       # the computation from the beginning
-      outcome2 = Run.resume(outcome, 100)
+      outcome2 = Run.resume(builder, outcome, 100)
       assert %Freyja.Run.RunOutcome{result: {:suspend, "second: 100", _k2}} = outcome2
 
       # Logger.error("#{__MODULE__}.outcome2\n#{inspect(outcome2, pretty: true)}")
 
-      outcome3 = Run.resume(outcome2, 50)
+      outcome3 = Run.resume(builder, outcome2, 50)
       assert %Freyja.Run.RunOutcome{result: {:done, "final: 150"}} = outcome3
 
       # Logger.error("#{__MODULE__}.outcome3\n#{inspect(outcome3, pretty: true)}")

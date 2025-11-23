@@ -53,17 +53,18 @@ defmodule Freyja.Effects.ScopedTest do
   # the computation structure, so it IS preserved across suspensions.
   describe "suspending a scoped effect" do
     test "it suspends" do
-      outcome_one =
+      builder =
         ScopedFx.safe_suspend_twice(10, 20)
         |> Catch.Algebra.run()
         |> Lift.Algebra.run()
         |> Throw.Handler.run()
         |> Coroutine.Handler.run()
         |> Writer.Handler.run([])
-        |> Run.run()
 
-      outcome_two = Run.resume(outcome_one, "one")
-      outcome_three = Run.resume(outcome_two, "two")
+      outcome_one = builder |> Run.run()
+
+      outcome_two = Run.resume(builder, outcome_one, "one")
+      outcome_three = Run.resume(builder, outcome_two, "two")
 
       assert {:done,
               {:ok,
@@ -84,18 +85,19 @@ defmodule Freyja.Effects.ScopedTest do
     end
 
     test "the scope is still in effect after resume" do
-      outcome_one =
+      builder =
         ScopedFx.safe_suspend_twice(10, 20)
         |> Catch.Algebra.run()
         |> Lift.Algebra.run()
         |> Throw.Handler.run()
         |> Coroutine.Handler.run()
         |> Writer.Handler.run([])
-        |> Run.run()
+
+      outcome_one = builder |> Run.run()
 
       # Logger.error("#{__MODULE__}.outcome_one: #{inspect(outcome_one, pretty: true)}")
 
-      outcome_two = Run.resume(outcome_one, "boo")
+      outcome_two = Run.resume(builder, outcome_one, "boo")
 
       # With interposition, catch scope IS preserved after suspension/resume!
       # The catch handler catches :boo and returns :oops (wrapped in {:ok, } and {:done, })
@@ -103,17 +105,18 @@ defmodule Freyja.Effects.ScopedTest do
     end
 
     test "uncaught errors propagate out" do
-      outcome_one =
+      builder =
         ScopedFx.safe_suspend_twice(10, 20)
         |> Catch.Algebra.run()
         |> Lift.Algebra.run()
         |> Throw.Handler.run()
         |> Coroutine.Handler.run()
         |> Writer.Handler.run([])
-        |> Run.run()
 
-      outcome_two = Run.resume(outcome_one, "one")
-      outcome_three = Run.resume(outcome_two, "hoo")
+      outcome_one = builder |> Run.run()
+
+      outcome_two = Run.resume(builder, outcome_one, "one")
+      outcome_three = Run.resume(builder, outcome_two, "hoo")
 
       assert {:done, {:error, :hoo}} == outcome_three.result
 

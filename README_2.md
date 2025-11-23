@@ -254,44 +254,43 @@ resumed = Run.resume(builder, decoded_checkpoint, :new_value)
 EffectLogger’s serialized state is also enough to "cold" resume a coroutine from
 deserialized logs, even though the original continuation has been lost!
 
-### 2.3 TaggedWriter: Capture Structured Logs
+### 2.3 Change Capture: TaggedWriter + Hefty Algebra
 
-TaggedWriter accumulates log entries under arbitrary tags, and you can call it
-from deeply nested functions without threading any extra arguments (this is a
-general property of effectful programs - your function signatures remain
-domain-related):
+From [`lib/freyja/examples/change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
+here is a trimmed down snippet showing how TaggedWriter, State, and Hefty 
+algebras (see below) work together:
 
 ```elixir
-defmodule Audit do
-  def log(action), do: TaggedWriter.tell(:audit, action)
-end
+defmodule Storage do
+  import Freyja.Freer.Sig.DefEffectStruct
+  import Freyja.Hefty.Sig.DefHeftyStruct
 
-defmodule Database do
-  def run_query(q) do
-    con do
-      _ <- TaggedWriter.tell(:db, {:query, q})
-      # ... run the query ...
-      return(:ok)
-    end
+  def_effect_struct(Query, ids: [])
+  def_effect_struct(Change, old: nil, new: nil)
+  def_effect_struct(UpdateAll, changes: [])
+  def_hefty_struct(ApplyAllChanges, [])
+
+  def query(ids), do: %Query{ids: ids}
+  def change(old, new), do: %Change{old: old, new: new}
+  def update_all(changes), do: %UpdateAll{changes: changes}
+
+  def apply_all_changes(computation) do
+    Freyja.Hefty.send_hefty(__MODULE__, %ApplyAllChanges{}, %{inner: computation})
   end
 end
 
-result =
-  con [TaggedWriter] do
-    _ <- Audit.log(:started)
-    _ <- Database.run_query("SELECT 1")
-    _ <- TaggedWriter.tell(:audit, :finished)
-    return(:ok)
-  end
-  |> TaggedWriter.Handler.run(%{})
-  |> Run.run()
-
-# result.outputs[TaggedWriter.Handler]
-# => %{audit: [:finished, :started], db: [{:query, "SELECT 1"}]}
+defhefty process_users(ids, process_user_fn) do
+  users <- Storage.query(ids)
+  {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
+  count <- State.get()
+  return(%{updated_users: updated_users, all_logs: logs, processed_count: count})
+end
 ```
 
-Handlers can interpret tag streams however they like: persist them, route them to
-structured logging infrastructure, or expose subsets to tools.
+Each processing function (e.g., `remove_email_from_user/1`) can call
+`Storage.change/2`, `TaggedWriter.tell/2`, or throw errors without changing
+`process_users/2`.
+
 
 ### 2.4 Commands as Effects (Great for MCP/LLM Tooling)
 

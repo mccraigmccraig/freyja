@@ -492,7 +492,7 @@ outcome = process_users([1, 2, 3])
   |> Run.run()
 ```
 
-Full example: [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/hefty_change_capture.ex)
+Full example: [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
 
 ---
 

@@ -199,6 +199,11 @@ builder =
   |> EffectLogger.Handler.run(log)
   |> State.Handler.run(checkpoint.state)
 
+# Rerun/debug from serialized outcome (log allows divergence)
+replayed =
+  builder
+  |> Run.rerun(outcome)
+
 resumed =
   builder
   |> Run.run()

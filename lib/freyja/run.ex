@@ -213,13 +213,22 @@ defmodule Freyja.Run do
 
   This is useful for replay/resume scenarios where you want to use logged states.
 
+  Supports both live outcomes returned from `Run.run/1` and serialized checkpoints
+  (e.g., `outcome |> Jason.encode!() |> Jason.decode!()`).
+
   ## Examples
 
       builder = computation |> State.Handler.run(0)
       outcome1 = Run.run(builder)
       outcome2 = Run.rerun(builder, outcome1)
+
+      # Cold rerun from serialized outcome
+      json = Jason.encode!(outcome1)
+      decoded = Jason.decode!(json)
+      outcome3 = Run.rerun(builder, decoded)
   """
   def rerun(%RunBuilder{} = builder, %RunOutcome{} = outcome) do
+    outcome = enable_log_divergence(outcome)
     # Update handler states from outcome
     updated_handlers =
       Enum.map(builder.handlers, fn {mod, _old_state} ->
@@ -235,7 +244,6 @@ defmodule Freyja.Run do
     outcome =
       outcome_map
       |> RunOutcome.from_json()
-      |> enable_log_divergence()
 
     rerun(builder, outcome)
   end

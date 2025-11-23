@@ -99,6 +99,39 @@ defmodule Freyja.EffectLoggerErrorTest do
       assert %RunOutcome{result: {:ok, :ok}} = outcome2
     end
 
+    test "hot rerun allows divergence for debugging" do
+      make_computation = fn should_error ->
+        con [State] do
+          _ <- put(10)
+          _x <- get()
+          if should_error do
+            Throw.throw_error(:validation_failed)
+          else
+            return(:ok)
+          end
+        end
+      end
+
+      outcome1 =
+        make_computation.(true)
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
+
+      assert %RunOutcome{result: {:error, :validation_failed}} = outcome1
+
+      builder =
+        make_computation.(false)
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(outcome1.outputs[State.Handler])
+
+      outcome2 = Run.rerun(builder, outcome1)
+
+      assert %RunOutcome{result: {:ok, :ok}} = outcome2
+    end
+
     test "serialized rerun sets divergence flag for debugging" do
       make_computation = fn should_error ->
         con [State] do

@@ -143,15 +143,6 @@ end
 This illustrates how Freyja lets your domain logic stay pure while the handlers
 deal with the impure plumbing.
 
-> **Note:** When your application “language” is a set of documented effect
-> structs, you can expose that language to tooling (including LLMs) almost for
-> free. Register the effect constructors with a simple MCP server, document them
-> like any other API, and the model can issue those effect commands directly.
-> There’s no extra glue code—your existing pure functions already express the
-> available operations.
-
----
-
 ## 2. A Quick Tour: Cool Things Algebraic Effects Enable
 
 ### 2.1 Coroutine-Based Programming (with Hot or Cold Resume)
@@ -355,10 +346,9 @@ processor = Run.resume(builder, processor, %MyApp.Notifications.SendPush{user_id
 final = Run.resume(builder, processor, %MyApp.Commands.Stop{})
 ```
 
-Because commands are just structs, you can expose or restrict them however you
+Because the commands are just structs, you can expose or restrict them however you
 like—register them with MCP, log them, or feed them from a script/LLM—all without
 extra glue code.
-```
 
 You can whitelist which effects are exposed, log them, or mock their handlers—
 no extra integration layer required.

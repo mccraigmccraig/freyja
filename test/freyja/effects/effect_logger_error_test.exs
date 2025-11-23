@@ -99,6 +99,42 @@ defmodule Freyja.EffectLoggerErrorTest do
       assert %RunOutcome{result: {:ok, :ok}} = outcome2
     end
 
+    test "serialized rerun sets divergence flag for debugging" do
+      make_computation = fn should_error ->
+        con [State] do
+          _ <- put(10)
+          _x <- get()
+
+          if should_error do
+            Throw.throw_error(:validation_failed)
+          else
+            return(:ok)
+          end
+        end
+      end
+
+      outcome1 =
+        make_computation.(true)
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(0)
+        |> Run.run()
+
+      assert %RunOutcome{result: {:error, :validation_failed}} = outcome1
+
+      builder =
+        make_computation.(false)
+        |> EffectLogger.Handler.run(Log.new())
+        |> Throw.Handler.run()
+        |> State.Handler.run(0)
+
+      serialized = outcome1 |> Jason.encode!() |> Jason.decode!()
+      outcome2 = Run.rerun(builder, serialized)
+
+      assert %RunOutcome{result: {:ok, :ok}} = outcome2
+      assert outcome2.outputs[State.Handler] == outcome1.outputs[State.Handler]
+    end
+
     test "divergence without flag - raises error" do
       make_computation = fn final_put_value ->
         con [State] do

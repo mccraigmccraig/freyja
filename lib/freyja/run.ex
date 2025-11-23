@@ -58,6 +58,7 @@ defmodule Freyja.Run do
   - `Freyja.Hefty.Algebra` - Algebra behavior
   - `Freyja.Freer.EffectHandler` - Effect handler behavior
   """
+  alias Freyja.Effects.EffectLogger
   alias Freyja.Hefty.Elaborate
   alias Freyja.Run.Impl
   alias Freyja.Run.RunBuilder
@@ -228,5 +229,27 @@ defmodule Freyja.Run do
 
     %{builder | handlers: updated_handlers}
     |> run()
+  end
+
+  def rerun(%RunBuilder{} = builder, outcome_map) when is_map(outcome_map) do
+    outcome =
+      outcome_map
+      |> RunOutcome.from_json()
+      |> enable_log_divergence()
+
+    rerun(builder, outcome)
+  end
+
+  defp enable_log_divergence(%RunOutcome{} = outcome) do
+    updated_outputs =
+      Enum.reduce(outcome.outputs, %{}, fn
+        {EffectLogger.Handler, %EffectLogger.Log{} = log}, acc ->
+          Map.put(acc, EffectLogger.Handler, EffectLogger.Log.for_error_resume(log))
+
+        {key, value}, acc ->
+          Map.put(acc, key, value)
+      end)
+
+    %{outcome | outputs: updated_outputs}
   end
 end

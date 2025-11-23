@@ -29,8 +29,8 @@ This separation has several benefits:
 In short: describe your intentions as data, keep your business logic pure, and let
 Freyja orchestrate how and when effects run.
 
-_Recommended reading:_ [“What is Algebraic about Algebraic Effects?”](https://interjectedfuture.com/what-is-algebraic-about-algebraic-effects/)
-offers a gentle introduction to the theory and motivation behind this style.
+_Further reading:_ [“What is Algebraic about Algebraic Effects?”](https://interjectedfuture.com/what-is-algebraic-about-algebraic-effects/)
+offers a gentle introduction to why they are called Algebraic Effects.
 
 ### 1.1 A real effect: Tagged State
 

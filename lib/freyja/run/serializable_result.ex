@@ -145,6 +145,8 @@ defmodule Freyja.Run.SerializableResult do
     %{@type_key => @atom_marker, "value" => Atom.to_string(value)}
   end
 
+  defp encode_arg(value) when is_function(value), do: nil
+
   defp encode_arg(%_{} = struct), do: SerializableStruct.encode(struct)
 
   defp encode_arg(list) when is_list(list), do: Enum.map(list, &encode_arg/1)

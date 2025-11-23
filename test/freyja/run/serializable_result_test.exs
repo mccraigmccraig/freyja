@@ -42,4 +42,20 @@ defmodule Freyja.Run.SerializableResultTest do
 
     assert SerializableResult.from_json(json) |> SerializableResult.unwrap() == {:ok, 1}
   end
+
+  test "functions inside tuple args encode as nil" do
+    fun = fn -> :ok end
+    wrapped = SerializableResult.wrap({:suspend, 42, fun})
+
+    json =
+      wrapped
+      |> Jason.encode!()
+      |> Jason.decode!()
+
+    decoded = SerializableResult.from_json(json)
+    assert decoded.kind == :tuple
+    assert decoded.tuple_tag == :suspend
+    assert decoded.tuple_args == [42, nil]
+    assert SerializableResult.unwrap(decoded) == {:suspend, 42, nil}
+  end
 end

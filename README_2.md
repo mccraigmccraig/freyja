@@ -296,7 +296,7 @@ structured logging infrastructure, or expose subsets to tools.
 ### 2.4 Commands as Effects (Great for MCP/LLM Tooling)
 
 Effects are a ready-made command language. In the example
-[`command_processor.ex`](https://github.com/.../lib/freyja/examples/command_processor.ex),
+[`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex),
 the processor loops forever, yielding for the next command:
 
 ```elixir

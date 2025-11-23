@@ -62,6 +62,7 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
   from the queue)
   """
   alias Freyja.Effects.EffectLogger.EffectLogEntry
+  alias Freyja.Run.SerializableResult
 
   defstruct effects_stack: [], effects_queue: [], completed?: false, value: nil
 
@@ -147,7 +148,10 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
       effects_stack: Enum.map(map["effects_stack"] || [], &EffectLogEntry.from_json/1),
       effects_queue: Enum.map(map["effects_queue"] || [], &EffectLogEntry.from_json/1),
       completed?: map["completed?"],
-      value: map["value"]
+      value:
+        map["value"]
+        |> SerializableResult.from_json()
+        |> SerializableResult.unwrap()
     }
   end
 end
@@ -159,7 +163,7 @@ defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.StepLogEntry do
         effects_stack: value.effects_stack,
         effects_queue: value.effects_queue,
         completed?: value.completed?,
-        value: value.value
+        value: Freyja.Run.SerializableResult.wrap(value.value)
       },
       opts
     )

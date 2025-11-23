@@ -2,6 +2,7 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
   use ExUnit.Case
   alias Freyja.Effects.EffectLogger.Log
   alias Freyja.Freer.Impure
+  alias Freyja.Run.SerializableResult
 
   describe "Jason.Encoder for Log structures" do
     test "encodes Log with serializable data" do
@@ -44,8 +45,9 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       assert effect_entry["data"] == nil
       assert effect_entry["sig"] == "test_sig"
 
-      # But the value is preserved
-      assert step_entry["value"] == 99
+      # Value is wrapped as SerializableResult
+      wrapped = SerializableResult.from_json(step_entry["value"])
+      assert SerializableResult.unwrap(wrapped) == 99
     end
 
     test "round-trip encoding preserves structure for serializable data" do
@@ -60,7 +62,8 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       # Verify we can reconstruct the important parts
       assert [step] = decoded["stack"]
       assert step["completed?"] == true
-      assert step["value"] == %{"id" => 123, "name" => "Alice"}
+      wrapped_value = SerializableResult.from_json(step["value"])
+      assert SerializableResult.unwrap(wrapped_value) == %{"id" => 123, "name" => "Alice"}
 
       [effect] = step["effects_stack"]
       assert effect["sig"] == "state_get"
@@ -106,6 +109,27 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       # Verify effect is properly reconstructed
       assert effect.sig == :simple
       assert effect.data == "test"
+    end
+
+    test "tuple results round-trip via SerializableResult" do
+      log =
+        Log.new()
+        |> Log.log_effect(%Impure{sig: :tuple_sig, data: :none})
+        |> Log.log_interpreted_effect_value({:ok, 123})
+
+      json = Jason.encode!(log)
+      decoded = Jason.decode!(json)
+
+      [step] = decoded["stack"]
+      tuple_meta = SerializableResult.from_json(step["value"])
+      assert tuple_meta.kind == :tuple
+      assert tuple_meta.tuple_tag == :ok
+      assert tuple_meta.tuple_args == [123]
+      assert SerializableResult.unwrap(tuple_meta) == {:ok, 123}
+
+      reconstructed = Log.from_json(decoded)
+      [reconstructed_step] = reconstructed.stack
+      assert reconstructed_step.value == {:ok, 123}
     end
   end
 end

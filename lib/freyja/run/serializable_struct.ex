@@ -14,7 +14,7 @@ defmodule Freyja.Run.SerializableStruct do
   def encode(%module{} = value) when is_atom(module) do
     value
     |> Map.from_struct()
-    |> Map.put(:__struct__, module)
+    |> Map.put("__struct__", Atom.to_string(module))
   end
 
   @doc """

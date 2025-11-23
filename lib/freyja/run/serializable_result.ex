@@ -10,6 +10,11 @@ defmodule Freyja.Run.SerializableResult do
   preserve the original Elixir shape.
   """
 
+  alias Freyja.Run.SerializableStruct
+
+  @type_key "__freyja_type__"
+  @atom_marker "__freyja_atom__"
+
   defstruct kind: :value,
             tuple_tag: nil,
             tuple_args: nil,
@@ -70,27 +75,88 @@ defmodule Freyja.Run.SerializableResult do
   def from_json(map) when is_map(map) do
     case map["kind"] || map[:kind] do
       kind when kind in ["tuple", :tuple] ->
-        args = map["tuple_args"] || map[:tuple_args] || []
-        tag = normalize_tag(map["tuple_tag"] || map[:tuple_tag])
+        args =
+          (map["tuple_args"] || map[:tuple_args] || [])
+          |> Enum.map(&decode_arg/1)
 
-        wrap(List.to_tuple([tag | args]))
+        tag = decode_atom(map["tuple_tag"] || map[:tuple_tag])
+
+        %__MODULE__{
+          kind: :tuple,
+          tuple_tag: tag,
+          tuple_args: args
+        }
 
       kind when kind in ["value", :value] ->
-        wrap(map["value"] || map[:value])
+        %__MODULE__{
+          kind: :value,
+          value: decode_arg(map["value"] || map[:value])
+        }
 
       _ ->
         map
     end
   end
 
-  defp normalize_tag(tag) when is_atom(tag), do: tag
-  defp normalize_tag(tag) when is_binary(tag), do: String.to_existing_atom(tag)
+  defp decode_atom(tag) when is_atom(tag), do: tag
+
+  defp decode_atom(%{@type_key => @atom_marker, "value" => name}), do: safe_to_existing_atom(name)
+  defp decode_atom(%{@type_key => @atom_marker, value: name}), do: safe_to_existing_atom(name)
+
+  defp decode_atom(tag) when is_binary(tag), do: safe_to_existing_atom(tag)
+
+  defp decode_arg(%{@type_key => @atom_marker} = marker), do: decode_atom(marker)
+
+  defp decode_arg(%{"__struct__" => _} = map), do: SerializableStruct.decode(map)
+  defp decode_arg(%{__struct__: _} = map), do: SerializableStruct.decode(map)
+
+  defp decode_arg(map) when is_map(map), do: map
+
+  defp decode_arg(list) when is_list(list), do: Enum.map(list, &decode_arg/1)
+
+  defp decode_arg(value), do: value
+
+  defp safe_to_existing_atom(name) do
+    String.to_existing_atom(name)
+  rescue
+    ArgumentError -> name
+  end
+
+  def to_json_map(%__MODULE__{kind: :tuple, tuple_tag: tag, tuple_args: args}) do
+    %{
+      __struct__: __MODULE__,
+      kind: :tuple,
+      tuple_tag: encode_atom(tag),
+      tuple_args: Enum.map(args, &encode_arg/1)
+    }
+  end
+
+  def to_json_map(%__MODULE__{kind: :value, value: value}) do
+    %{
+      __struct__: __MODULE__,
+      kind: :value,
+      value: encode_arg(value)
+    }
+  end
+
+  defp encode_atom(atom) when is_atom(atom), do: encode_arg(atom)
+
+  defp encode_arg(value) when is_atom(value) do
+    %{@type_key => @atom_marker, "value" => Atom.to_string(value)}
+  end
+
+  defp encode_arg(%_{} = struct), do: SerializableStruct.encode(struct)
+
+  defp encode_arg(list) when is_list(list), do: Enum.map(list, &encode_arg/1)
+
+  defp encode_arg(map) when is_map(map), do: map
+
+  defp encode_arg(value), do: value
 
   defimpl Jason.Encoder do
     def encode(value, opts) do
       value
-      |> Map.from_struct()
-      |> Map.put(:__struct__, __MODULE__)
+      |> Freyja.Run.SerializableResult.to_json_map()
       |> Jason.Encode.map(opts)
     end
   end

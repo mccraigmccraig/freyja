@@ -18,7 +18,7 @@ defmodule Freyja.Run.SerializableStructTest do
   test "encode injects __struct__ metadata" do
     encoded = SerializableStruct.encode(%Sample{foo: :ok})
 
-    assert Map.get(encoded, :__struct__) == Sample
+    assert Map.get(encoded, "__struct__") == Atom.to_string(Sample)
     assert Map.get(encoded, :foo) == :ok
     assert Map.get(encoded, :bar) == 10
   end

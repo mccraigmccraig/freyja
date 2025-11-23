@@ -7,12 +7,7 @@ defmodule Freyja.Examples.CommandProcessorTest do
   alias Freyja.Run
 
   setup do
-    builder =
-      CommandProcessor.loop()
-      |> Storage.Handler.run()
-      |> Notifications.Handler.run()
-      |> Freyja.Effects.Throw.Handler.run()
-      |> Freyja.Effects.Coroutine.Handler.run()
+    builder = CommandProcessor.builder()
 
     {:ok, builder: builder}
   end

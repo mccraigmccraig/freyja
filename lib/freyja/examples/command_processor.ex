@@ -40,6 +40,18 @@ defmodule Freyja.Examples.CommandProcessor do
     def stop(), do: %__MODULE__{type: :stop}
   end
 
+  @doc """
+  Build a runnable pipeline for the command processor so it can be executed from
+  IEx (or tests) with `Run.run/1` followed by calls to `Run.resume/3`.
+  """
+  def builder do
+    loop()
+    |> Storage.Handler.run()
+    |> Notifications.Handler.run()
+    |> Throw.Handler.run()
+    |> Coroutine.Handler.run()
+  end
+
   # Handlers that record operations for testing/demo -------------------------
 
   defmodule Storage.Handler do

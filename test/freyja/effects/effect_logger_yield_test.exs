@@ -6,7 +6,6 @@ defmodule Freyja.EffectLoggerYieldTest do
   import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.EffectLogger.Log
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.State
   alias Freyja.Run
@@ -58,27 +57,16 @@ defmodule Freyja.EffectLoggerYieldTest do
         end
 
       # First run - suspends
-      outcome1 =
+      builder =
         computation
         |> EffectLogger.Handler.run(EffectLogger.Log.new())
         |> Coroutine.Handler.run()
         |> State.Handler.run(0)
-        |> Run.run()
+
+      outcome1 = builder |> Run.run()
 
       assert %RunOutcome{result: {:suspend, "suspend here", _k}} = outcome1
-      log_after_suspend = outcome1.outputs[EffectLogger.Handler]
-      state_after_suspend = outcome1.outputs[State.Handler]
-
-      # Prepare log for resume (already has incomplete Yield entry)
-      resume_log = Log.prepare_for_retrace(log_after_suspend)
-
-      # Second run - resume from log with resume_value
-      outcome2 =
-        computation
-        |> EffectLogger.Handler.run(resume_log)
-        |> Coroutine.Handler.run(%{resume_value: 999})
-        |> State.Handler.run(state_after_suspend)
-        |> Run.run()
+      outcome2 = Run.resume(builder, outcome1, 999)
 
       # Should complete successfully
       # Note: result format depends on handlers - without Coroutine wrapping it's just the value
@@ -106,29 +94,20 @@ defmodule Freyja.EffectLoggerYieldTest do
         end
 
       # First run - suspends
-      outcome1 =
+      builder =
         computation
         |> EffectLogger.Handler.run(EffectLogger.Log.new())
         |> Coroutine.Handler.run()
         |> State.Handler.run(0)
-        |> Run.run()
+
+      outcome1 = builder |> Run.run()
 
       assert %RunOutcome{result: {:suspend, 100, _k}} = outcome1
 
-      # Serialize the log
-      log = outcome1.outputs[EffectLogger.Handler]
-      state = outcome1.outputs[State.Handler]
-      json_log = Jason.encode!(log)
+      json_outcome = Jason.encode!(outcome1)
+      decoded_outcome = json_outcome |> Jason.decode!()
 
-      # Deserialize and resume
-      resume_log = json_log |> Jason.decode!() |> Log.from_json()
-
-      outcome2 =
-        computation
-        |> EffectLogger.Handler.run(resume_log)
-        |> Coroutine.Handler.run(%{resume_value: 50})
-        |> State.Handler.run(state)
-        |> Run.run()
+      outcome2 = Run.resume(builder, decoded_outcome, 50)
 
       # Should complete: 100 + 50 = 150
       assert %RunOutcome{result: {:done, 150}} = outcome2
@@ -148,47 +127,23 @@ defmodule Freyja.EffectLoggerYieldTest do
         end
 
       # First run - suspends at first yield
-      outcome1 =
+      builder =
         computation
         |> EffectLogger.Handler.run(EffectLogger.Log.new())
         |> Coroutine.Handler.run()
         |> State.Handler.run(0)
-        |> Run.run()
+
+      outcome1 = builder |> Run.run()
 
       assert %RunOutcome{result: {:suspend, "first", _k}} = outcome1
 
-      log1 = outcome1.outputs[EffectLogger.Handler]
-      # Logger.error("#{__MODULE__}.log1 pre: \n#{inspect(log1, pretty: true)}")
-      # Resume from log - should suspend at second yield
-      log1 = Log.prepare_for_retrace(log1)
-      # Logger.error("#{__MODULE__}.log1 post: \n#{inspect(log1, pretty: true)}")
-      state1 = outcome1.outputs[State.Handler]
-
-      outcome2 =
-        computation
-        |> EffectLogger.Handler.run(log1)
-        |> Coroutine.Handler.run(%{resume_value: 20})
-        |> State.Handler.run(state1)
-        |> Run.run()
+      outcome2 = Run.resume(builder, outcome1, 20)
 
       # Should suspend at second yield
       assert %RunOutcome{result: {:suspend, "second", _k2}} = outcome2
       assert outcome2.outputs[State.Handler] == 20
 
-      log2 = outcome2.outputs[EffectLogger.Handler]
-      # Logger.error("#{__MODULE__}.log2 pre: \n#{inspect(log2, pretty: true)}")
-
-      # Resume from second yield
-      log2 = Log.prepare_for_retrace(log2)
-      # Logger.error("#{__MODULE__}.log2 post: \n#{inspect(log2, pretty: true)}")
-      state2 = outcome2.outputs[State.Handler]
-
-      outcome3 =
-        computation
-        |> EffectLogger.Handler.run(log2)
-        |> Coroutine.Handler.run(%{resume_value: 30})
-        |> State.Handler.run(state2)
-        |> Run.run()
+      outcome3 = Run.resume(builder, outcome2, 30)
 
       # Should complete
       assert %RunOutcome{result: result3} = outcome3

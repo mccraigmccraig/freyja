@@ -58,6 +58,7 @@ defmodule Freyja.Run do
   - `Freyja.Hefty.Algebra` - Algebra behavior
   - `Freyja.Freer.EffectHandler` - Effect handler behavior
   """
+  alias Freyja.Effects.Coroutine
   alias Freyja.Effects.EffectLogger
   alias Freyja.Hefty.Elaborate
   alias Freyja.Run.Impl
@@ -187,6 +188,7 @@ defmodule Freyja.Run do
     resume_with_builder(builder, outcome, input)
   end
 
+  # "hot" resume - we still have a continuation
   defp resume_with_builder(
          _builder,
          %RunOutcome{result: {:suspend, _value, k}, run_state: %RunState{} = run_state},
@@ -196,16 +198,24 @@ defmodule Freyja.Run do
     Impl.do_run(k.(input), run_state)
   end
 
-  defp resume_with_builder(%RunBuilder{} = builder, %RunOutcome{} = outcome, input) do
-    case outcome.result do
-      {:suspend, _value, _k} ->
-        rerun_outcome = rerun(builder, outcome)
-        resume_with_builder(builder, rerun_outcome, input)
+  # "cold" resume - probably from a deserialized RunOutcome, with the
+  # unserializable continuation erased
+  defp resume_with_builder(
+         %RunBuilder{} = builder,
+         %RunOutcome{result: {:suspend, _value, _k}, run_state: nil} = outcome,
+         input
+       ) do
+    outcome = enable_log_divergence(outcome)
 
-      other ->
-        raise ArgumentError,
-              "Run.resume expected a suspended outcome, got: #{inspect(other)}"
-    end
+    builder
+    |> builder_with_outputs(outcome.outputs)
+    |> inject_coroutine_resume_value(input)
+    |> run()
+  end
+
+  defp resume_with_builder(_builder, %RunOutcome{result: other}, _input) do
+    raise ArgumentError,
+          "Run.resume expected a suspended outcome, got: #{inspect(other)}"
   end
 
   @doc """
@@ -229,14 +239,9 @@ defmodule Freyja.Run do
   """
   def rerun(%RunBuilder{} = builder, %RunOutcome{} = outcome) do
     outcome = enable_log_divergence(outcome)
-    # Update handler states from outcome
-    updated_handlers =
-      Enum.map(builder.handlers, fn {mod, _old_state} ->
-        new_state = Map.get(outcome.outputs, mod)
-        {mod, new_state}
-      end)
 
-    %{builder | handlers: updated_handlers}
+    builder
+    |> builder_with_outputs(outcome.outputs)
     |> run()
   end
 
@@ -260,4 +265,35 @@ defmodule Freyja.Run do
 
     %{outcome | outputs: updated_outputs}
   end
+
+  defp builder_with_outputs(%RunBuilder{} = builder, outputs) when is_map(outputs) do
+    updated_handlers =
+      Enum.map(builder.handlers, fn {mod, _old_state} ->
+        {mod, Map.get(outputs, mod)}
+      end)
+
+    %{builder | handlers: updated_handlers}
+  end
+
+  defp inject_coroutine_resume_value(%RunBuilder{} = builder, resume_value) do
+    updated_handlers =
+      Enum.map(builder.handlers, fn
+        {Coroutine.Handler = mod, state} ->
+          new_state =
+            state
+            |> normalize_coroutine_state()
+            |> Map.put(:resume_value, resume_value)
+
+          {mod, new_state}
+
+        handler ->
+          handler
+      end)
+
+    %{builder | handlers: updated_handlers}
+  end
+
+  defp normalize_coroutine_state(nil), do: %{}
+  defp normalize_coroutine_state(state) when is_map(state), do: state
+  defp normalize_coroutine_state(state), do: %{state: state}
 end

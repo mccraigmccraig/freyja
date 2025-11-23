@@ -191,7 +191,7 @@ outcome =
     old_state <- State.put(10)
     return(old_state)
   end
-  |> Freyja.Effects.EffectLogger.Handler.run(Freyja.Effects.EffectLogger.Log.new())
+  |> EffectLogger.Handler.run(EffectLogger.Log.new())
   |> State.Handler.run(5)
   |> Run.run()
 
@@ -204,14 +204,14 @@ Example output (abridged):
 %RunOutcome{
   result: 5,
   outputs: %{
-    Freyja.Effects.EffectLogger.Handler => %EffectLogger.Log{
+    EffectLogger.Handler => %EffectLogger.Log{
       stack: [],
       queue: [
         %StepLogEntry{
-          effects_stack: [
+          effects_stack: [],
+          effects_queue: [
             %EffectLogEntry{sig: Freyja.Effects.State, data: %State.Put{val: 10}}
           ],
-          effects_queue: [],
           completed?: true,
           value: 5
         }

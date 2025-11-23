@@ -1,263 +1,400 @@
 # Freyja
 
-[![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
-[![Hex.pm](https://img.shields.io/hexpm/v/freyja.svg)](https://hex.pm/packages/freyja)
-[![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/freyja/)
-
-**Algebraic Effects for Elixir**
-
----
-
 ## What is Freyja?
 
-Freyja brings algebraic effects and handlers to Elixir, enabling you to write programs as pure functions that describe effects as data structures. These effects are then interpreted by handlers, providing a clean separation between **what** your program does (the effects) and **how** it does it (the handlers).
+Freyja is an Algebraic Effects system for Elixir, enabling you to write programs as pure functions that describe all their side effects as "effect" data structures. These effects are then interpreted by handlers, providing a clean separation between **what** your program does (the effects) and **how** it does it (the handlers).
 
-This separation enables powerful capabilities: the same program can be tested with mock handlers, run with different implementations in different environments, have all operations logged for audit trails, and even be replayed for debugging - all without changing the program code itself.
+## 1. What are Algebraic Effects?
 
-Freyja implements the **Hefty Algebras** architecture from [Poulsen & van der Rest (POPL 2023)](https://dl.acm.org/doi/10.1145/3571255), providing modular elaboration of higher-order effects through a two-phase execution model:
+Algebraic effects are plain data structures that describe something impure you want
+your program to do. Instead of performing I/O, mutating state, or throwing errors
+directly, a function can **return** an effect value such as “read the current
+state” or “write this log message”.
 
-1. **Elaboration**: Transform higher-order effects into first-order effects
-2. **Interpretation**: Execute first-order effects with handlers
+An algebraic effect system such as **Freyja** lets you build programs whose domain
+logic lives entirely in pure functions that emit these effect values. Separate
+**handlers** interpret the emitted data structures and decide how (or whether) to
+carry out the effects.
 
-This architecture makes complex effect interactions (like error handling with suspensions) work correctly by construction, without requiring special handling or workarounds.
+This separation has several benefits:
 
----
+- **Composability** – swap or stack handlers to change behavior (e.g., real DB vs.
+  in-memory mock).
+- **Testability** – pure functions are easy to unit test; handlers can log or
+  replay effects deterministically.
+- **Replay & Debugging** – since effects are first-class data, they can be logged,
+  serialized, and replayed later, even on a different machine.
 
-## Quick Example
+In short: describe your intentions as data, keep your business logic pure, and let
+Freyja orchestrate how and when effects run.
 
-Here's a simple program showing error handling with the Hefty `catch` syntax:
+_Further reading:_ [“What is Algebraic about Algebraic Effects?”](https://interjectedfuture.com/what-is-algebraic-about-algebraic-effects/)
+offers a gentle introduction to why they are called Algebraic Effects.
+
+### 1.1 A real effect: Tagged State
+
+Freyja is bundled with a number of Effects and Handlers - `TaggedState` is one
+one of them - it allows access to "mutable" state cells - from anywhere
+inside your nested pure functions, without having to add extra parameters to 
+your function signatures
 
 ```elixir
-import Freyja.HeftyMacro
-alias Freyja.Effects.{State, Throw, Catch, Lift}
+# TaggedState: get/put state associated with a tag
+defmodule Freyja.Effects.TaggedState.GetTagged do
+  defstruct [:tag]
+end
 
-defhefty safe_divide(a, b) do
-  if b == 0 do
-    Throw.throw_error(:division_by_zero)
-  else
-    return(a / b)
+defmodule Freyja.Effects.TaggedState.PutTagged do
+  defstruct [:tag, :value]
+end
+
+defmodule Freyja.Effects.TaggedState do
+  def get(tag), do: %GetTagged{tag: tag}
+  def put(tag, value), do: %PutTagged{tag: tag, value: value}
+end
+```
+The constructor functions like `get(tag)`, and `put(tag, value)`will build
+the structs for you, but you can also build them direcetly without any
+loss of function:
+
+```elixir
+%Freyja.Effects.TaggedState.GetTagged{tag: :cart}
+%Freyja.Effects.TaggedState.PutTagged{tag: :cart, value: [:item_a, :item_b]}
+```
+
+They’re just plain data. Handlers decide exactly what to do with them — read
+from ETS, append to a log, store in a map, or something else entirely.
+
+### 1.2 Define Your Own Effect Language
+
+Most applications invent their own “impure verbs”. With Freyja you can codify
+those verbs as effect structs instead of performing side effects immediately.
+
+```elixir
+# Domain-specific storage effect
+defmodule MyApp.Storage.Query do
+  defstruct [:table, :id]
+end
+
+defmodule MyApp.Storage.Change do
+  defstruct [:table, :record]
+end
+
+defmodule MyApp.Storage do
+  def query(table, id), do: %Query{table: table, id: id}
+  def change(table, record), do: %Change{table: table, record: record}
+end
+
+# Domain-specific notification effect
+defmodule MyApp.Notifications.SendPush do
+  defstruct [:user_id, :message]
+end
+
+defmodule MyApp.Notifications do
+  def send_push(user_id, message), do: %SendPush{user_id: user_id, message: message}
+end
+```
+
+Your pure business logic can now “describe” what it needs. The `con` macro
+helps you compose effectful computations using a familiar `with`-like syntax:
+
+```elixir
+def checkout(cart, user) do
+  con do
+    product <- MyApp.Storage.query(:products, cart.product_id)
+
+    if user.credit < product.price do
+      Throw.throw_error(:insufficient_credit)
+    else
+      con do 
+        updated_user = %{user | credit: user.credit - product.price}
+        _ <- MyApp.Storage.change(:users, updated_user)
+        _ <- MyApp.Notifications.send_push(user.id, "Thanks for buying #{product.name}!")
+        return({:ok, updated_user})
+      end
+    end
   end
-catch
-  :division_by_zero -> return(:infinity)
-end
-
-# Run it with pipe-friendly API
-outcome = safe_divide(10, 0)
-  |> Catch.Algebra.run()
-  |> Lift.Algebra.run()
-  |> Throw.Handler.run()
-  |> Run.run()
-
-outcome.result  # => {:ok, :infinity}
-```
-
-The `catch` clause handles errors thrown during the computation, returning a fallback value. The error handling is compiled away during elaboration - no runtime overhead!
-
----
-
-## Key Benefits
-
-### 1. Domain/Plumbing Separation
-
-Effect-based programming lets you **build pure domain models** while keeping effectful code (I/O, state, errors) completely separated in handlers:
-
-```elixir
-# Pure domain logic - no mention of databases, APIs, or I/O!
-defcon process_user(user_id) do
-  user <- Storage.query(user_id)      # Effect as data
-  updated <- validate_and_update(user) # Pure business logic
-  _ <- Storage.save(updated)           # Effect as data
-  _ <- Audit.log({:updated, user_id})  # Effect as data
-  return(updated)
-end
-
-# All the "how" is in handlers:
-# - Storage.Handler: PostgreSQL, MongoDB, or in-memory mock
-# - Audit.Handler: Database, file, or no-op for tests
-# Your domain code knows nothing about implementation!
-```
-
-This separation means:
-- **Domain logic stays pure** - Easy to reason about, test, and refactor
-- **Infrastructure is pluggable** - Swap databases, logging, etc. without touching business logic
-- **No dependency injection** - Effects are data, handlers interpret them
-- **Tests are simple** - Mock handlers, no complex DI frameworks
-
-### 2. Testability
-
-Swap handlers to test programs without real side effects:
-
-```elixir
-# Production: Real database
-program
-|> Storage.PostgresHandler.run(db_config)
-|> Run.run()
-
-# Test: In-memory mock
-program
-|> Storage.MockHandler.run(fixtures)
-|> Run.run()
-
-# Same program, different interpretation!
-```
-
-### 3. Pipe-Friendly API
-
-Build effect pipelines naturally with Elixir's pipe operator:
-
-```elixir
-outcome = computation
-  |> State.Handler.run(0)
-  |> Writer.Handler.run([])
-  |> EffectLogger.Handler.run(Log.new())
-  |> Run.run()
-
-# Clear left-to-right flow
-# Handler names appear only once
-# Easy to add/remove handlers
-```
-
-### 4. Effect Composition
-
-Higher-order effects compose cleanly with first-order effects:
-
-```elixir
-defhefty process_batch(items) do
-  # Error handling (higher-order) + list processing + state
-  results <- Catch.catch_hefty(
-    FxList.fx_map(items, fn item ->
-      hefty do
-        count <- State.get()
-        State.put(count + 1)
-        Hefty.pure(process(item))
-      end
-    end),
-    fn _err -> Hefty.pure([]) end  # Fallback on error
-  )
-
-  return(results)
 end
 ```
 
-Error handling, list processing, and state management compose without interference.
-
-### 5. Suspensions Work Correctly
-
-Computations can suspend and resume, even inside error handlers:
+At this point, `checkout/2` is entirely pure—it only has pure domain logic and
+emits effect structs, while handlers will decide how to interpret them: hitting
+real services, wrapping DB access in transactions, or using mocks in tests.
 
 ```elixir
-defhefty process_with_checkpoints(data) do
-  Catch.catch_hefty(
-    hefty do
-      x <- Coroutine.yield(data)  # Suspend (auto-lifted)
-      # After resume, still inside catch scope!
-      if x < 0 do
-        Throw.throw_error(:negative)  # Auto-lifted, short-circuits
-      else
-        return(x * 2)
-      end
-    end,
-    fn _err -> Hefty.pure(0) end
-  )
+case checkout(cart, user)
+     |> MyApp.Storage.PostgreSQLHandler.run(db_connection)
+     |> MyApp.Notifications.PigeonHandler.run(push_adapter)
+     |> Throw.Handler.run()
+     # eval returns only the result - run will return the full context
+     |> Run.eval() do
+  {:ok, updated_user} ->
+    IO.inspect(updated_user, label: "User debited")
+
+  {:error, :insufficient_credit} ->
+    Logger.warn("Not enough credit")
+
+  {:error, reason} ->
+    Logger.error("Checkout failed: #{inspect(reason)}")
 end
 ```
 
-The catch scope is preserved across suspensions - errors after resume are still caught!
+This illustrates how Freyja lets your domain logic stay pure while the handlers
+deal with the impure plumbing.
 
-### 6. Serialization, Replay & Time Travel
+## 2. A Quick Tour: A short list of some cool things Algebraic Effects enable
 
-Effect operations are data structures that can be logged, serialized, and replayed:
+Not nearly an exhaustive list, but there are IEx runnable examples for each case!
+
+### 2.1 Coroutine-Based Programming
+
+From the IEx runnable  [`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex)
+example:
+
+A Coroutine effect let you suspend and resume computations. Domain logic
+can be completely agnostic about how responses are gathered—interactive UI, CLI
+prompts, LLMs, or batch pipelines can all drive the same pure core.
+
+Since effects are just simple data-structures you can use your effects as
+commands - and your whole system becomes command-driven with little effort.
+
+Here's a simple coroutine-based command processor which repeatedly suspends,
+asking for the next command. You can feed it commands from a UI or CLI or, since
+your commands are just easily documented strucs, you can have an LLM
+build commands and AI enable your whole app for free:
 
 ```elixir
-# Run with effect logging
-outcome = computation
+defcon loop do
+  # yield to outside the computation to ask for the next command
+  command <- Coroutine.yield(:next_command)
+
+  case command do
+    %Storage.Query{} = effect ->
+      handle_effect(effect)
+
+    %Storage.Change{} = effect ->
+      handle_effect(effect)
+
+    %Notifications.SendPush{} = effect ->
+      handle_effect(effect)
+
+    :stop ->
+      return(:stopped)
+
+    other ->
+      Throw.throw_error({:unknown_command, other})
+  end
+end
+
+defconp handle_effect(effect) do
+  _ <- effect
+  loop()
+end
+
+# provide handlers for all the effects
+builder = Freyja.Examples.CommandProcessor.builder()
+# run the computation up to the yield
+processor = Freyja.Run.run(builder)
+
+commands = [
+  Storage.query(:products, "A1"),
+  Storage.change(:users, %{id: 1, name: "Ann"}),
+  Notifications.send_push(1, "Hello!"),
+  :stop
+]
+# repeatedly resume the computation with successive commands/effects
+final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->
+  Freyja.Run.resume(builder, outcome, cmd)
+end)
+
+```
+
+Because commands are just effect structs, you can whitelist them for MCP tooling,
+log them, or feed them manually—no extra glue code required.
+
+### 2.2 EffectLogger: Log, Replay, and Resume Anything
+
+#### (a) Automatic Log Collection
+
+By inserting `EffectLogger.Handler.run/1` at the start of the Handler 
+pipeline, you get full logs of every effect emitted—perfect for audit, 
+tracing, or offline debugging.
+
+```elixir
+outcome =
+  con do
+    old_state <- State.put(10)
+    return(old_state)
+  end
   |> EffectLogger.Handler.run(EffectLogger.Log.new())
-  |> State.Handler.run(0)
+  |> State.Handler.run(5)
   |> Run.run()
 
-# Serialize the log for storage/transmission
-log = outcome.outputs[EffectLogger.Handler]
-json = EffectLogger.Log.to_json(log)
+IO.inspect(outcome, pretty: true)
+```
 
-# Later: Deserialize and replay from the log
-resume_log = EffectLogger.Log.from_json(json)
+Example output (abridged):
 
-# Replay failed computation - uses logged effect results
-replayed_outcome = computation
-  |> EffectLogger.Handler.run(resume_log)
-  |> State.Handler.run(previous_state)
-  |> Run.rerun(outcome)  # Rerun with logged values!
+```elixir
+%RunOutcome{
+  result: 5,
+  outputs: %{
+    EffectLogger.Handler => %EffectLogger.Log{
+      stack: [],
+      queue: [
+        %StepLogEntry{
+          effects_stack: [],
+          effects_queue: [
+            %EffectLogEntry{sig: Freyja.Effects.State, data: %State.Put{val: 10}}
+          ],
+          completed?: true,
+          value: 5
+        }
+      ],
+      replay_allow_final_divergence?: false
+    }
+  }
+}
+```
 
-# Resume suspended computation from serialized checkpoint
-{:suspend, value, _k} = outcome.result
-checkpoint = %{log: json, state: outcome.outputs[State.Handler], value: value}
+#### (b) Rerun to Debug (Even After Serialization)
 
-# Later: Resume from checkpoint
-log = EffectLogger.Log.from_json(checkpoint.log)
+```elixir
 builder =
   computation
   |> EffectLogger.Handler.run(log)
-  |> State.Handler.run(checkpoint.state)
+  |> State.Handler.run(0)
 
-# Rerun/debug from serialized outcome (log allows divergence)
-replayed =
-  builder
-  |> Run.rerun(outcome)
+outcome = builder |> Run.run()
 
-resumed =
-  builder
-  |> Run.run()
-  |> then(fn outcome -> Run.resume(builder, outcome, input_value) end)
+# Later: fix the code and rerun using the captured log
+json = Jason.encode!(outcome)
+decoded = Jason.decode!(json)
+
+debug_outcome = Run.rerun(builder, decoded)
 ```
 
-**Powerful capabilities:**
-- **Deterministic replay** - Rerun failed computations with exact same effect results
-- **Time travel debugging** - Step through execution with logged values
-- **Checkpoint/resume** - Save computation state, resume later (even in different process!)
-- **Audit trails** - Complete record of all effects for compliance
-- **Test from production logs** - Replay production failures in test environment
+`Run.rerun/2` will run the computation from "cold" logs (even after JSON
+serialization) and automatically enables “allow divergence” so you can step past
+the original error. Try it live with
+[`Freyja.Examples.EffectLoggerRerun`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_rerun.ex):
 
----
+```
+buggy = Freyja.Examples.EffectLoggerRerun.build(:original)
+json = buggy |> Run.run() |> Jason.encode!()
 
-## Core Concepts
+fixed = Freyja.Examples.EffectLoggerRerun.build(:patched)
+Run.rerun(fixed, Jason.decode!(json))
+```
+
+#### (c) Cold Resume from Logs
+
+```elixir
+{:suspend, prompt, _} = outcome.result
+checkpoint = Jason.encode!(outcome)
+
+# Later
+decoded_checkpoint = Jason.decode!(checkpoint)
+resumed = Run.resume(builder, decoded_checkpoint, :new_value)
+```
+
+EffectLogger’s serialized state is also enough to "cold" resume a coroutine from
+deserialized logs, even though the original continuation has been lost! See
+[`Freyja.Examples.EffectLoggerResume`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_resume.ex)
+for a copy/pasteable builder demonstrating the pattern in IEx.
+
+### 2.3 Change Capture: TaggedWriter + Hefty Algebra
+
+From the IEx runnable [`change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
+exmple here is a trimmed down snippet showing how TaggedWriter, State, and Hefty 
+algebras (see below) work together:
+
+```elixir
+defmodule Storage do
+  import Freyja.Freer.Sig.DefEffectStruct
+  import Freyja.Hefty.Sig.DefHeftyStruct
+
+  def_effect_struct(Query, ids: [])
+  def_effect_struct(Change, old: nil, new: nil)
+  def_effect_struct(UpdateAll, changes: [])
+  def_hefty_struct(ApplyAllChanges, [])
+
+  def query(ids), do: %Query{ids: ids}
+  def change(old, new), do: %Change{old: old, new: new}
+  def update_all(changes), do: %UpdateAll{changes: changes}
+
+  def apply_all_changes(computation) do
+    Freyja.Hefty.send_hefty(__MODULE__, %ApplyAllChanges{}, %{inner: computation})
+  end
+end
+
+defhefty process_users(ids, process_user_fn) do
+  users <- Storage.query(ids)
+  {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
+  count <- State.get()
+  return(%{updated_users: updated_users, all_logs: logs, processed_count: count})
+end
+```
+
+Each processing function (e.g., `remove_email_from_user/1`) can call
+`Storage.change/2`, `TaggedWriter.tell/2`, or throw errors without changing
+`process_users/2`.
+
+## 3. Core Concepts
 
 ### First-Order vs Higher-Order Effects
 
-**First-order effects** are simple operations:
+**First-order effects** are simple operations, which do not take computatinos
+as parameters:
 - `State.get()` - read state
 - `Writer.tell("log")` - write log
 - `Storage.query(id)` - query database
 
-**Higher-order effects** take computations as parameters:
+**Higher-order effects** take other computations as parameters:
 - `Catch.catch_hefty(try_block, error_handler)` - error handling
 - `TaggedWriter.listen(computation)` - capture logs during computation
 - `FxList.fx_map(list, fn -> computation end)` - effectful map
 
 ### The `con` and `hefty` Macros
 
-Use `con` for first-order effects only:
+`con` and `hefty` are macro sugar which can be used to compose effectful
+functions, using a familiar `with`-like syntax.
+
+Each step in a `con` or `hefty` binds a value, apart from the last step which
+**returns** an effect
+
+* `<-` steps are effectfful - the right-hand side must be an effectful function
+* `=` steps are normal Elixir pattern-matches
+
+Use `con` for blocks composing first-order effects only, and `defcon` for
+functions whose body composes first-order effects:
 
 ```elixir
 defcon simple_example do
   x <- State.get()
+  y = x + 1
   _ <- Writer.tell("Got: #{x}")
-  _ <- State.put(x + 1)
+  _ <- State.put(y)
   return(x + 1)
 end
 ```
 
-Use `hefty` when you need higher-order effects:
+Use `hefty` when you need to use higher-order effects - `hefty` also
+allows first-order effects: it's only distinct from `con` because it adds
+some overhead, so `con` is more efficient. `defhefy` defines a function
+with a `hefty` body:
 
 ```elixir
 defhefty with_error_handling do
   Catch.catch_hefty(
     hefty do
       x <- State.get()  # First-order, auto-lifted to Hefty
+      y = x + 1
 
       if x < 0 do
         Throw.throw_error(:negative)  # Auto-lifted, short-circuits
       else
-        return(x)
+        return(y)
       end
     end,
     fn _err -> Hefty.pure(0) end
@@ -265,7 +402,7 @@ defhefty with_error_handling do
 end
 ```
 
-First-order effects are automatically lifted to Hefty when used in `hefty` blocks.
+(First-order effects are automatically lifted to Hefty when used in `hefty` blocks)
 
 ### Two-Phase Execution
 
@@ -292,7 +429,99 @@ outcome = computation
 
 ---
 
-## Available Effects
+## 4. How It Works: Two-Phase Architecture
+
+Freyja uses a two-phase execution model based on Hefty Algebras (see references
+below):
+
+Freyja uses interposition (from Heftia) for elaborating higher-order effects. This provides:
+- Sound composition (no scope loss)
+- Correct suspension handling
+- Single top-level interpreter
+- O(H + S) complexity instead of O(H × S)
+
+See [`lib/freyja/freer/interpose.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/freer/interpose.ex) for the implementation.
+
+### No Special Cases
+
+Unlike many effect systems, Freyja has no special cases for:
+- Error handling + suspensions (works automatically)
+- Nested higher-order effects (pure composition)
+- State propagation (flows through single interpreter)
+- Multiple effect types interacting (all at same level)
+
+This simplicity comes from the Hefty Algebras architecture.
+
+### Phase 1: Elaboration (Higher-Order → First-Order)
+
+Algebras transform higher-order effects into first-order effects:
+
+```elixir
+# Before elaboration (Hefty):
+Catch.catch_hefty(
+  hefty do
+    Throw.throw_error(:oops)  # Auto-lifted
+  end,
+  fn _err -> Hefty.pure(:recovered) end
+)
+
+# After elaboration (Freer):
+# The Throw operation is intercepted and replaced with :recovered
+# All at the same level - no nested interpretation
+Freer.pure(:recovered)
+```
+
+Algebras use **interposition** to structurally transform computations:
+- Walk the computation tree recursively
+- Intercept specific operations (like Throw)
+- Replace them with handler results
+- Preserve structure (suspensions work correctly!)
+
+### Phase 2: Interpretation (First-Order → Results)
+
+A single top-level interpreter executes first-order effects:
+
+```elixir
+# Handlers interpret effects one by one
+x <- State.get()           # → read from handler state
+_ <- Writer.tell("log")    # → append to handler state
+v <- Coroutine.yield(val)  # → return suspension
+```
+
+All effects are at the same level, so they compose without conflicts.
+
+### Why This Matters
+
+**New approach** (interposition): Higher-order effects transform the structure:
+- Single top-level interpreter
+- Suspensions preserve all scopes
+- State flows naturally
+- Composes perfectly
+
+Example - this **just works**:
+```elixir
+# Catch + Yield - suspension preserves catch scope
+defhefty example do
+  Catch.catch_hefty(
+    hefty do
+      x <- Coroutine.yield(5)  # Suspend! (auto-lifted)
+      # After resume, still inside catch scope
+      if x < 0 do
+        Throw.throw_error(:negative)  # Auto-lifted, short-circuits
+      else
+        return(x)
+      end
+    end,
+    fn _err -> Hefty.pure(0) end
+  )
+end
+
+# Works correctly - catch scope preserved after resume!
+```
+
+---
+
+## 5. Bundled Effects
 
 ### First-Order Effects
 
@@ -400,182 +629,7 @@ These take computations as parameters and are elaborated away:
 
 ---
 
-## Real-World Example
-
-Here's a complete example showing change tracking with bulk updates:
-
-```elixir
-import Freyja.HeftyMacro
-alias Freyja.Effects.{State, Throw, Catch, TaggedWriter, FxList}
-
-# Define custom Storage effect
-defmodule Storage do
-  import Freyja.Freer.Sig.DefEffectStruct
-  import Freyja.Hefty.Sig.DefHeftyStruct
-
-  # First-order operations
-  def_effect_struct(Query, ids: [])
-  def_effect_struct(Change, old: nil, new: nil)
-  def_effect_struct(UpdateAll, changes: [])
-
-  # Higher-order operation
-  def_hefty_struct(ApplyAllChanges, [])
-
-  def query(ids), do: %Query{ids: ids}
-  def change(old, new), do: %Change{old: old, new: new}
-  def update_all(changes), do: %UpdateAll{changes: changes}
-
-  def apply_all_changes(computation) do
-    Freyja.Hefty.send_hefty(__MODULE__, %ApplyAllChanges{}, %{inner: computation})
-  end
-end
-
-# The Storage.ApplyAllChanges algebra uses TaggedWriter.listen to capture changes:
-defmodule Storage.Algebra do
-  def elaborate(%ApplyAllChanges{}, psi, k, _elaborator) do
-    inner_comp = Map.fetch!(psi, :inner)
-
-    con do
-      # Capture changes during computation
-      initial_logs <- TaggedWriter.peek_all()
-      result <- inner_comp
-      final_logs <- TaggedWriter.peek_all()
-
-      captured = calculate_diff(initial_logs, final_logs)
-      changes = captured[:changes] || []
-
-      # Apply all changes in bulk
-      _count <- Storage.update_all(changes)
-
-      k.({result, captured})
-    end
-  end
-end
-
-# Business logic - pure, declarative
-defhefty process_users(user_ids) do
-  users <- Storage.query(user_ids)  # Auto-lifted
-
-  # Process with automatic change tracking
-  {updated, logs} <- Storage.apply_all_changes(
-    FxList.fx_map(users, fn user ->
-      hefty do
-        # Remove email and track change
-        updated = Map.delete(user, :email)
-        Storage.change(user, updated)  # Auto-lifted
-
-        # Track count in State
-        State.update(&(&1 + 1))  # Auto-lifted
-
-        return(updated)
-      end
-    end)
-  )
-
-  count <- State.get()  # Auto-lifted
-
-  return(%{
-    users: updated,
-    changes: length(logs[:changes] || []),
-    count: count
-  })
-end
-
-# Run with handlers using pipe API
-outcome = process_users([1, 2, 3])
-  |> Storage.Algebra.run()
-  |> FxList.Algebra.run()
-  |> Lift.Algebra.run()
-  |> Storage.Handler.run(db_config)
-  |> TaggedWriter.Handler.run()
-  |> State.Handler.run(0)
-  |> Run.run()
-```
-
-Full example: [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
-
----
-
-## How It Works: Two-Phase Architecture
-
-Freyja uses a two-phase execution model based on Hefty Algebras:
-
-### Phase 1: Elaboration (Higher-Order → First-Order)
-
-Algebras transform higher-order effects into first-order effects:
-
-```elixir
-# Before elaboration (Hefty):
-Catch.catch_hefty(
-  hefty do
-    Throw.throw_error(:oops)  # Auto-lifted
-  end,
-  fn _err -> Hefty.pure(:recovered) end
-)
-
-# After elaboration (Freer):
-# The Throw operation is intercepted and replaced with :recovered
-# All at the same level - no nested interpretation
-Freer.pure(:recovered)
-```
-
-Algebras use **interposition** to structurally transform computations:
-- Walk the computation tree recursively
-- Intercept specific operations (like Throw)
-- Replace them with handler results
-- Preserve structure (suspensions work correctly!)
-
-### Phase 2: Interpretation (First-Order → Results)
-
-A single top-level interpreter executes first-order effects:
-
-```elixir
-# Handlers interpret effects one by one
-x <- State.get()           # → read from handler state
-_ <- Writer.tell("log")    # → append to handler state
-v <- Coroutine.yield(val)  # → return suspension
-```
-
-All effects are at the same level, so they compose without conflicts.
-
-### Why This Matters
-
-**Old approach** (runner effects): Higher-order effects would call nested `Run.run()`:
-- Created separate interpreter contexts
-- Lost scope when suspensions occurred
-- Required complex state propagation (ScopedOk)
-- Didn't compose well
-
-**New approach** (interposition): Higher-order effects transform the structure:
-- Single top-level interpreter
-- Suspensions preserve all scopes
-- State flows naturally
-- Composes perfectly
-
-Example - this **just works**:
-```elixir
-# Catch + Yield - suspension preserves catch scope
-defhefty example do
-  Catch.catch_hefty(
-    hefty do
-      x <- Coroutine.yield(5)  # Suspend! (auto-lifted)
-      # After resume, still inside catch scope
-      if x < 0 do
-        Throw.throw_error(:negative)  # Auto-lifted, short-circuits
-      else
-        return(x)
-      end
-    end,
-    fn _err -> Hefty.pure(0) end
-  )
-end
-
-# Works correctly - catch scope preserved after resume!
-```
-
----
-
-## Getting Started
+## 6. Getting Started
 
 ### Basic First-Order Effects
 
@@ -634,7 +688,7 @@ defhefty fetch_user(id) do
   )
 end
 
-# Or use catch clause syntax (cleaner):
+# Or use the cleaner catch-clause syntax
 defhefty fetch_user_v2(id) do
   Database.get(id)  # Auto-lifted
 catch
@@ -678,7 +732,7 @@ end
 
 ---
 
-## Architecture Overview
+## 7. Diving deeper
 
 ### The Freer Monad
 
@@ -744,39 +798,12 @@ When the computation suspends (Coroutine.yield), the Throw interception is prese
 
 ---
 
-## Examples
-
-### Change Tracking with Bulk Updates
-
-See [`lib/freyja/examples/hefty_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/hefty_change_capture.ex) for a complete example showing:
-- Custom Storage effect with higher-order `apply_all_changes`
-- Using `TaggedWriter.listen` to capture changes
-- Composing with `FxList.fx_map` for batch processing
-- Automatic change tracking without manual plumbing
-
-### Error Handling Examples
-
-See [`test/freyja/hefty_macro_test.exs`](https://github.com/mccraigmccraig/freyja/blob/main/test/freyja/hefty_macro_test.exs) for comprehensive error handling patterns:
-- Pattern matching in catch clauses
-- Nested error handlers
-- Error handling with state effects
-- Catch with suspensions
-
-### Suspension and Resumption
-
-See [`test/freyja/effects/scoped_test.exs`](https://github.com/mccraigmccraig/freyja/blob/main/test/freyja/effects/scoped_test.exs) for examples of:
-- Suspending inside error handlers
-- Resuming with catch scope preserved
-- Multiple suspensions with complex effect stacks
-
----
-
 ## Running Computations
 
 ### Freer Computations (First-Order Only)
 
 ```elixir
-import Freyja.Con
+use Freyja.Syntax
 alias Freyja.Effects.{State, Writer}
 
 computation = con do
@@ -802,7 +829,7 @@ result = computation
 ### Hefty Computations (With Higher-Order Effects)
 
 ```elixir
-import Freyja.HeftyMacro
+use Freyja.Syntax
 alias Freyja.Effects.{Catch, Lift, State, Throw}
 
 computation = hefty do
@@ -847,62 +874,7 @@ case outcome.result do
 end
 ```
 
----
-
-## Advanced Features
-
-### Effect Logging and Replay
-
-Log all effect operations for audit trails and debugging:
-
-```elixir
-# Run with logging (EffectLogger observes all effects)
-outcome = computation
-  |> EffectLogger.Handler.run(EffectLogger.Log.new())
-  |> State.Handler.run(0)
-  |> Writer.Handler.run()
-  |> Run.run()
-
-# Log contains all effect operations with results
-log = outcome.outputs[EffectLogger.Handler]
-
-# Serialize for storage
-json = EffectLogger.Log.to_json(log)
-
-# Later: Replay from serialized log (uses logged values, not real effects!)
-resume_log = EffectLogger.Log.from_json(json)
-replayed = computation
-  |> EffectLogger.Handler.run(resume_log)
-  |> State.Handler.run(previous_state)
-  |> Run.rerun(outcome)
-```
-
-### Tagged Effects for Multiple Instances
-
-Use tagged effects to manage multiple independent instances:
-
-```elixir
-# Multiple state cells
-con do
-  user_count <- TaggedState.get(:users)
-  post_count <- TaggedState.get(:posts)
-
-  _ <- TaggedState.put(:users, user_count + 1)
-
-  return({user_count, post_count})
-end
-
-# Multiple log streams
-con do
-  _ <- TaggedWriter.tell(:audit, %{action: :login})
-  _ <- TaggedWriter.tell(:metrics, %{event: :user_active})
-  _ <- TaggedWriter.tell(:debug, "Processing...")
-
-  return(:ok)
-end
-```
-
-### Custom Effects
+### Define your own effects
 
 Define your own effects:
 
@@ -946,38 +918,6 @@ For higher-order effects, implement an Algebra - see existing algebras for patte
 
 ---
 
-## Documentation
-
-- **MCP Integration**: [`MCP_EFFECTS_2.md`](https://github.com/mccraigmccraig/freyja/blob/main/MCP_EFFECTS_2.md) - LLM agent integration
-- **Architecture**: Module docs in `lib/freyja/` explain implementation details
-- **Examples**: [`lib/freyja/examples/`](lib/freyja/examples/) - Real-world patterns
-- **Tests**: [`test/freyja/`](test/) - Comprehensive usage examples
-
----
-
-## Implementation Notes
-
-### Interposition-Based Elaboration
-
-Freyja uses interposition (from Heftia) for elaborating higher-order effects. This provides:
-- Sound composition (no scope loss)
-- Correct suspension handling
-- Single top-level interpreter
-- O(H + S) complexity instead of O(H × S)
-
-See [`lib/freyja/freer/interpose.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/freer/interpose.ex) for the implementation.
-
-### No Special Cases
-
-Unlike many effect systems, Freyja has no special cases for:
-- Error handling + suspensions (works automatically)
-- Nested higher-order effects (pure composition)
-- State propagation (flows through single interpreter)
-- Multiple effect types interacting (all at same level)
-
-This simplicity comes from the Hefty Algebras architecture.
-
----
 
 ## Installation
 
@@ -1008,12 +948,10 @@ Key areas for contribution:
 ## References
 
 - **Hefty Algebras Paper**: [Poulsen & van der Rest (POPL 2023)](https://dl.acm.org/doi/10.1145/3571255)
-- **Heftia (Haskell)**: [sayo-hs/heftia](https://github.com/sayo-hs/heftia) - Reference implementation
+- **Heftia (Haskell)**: [sayo-hs/heftia](https://github.com/sayo-hs/heftia)
 - **Algebraic Effects Overview**: [What is algebraic about algebraic effects?](https://arxiv.org/abs/1807.05923)
 - **Freer Monads, More Extensible Effects**: [Kiselyov & Ishii](https://okmij.org/ftp/Haskell/extensible/more.pdf)
 - **freer-simple — a friendly effect system for Haskell**: [lexi-lambda/freer-simple](https://github.com/lexi-lambda/freer-simple)
-  
-
 
 ---
 

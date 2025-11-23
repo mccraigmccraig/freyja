@@ -72,9 +72,7 @@ defmodule Freyja.Examples.ChangeCapture do
 
   use Freyja.Syntax
 
-  alias Freyja.Effects.State
-  alias Freyja.Effects.TaggedWriter
-  alias Freyja.Effects.FxList
+  alias Freyja.Effects.{State, TaggedWriter, FxList, Lift}
 
   # Storage Effect Definition - Mixed first-order and higher-order
   defmodule Storage do
@@ -351,6 +349,40 @@ defmodule Freyja.Examples.ChangeCapture do
       all_logs: all_logs,
       processed_count: processed_count
     })
+  end
+
+  @doc """
+  Build a runnable pipeline for this example so it can be executed from IEx.
+
+      alias Freyja.Examples.ChangeCapture
+
+      builder =
+        ChangeCapture.builder(
+          [1, 2],
+          &ChangeCapture.remove_email_from_user/1,
+          users: %{
+            1 => %{id: 1, email: "a@test.com", name: "Alice"},
+            2 => %{id: 2, email: "b@test.com", name: "Bob"}
+          },
+          initial_count: 0
+        )
+
+      outcome = Freyja.Run.run(builder)
+      outcome.result
+      outcome.outputs[Freyja.Examples.ChangeCapture.Storage.Handler]
+  """
+  def builder(user_ids, process_fun \\ &remove_email_from_user/1, opts \\ []) do
+    users = Keyword.get(opts, :users, %{})
+    initial_count = Keyword.get(opts, :initial_count, 0)
+
+    process_users(user_ids, process_fun)
+    |> Lift.Algebra.run()
+    |> Storage.Algebra.run()
+    |> FxList.Algebra.run()
+    |> TaggedWriter.Algebra.run()
+    |> Storage.Handler.run(users)
+    |> TaggedWriter.Handler.run(%{})
+    |> State.Handler.run(initial_count)
   end
 
   # Example processing functions - each uses different effects

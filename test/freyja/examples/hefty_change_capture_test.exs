@@ -1,8 +1,9 @@
-defmodule Freyja.Examples.HeftyChangeCaptureTest do
+defmodule Freyja.Examples.ChangeCaptureTest do
   use ExUnit.Case
 
-  alias Freyja.Examples.HeftyChangeCapture
-  alias Freyja.Examples.HeftyChangeCapture.Storage
+  alias Freyja.Examples.ChangeCapture
+
+  alias Freyja.Examples.ChangeCapture.Storage
   alias Freyja.Effects.Lift
   alias Freyja.Effects.{FxList, TaggedWriter, State}
   alias Freyja.Run
@@ -17,9 +18,9 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
       }
 
       outcome =
-        HeftyChangeCapture.process_users(
+        ChangeCapture.process_users(
           [1, 2, 3],
-          &HeftyChangeCapture.remove_email_from_user/1
+          &ChangeCapture.remove_email_from_user/1
         )
         |> Lift.Algebra.run()
         |> Storage.Algebra.run()
@@ -56,7 +57,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
 
     test "handles empty user list" do
       outcome =
-        HeftyChangeCapture.process_users([], &HeftyChangeCapture.remove_email_from_user/1)
+        ChangeCapture.process_users([], &ChangeCapture.remove_email_from_user/1)
         |> Lift.Algebra.run()
         |> Storage.Algebra.run()
         |> FxList.Algebra.run()
@@ -86,9 +87,9 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
       # The validate_and_update_user function uses MORE effects (TaggedWriter for validation)
       # but process_users doesn't need to know or care!
       outcome =
-        HeftyChangeCapture.process_users(
+        ChangeCapture.process_users(
           [1, 2, 3],
-          &HeftyChangeCapture.validate_and_update_user/1
+          &ChangeCapture.validate_and_update_user/1
         )
         |> Lift.Algebra.run()
         |> Storage.Algebra.run()
@@ -135,7 +136,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
       # It uses TaggedWriter for audit logs but NOT Storage.change
       # Yet it works with the same process_users function!
       outcome =
-        HeftyChangeCapture.process_users([1], &HeftyChangeCapture.audit_user/1)
+        ChangeCapture.process_users([1], &ChangeCapture.audit_user/1)
         |> Lift.Algebra.run()
         |> Storage.Algebra.run()
         |> FxList.Algebra.run()
@@ -175,7 +176,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
       }
 
       outcome =
-        HeftyChangeCapture.multi_stage_process([1, 2])
+        ChangeCapture.multi_stage_process([1, 2])
         |> Lift.Algebra.run()
         |> Storage.Algebra.run()
         |> FxList.Algebra.run()
@@ -222,7 +223,7 @@ defmodule Freyja.Examples.HeftyChangeCaptureTest do
       # OLD WAY: Would need separate process_users, process_users_with_validation, etc.
       # NEW WAY: Single process_users function, pass different processing functions!
       outcome =
-        HeftyChangeCapture.process_users([1], &HeftyChangeCapture.remove_email_from_user/1)
+        ChangeCapture.process_users([1], &ChangeCapture.remove_email_from_user/1)
         |> Lift.Algebra.run()
         |> Storage.Algebra.run()
         |> FxList.Algebra.run()

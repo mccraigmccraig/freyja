@@ -1,4 +1,4 @@
-defmodule Freyja.Examples.HeftyChangeCapture do
+defmodule Freyja.Examples.ChangeCapture do
   @moduledoc """
   Example demonstrating real-world effectful processing using Hefty algebras.
 
@@ -154,10 +154,10 @@ defmodule Freyja.Examples.HeftyChangeCapture do
     """
 
     alias Freyja.Freer.Impure
-    alias Freyja.Examples.HeftyChangeCapture.Storage
-    alias Freyja.Examples.HeftyChangeCapture.Storage.Query
-    alias Freyja.Examples.HeftyChangeCapture.Storage.Change
-    alias Freyja.Examples.HeftyChangeCapture.Storage.UpdateAll
+    alias Freyja.Examples.ChangeCapture.Storage
+    alias Freyja.Examples.ChangeCapture.Storage.Query
+    alias Freyja.Examples.ChangeCapture.Storage.Change
+    alias Freyja.Examples.ChangeCapture.Storage.UpdateAll
     alias Freyja.Effects.TaggedWriter
     alias Freyja.Run.RunState
 
@@ -234,8 +234,8 @@ defmodule Freyja.Examples.HeftyChangeCapture do
 
     @behaviour Freyja.Hefty.Algebra
 
-    alias Freyja.Examples.HeftyChangeCapture.Storage
-    alias Freyja.Examples.HeftyChangeCapture.Storage.ApplyAllChanges
+    alias Freyja.Examples.ChangeCapture.Storage
+    alias Freyja.Examples.ChangeCapture.Storage.ApplyAllChanges
     alias Freyja.Effects.TaggedWriter
     alias Freyja.Freer
 

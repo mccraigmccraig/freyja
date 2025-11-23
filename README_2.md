@@ -37,7 +37,12 @@ offers a gentle introduction to the theory and motivation behind this style.
 
 </details>
 
-### 1.1 Real Example: Tagged State
+### 1.1 A real effect: Tagged State
+
+Freyja is bundled with a number of Effects and Handlers - `TaggedState` is one
+one of them - it allows access to "mutable" state cells - from anywhere
+inside your nested pure functions, without having to add extra parameters to 
+your function signatures
 
 ```elixir
 # TaggedState: get/put state associated with a tag
@@ -107,10 +112,12 @@ def checkout(cart, user) do
     if user.credit < product.price do
       Throw.throw_error(:insufficient_credit)
     else
-      updated_user = %{user | credit: user.credit - product.price}
-      _ <- MyApp.Storage.change(:users, updated_user)
-      _ <- MyApp.Notifications.send_push(user.id, "Thanks for buying #{product.name}!")
-      return({:ok, updated_user})
+      con do 
+        updated_user = %{user | credit: user.credit - product.price}
+        _ <- MyApp.Storage.change(:users, updated_user)
+        _ <- MyApp.Notifications.send_push(user.id, "Thanks for buying #{product.name}!")
+        return({:ok, updated_user})
+      end
     end
   end
 end
@@ -149,3 +156,210 @@ deal with the impure plumbing.
 > available operations.
 
 ---
+
+## 2. A Quick Tour: Cool Things Algebraic Effects Enable
+
+### 2.1 Coroutine-Based Programming (with Hot or Cold Resume)
+
+Coroutine effects let you suspend and resume computations. Your domain logic can be
+completely agnostic about how responses are gathered—interactive UI, CLI prompts,
+or batch pipelines can all drive the same pure core.
+
+```elixir
+computation =
+  con do
+    amount <- Coroutine.yield("how much?")
+    return("final amount: #{amount}")
+  end
+
+builder = computation |> Freyja.Effects.Coroutine.Handler.run()
+
+outcome = builder |> Run.run()
+# outcome.result => {:suspend, "how much?", continuation}
+
+# Hot resume (same process, immediate continuation)
+outcome2 = Run.resume(builder, outcome, 42)
+# outcome2.result => {:done, "final amount: 42"}
+
+# Cold resume (later, from JSON) — see Section 2.2(c) for details
+json = outcome |> Jason.encode!()
+decoded = Jason.decode!(json)
+outcome3 = Run.resume(builder, decoded, 99)
+# outcome3.result => {:done, "final amount: 99"}
+```
+
+### 2.2 EffectLogger: Log, Replay, and Resume Anything
+
+```elixir
+outcome =
+  con do
+    old_state <- State.put(10)
+    return(old_state)
+  end
+  |> Freyja.Effects.EffectLogger.Handler.run(Freyja.Effects.EffectLogger.Log.new())
+  |> State.Handler.run(5)
+  |> Run.run()
+
+IO.inspect(outcome, pretty: true)
+```
+
+Example output (abridged):
+
+```elixir
+%RunOutcome{
+  result: 5,
+  outputs: %{
+    Freyja.Effects.EffectLogger.Handler => %EffectLogger.Log{
+      stack: [],
+      queue: [
+        %StepLogEntry{
+          effects_stack: [
+            %EffectLogEntry{sig: Freyja.Effects.State, data: %State.Put{val: 10}}
+          ],
+          effects_queue: [],
+          completed?: true,
+          value: 5
+        }
+      ],
+      replay_allow_final_divergence?: false
+    }
+  }
+}
+```
+
+#### (a) Automatic Log Collection
+
+By inserting `EffectLogger.Handler.run/1` at the start of the pipeline, you get
+full logs of every effect emitted—perfect for audit, tracing, or
+offline debugging.
+
+#### (b) Rerun to Debug (Even After Serialization)
+
+```elixir
+builder =
+  computation
+  |> EffectLogger.Handler.run(log)
+  |> State.Handler.run(0)
+
+outcome = builder |> Run.run()
+
+# Later: fix the code and rerun using the captured log
+json = Jason.encode!(outcome)
+decoded = Jason.decode!(json)
+
+debug_outcome = Run.rerun(builder, decoded)
+```
+
+`Run.rerun/2` automatically enables “allow divergence” so you can step past the
+original error and verify your fix without reproducing the entire scenario.
+
+#### (c) Cold Resume from Logs
+
+```elixir
+{:suspend, prompt, _} = outcome.result
+checkpoint = Jason.encode!(outcome)
+
+# Later
+decoded_checkpoint = Jason.decode!(checkpoint)
+resumed = Run.resume(builder, decoded_checkpoint, :new_value)
+```
+
+EffectLogger’s serialized state is enough to resume a coroutine or re-run a
+failed computation on another machine.
+
+### 2.3 TaggedWriter: Capture Structured Logs
+
+TaggedWriter accumulates log entries under arbitrary tags, and you can call it
+from deep helper functions without threading any extra arguments:
+
+```elixir
+defmodule Audit do
+  def log(action), do: TaggedWriter.tell(:audit, action)
+end
+
+defmodule Database do
+  def run_query(q) do
+    con do
+      _ <- TaggedWriter.tell(:db, {:query, q})
+      # ... run the query ...
+      return(:ok)
+    end
+  end
+end
+
+result =
+  con [TaggedWriter] do
+    _ <- Audit.log(:started)
+    _ <- Database.run_query("SELECT 1")
+    _ <- TaggedWriter.tell(:audit, :finished)
+    return(:ok)
+  end
+  |> TaggedWriter.Handler.run(%{})
+  |> Run.run()
+
+# result.outputs[TaggedWriter.Handler]
+# => %{audit: [:finished, :started], db: [{:query, "SELECT 1"}]}
+```
+
+Handlers can interpret tag streams however they like: persist them, route them to
+structured logging infrastructure, or expose subsets to tools.
+
+### 2.4 Commands as Effects (Great for MCP/LLM Tooling)
+
+Because effects are just documented structs, you can easily build a
+“command processor” that loops forever by yielding for the next command
+Any tool (UI, CLI, MCP, LLM) can send "commands" with _any_ of your
+application language effects by simply resuming with effect structs.
+
+```elixir
+defmodule MyApp.Commands.Stop do
+  defstruct []
+end
+
+defmodule MyApp.CommandProcessor do
+  def loop do
+    con do
+      next_command <- Coroutine.yield(:next_command)
+
+      case next_command do
+        %MyApp.Storage.Query{} ->
+          _ <- MyApp.Storage.query(next_command.table, next_command.id)
+          loop()
+
+        %MyApp.Notifications.SendPush{} ->
+          _ <- MyApp.Notifications.send_push(next_command.user_id, next_command.message)
+          loop()
+
+        %MyApp.Commands.Stop{} ->
+          return(:stopped)
+
+        other ->
+          Throw.throw_error({:unknown_command, other})
+      end
+    end
+  end
+end
+
+# Run the processor and feed commands
+builder =
+  MyApp.CommandProcessor.loop()
+  |> MyApp.Storage.PostgreSQLHandler.run(db_conn)
+  |> MyApp.Notifications.PigeonHandler.run(push_adapter)
+  |> Throw.Handler.run()
+  |> Coroutine.Handler.run()
+
+processor = Run.run(builder)
+
+# Send commands
+processor = Run.resume(builder, processor, %MyApp.Storage.Query{table: :products, id: "SKU-123"})
+processor = Run.resume(builder, processor, %MyApp.Notifications.SendPush{user_id: 5, message: "Hi!"})
+final = Run.resume(builder, processor, %MyApp.Commands.Stop{})
+```
+
+Because commands are just structs, you can expose or restrict them however you
+like—register them with MCP, log them, or feed them from a script/LLM—all without
+extra glue code.
+```
+
+You can whitelist which effects are exposed, log them, or mock their handlers—
+no extra integration layer required.

@@ -28,7 +28,7 @@ defmodule Freyja.Examples.EffectLoggerResume do
       # easily serializable
       deserialized_outcome.result
 
-      # but - the compuation can still be resumed! we _follow_ the continuation
+      # but - the compuation can still be resumed! we _follow_ the computation 
       # from the log, feeding the logged effect values to each step until we
       # reach the Yield effect, at which point the given value is supplied and
       # normal computation continues

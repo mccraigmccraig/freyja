@@ -15,10 +15,8 @@ defmodule Freyja.Freer.Sig.DefEffectStruct do
 
       defimpl Jason.Encoder, for: unquote(mod) do
         def encode(value, opts) do
-          # Include __struct__ field for proper deserialization
           value
-          |> Map.from_struct()
-          |> Map.put(:__struct__, unquote(mod))
+          |> Freyja.Run.SerializableStruct.encode()
           |> Jason.Encode.map(opts)
         end
       end

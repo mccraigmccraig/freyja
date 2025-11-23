@@ -2,6 +2,8 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
   @moduledoc """
   A single effect
   """
+  alias Freyja.Run.SerializableStruct
+
   defstruct sig: nil, data: nil
 
   @type t :: %__MODULE__{
@@ -26,23 +28,8 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
 
   # Reconstruct effect data structs from JSON maps
   defp reconstruct_data(nil), do: nil
-
-  defp reconstruct_data(%{"__struct__" => struct_name} = data) when is_binary(struct_name) do
-    # Convert the struct name string to a module
-    module = String.to_existing_atom(struct_name)
-    # Convert the map to the struct
-    struct(module, atomize_keys(data))
-  end
-
+  defp reconstruct_data(map) when is_map(map), do: SerializableStruct.decode(map)
   defp reconstruct_data(data), do: data
-
-  # Convert string keys to atoms (excluding __struct__ which is handled separately)
-  defp atomize_keys(map) when is_map(map) do
-    map
-    |> Map.delete("__struct__")
-    |> Enum.map(fn {k, v} -> {String.to_existing_atom(k), v} end)
-    |> Enum.into(%{})
-  end
 end
 
 defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.EffectLogEntry do

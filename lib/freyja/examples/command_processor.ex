@@ -7,7 +7,8 @@ defmodule Freyja.Examples.CommandProcessor do
 
   import Freyja.Freer.FreerBlock
 
-  alias Freyja.Effects.{Coroutine, Throw}
+  alias Freyja.Effects.Coroutine
+  alias Freyja.Effects.Throw
 
   # Effect definitions for the domain ----------------------------------------
 
@@ -43,6 +44,36 @@ defmodule Freyja.Examples.CommandProcessor do
   @doc """
   Build a runnable pipeline for the command processor so it can be executed from
   IEx (or tests) with `Run.run/1` followed by calls to `Run.resume/3`.
+
+  Example usage:
+
+  ```
+  builder = Freyja.Examples.CommandProcessor.builder()
+  processor = Run.run(builder)
+  processor = Run.resume(builder, processor, Commands.query(:products, "A1"))
+  Run.resume(builder, processor, Commands.stop())
+  # => %RunOutcome{result: {:done, {:ok, :stopped}}, ...}
+  ```
+
+  Running a list of commands:
+
+  ```
+  alias Freyja.Examples.CommandProcessor.Commands
+
+  builder = Freyja.Examples.CommandProcessor.builder()
+  processor = Freyja.Run.run(builder)
+
+  # run some commands
+  commands = [Commands.query(:products, "A1"), Commands.notify(1, "Hello!"), Commands.stop()]
+  final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->
+    Freyja.Run.resume(builder, outcome, cmd)
+  end)
+  # => %RunOutcome{result: {:done, {:ok, :stopped}}, ...}
+
+  # now inspect the commands that were run
+  final_outcome.outputs[Freyja.Examples.CommandProcessor.Storage.Handler]
+  final_outcome.outputs[Freyja.Examples.CommandProcessor.Notifications.Handler]
+  ```
   """
   def builder do
     loop()
@@ -125,29 +156,17 @@ defmodule Freyja.Examples.CommandProcessor do
     return(:stopped)
   end
 
-  defconp loop_dispatch(%Commands{type: :query, payload: {table, id}}), [
-    Storage,
-    Coroutine,
-    Throw
-  ] do
+  defconp loop_dispatch(%Commands{type: :query, payload: {table, id}}) do
     _ <- Storage.query(table, id)
     loop()
   end
 
-  defconp loop_dispatch(%Commands{type: :change, payload: {table, record}}), [
-    Storage,
-    Coroutine,
-    Throw
-  ] do
+  defconp loop_dispatch(%Commands{type: :change, payload: {table, record}}) do
     _ <- Storage.change(table, record)
     loop()
   end
 
-  defconp loop_dispatch(%Commands{type: :notify, payload: {user_id, message}}), [
-    Notifications,
-    Coroutine,
-    Throw
-  ] do
+  defconp loop_dispatch(%Commands{type: :notify, payload: {user_id, message}}) do
     _ <- Notifications.send_push(user_id, message)
     loop()
   end

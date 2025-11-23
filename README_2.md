@@ -273,9 +273,18 @@ decoded = Jason.decode!(json)
 debug_outcome = Run.rerun(builder, decoded)
 ```
 
-`Run.rerun/2` will run the computatino from "cold" Logs, deserialized from
-JSON, and automatically enables “allow divergence” so you can step past the
-original error and verify your fix without reproducing the entire scenario.
+`Run.rerun/2` will run the computation from "cold" logs (even after JSON
+serialization) and automatically enables “allow divergence” so you can step past
+the original error. Try it live with
+[`Freyja.Examples.EffectLoggerRerun`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_rerun.ex):
+
+```
+buggy = Freyja.Examples.EffectLoggerRerun.build(:original)
+json = buggy |> Run.run() |> Jason.encode!()
+
+fixed = Freyja.Examples.EffectLoggerRerun.build(:patched)
+Run.rerun(fixed, Jason.decode!(json))
+```
 
 #### (c) Cold Resume from Logs
 
@@ -289,7 +298,9 @@ resumed = Run.resume(builder, decoded_checkpoint, :new_value)
 ```
 
 EffectLogger’s serialized state is also enough to "cold" resume a coroutine from
-deserialized logs, even though the original continuation has been lost!
+deserialized logs, even though the original continuation has been lost! See
+[`Freyja.Examples.EffectLoggerResume`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_resume.ex)
+for a copy/pasteable builder demonstrating the pattern in IEx.
 
 ### 2.3 Change Capture: TaggedWriter + Hefty Algebra
 

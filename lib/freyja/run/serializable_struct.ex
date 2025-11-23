@@ -23,12 +23,11 @@ defmodule Freyja.Run.SerializableStruct do
   """
   @spec decode(map) :: struct | map
   def decode(map) when is_map(map) do
-    with {:ok, module} <- fetch_struct_module(map) do
-      cond do
-        function_exported?(module, :from_json, 1) ->
+    case fetch_struct_module(map) do
+      {:ok, module} ->
+        if function_exported?(module, :from_json, 1) do
           module.from_json(map)
-
-        true ->
+        else
           attrs =
             map
             |> Map.delete("__struct__")
@@ -38,9 +37,10 @@ defmodule Freyja.Run.SerializableStruct do
             end)
 
           struct(module, attrs)
-      end
-    else
-      :error -> map
+        end
+
+      :error ->
+        map
     end
   end
 

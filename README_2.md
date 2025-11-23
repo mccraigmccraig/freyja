@@ -7,9 +7,6 @@
 
 ## 1. What are Algebraic Effects?
 
-<details>
-<summary>Click to expand</summary>
-
 Algebraic effects are plain data structures that describe something impure you want
 your program to do. Instead of performing I/O, mutating state, or throwing errors
 directly, a function can **return** an effect value such as “read the current
@@ -34,8 +31,6 @@ Freyja orchestrate how and when effects run.
 
 _Recommended reading:_ [“What is Algebraic about Algebraic Effects?”](https://interjectedfuture.com/what-is-algebraic-about-algebraic-effects/)
 offers a gentle introduction to the theory and motivation behind this style.
-
-</details>
 
 ### 1.1 A real effect: Tagged State
 

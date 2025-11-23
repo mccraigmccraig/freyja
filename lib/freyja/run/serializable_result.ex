@@ -1,17 +1,16 @@
-defmodule Freyja.Run.SerializableValue do
+defmodule Freyja.Run.SerializableResult do
   @moduledoc """
   Wrapper that normalizes common Freyja result shapes into JSON-friendly data.
 
   - If the value is a tuple whose first element is an atom (e.g. `{:ok, value}`),
-    it is captured as `%SerializableValue{kind: :tuple, tuple_tag: :ok, tuple_args: [...]}`.
+    it is captured as `%SerializableResult{kind: :tuple, tuple_tag: :ok, tuple_args: [...]}`.
   - Any other value is stored verbatim under `value`.
 
   Use `wrap/1` before serialization and `unwrap/1` after deserialization to
   preserve the original Elixir shape.
   """
 
-  @derive {Jason.Encoder,
-           only: [:kind, :tuple_tag, :tuple_args, :value]}
+  @derive {Jason.Encoder, only: [:kind, :tuple_tag, :tuple_args, :value]}
   defstruct kind: :value,
             tuple_tag: nil,
             tuple_args: nil,
@@ -26,7 +25,7 @@ defmodule Freyja.Run.SerializableValue do
         }
 
   @doc """
-  Wraps a value into a `SerializableValue`.
+  Wraps a value into a `SerializableResult`.
 
   Tuples whose first element is an atom are stored as tagged tuples so they can
   round-trip cleanly through JSON encoders.

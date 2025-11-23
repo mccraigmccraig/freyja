@@ -31,4 +31,15 @@ defmodule Freyja.Run.SerializableResultTest do
     assert wrapped.kind == :value
     assert SerializableResult.unwrap(wrapped) == tuple
   end
+
+  test "encoded value round-trips via from_json" do
+    wrapped = SerializableResult.wrap({:ok, 1})
+
+    json =
+      wrapped
+      |> Jason.encode!()
+      |> Jason.decode!()
+
+    assert SerializableResult.from_json(json) |> SerializableResult.unwrap() == {:ok, 1}
+  end
 end

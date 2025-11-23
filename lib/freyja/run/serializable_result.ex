@@ -10,7 +10,6 @@ defmodule Freyja.Run.SerializableResult do
   preserve the original Elixir shape.
   """
 
-  @derive {Jason.Encoder, only: [:kind, :tuple_tag, :tuple_args, :value]}
   defstruct kind: :value,
             tuple_tag: nil,
             tuple_args: nil,
@@ -67,4 +66,32 @@ defmodule Freyja.Run.SerializableResult do
 
   def unwrap(%__MODULE__{kind: :value, value: value}), do: value
   def unwrap(nil), do: nil
+
+  def from_json(map) when is_map(map) do
+    case map["kind"] || map[:kind] do
+      kind when kind in ["tuple", :tuple] ->
+        args = map["tuple_args"] || map[:tuple_args] || []
+        tag = normalize_tag(map["tuple_tag"] || map[:tuple_tag])
+
+        wrap(List.to_tuple([tag | args]))
+
+      kind when kind in ["value", :value] ->
+        wrap(map["value"] || map[:value])
+
+      _ ->
+        map
+    end
+  end
+
+  defp normalize_tag(tag) when is_atom(tag), do: tag
+  defp normalize_tag(tag) when is_binary(tag), do: String.to_existing_atom(tag)
+
+  defimpl Jason.Encoder do
+    def encode(value, opts) do
+      value
+      |> Map.from_struct()
+      |> Map.put(:__struct__, __MODULE__)
+      |> Jason.Encode.map(opts)
+    end
+  end
 end

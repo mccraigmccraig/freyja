@@ -245,7 +245,8 @@ decoded = Jason.decode!(json)
 debug_outcome = Run.rerun(builder, decoded)
 ```
 
-`Run.rerun/2` automatically enables “allow divergence” so you can step past the
+`Run.rerun/2` will run the computatino from "cold" Logs, deserialized from
+JSON, and automatically enables “allow divergence” so you can step past the
 original error and verify your fix without reproducing the entire scenario.
 
 #### (c) Cold Resume from Logs
@@ -259,13 +260,15 @@ decoded_checkpoint = Jason.decode!(checkpoint)
 resumed = Run.resume(builder, decoded_checkpoint, :new_value)
 ```
 
-EffectLogger’s serialized state is enough to resume a coroutine or re-run a
-failed computation on another machine.
+EffectLogger’s serialized state is also enough to "cold" resume a coroutine from
+deserialized logs, even though the original continuation has been lost!
 
 ### 2.3 TaggedWriter: Capture Structured Logs
 
 TaggedWriter accumulates log entries under arbitrary tags, and you can call it
-from deep helper functions without threading any extra arguments:
+from deeply nested functions without threading any extra arguments (this is a
+general property of effectful programs - your function signatures remain
+domain-related):
 
 ```elixir
 defmodule Audit do
@@ -301,10 +304,11 @@ structured logging infrastructure, or expose subsets to tools.
 
 ### 2.4 Commands as Effects (Great for MCP/LLM Tooling)
 
-Because effects are just documented structs, you can easily build a
-“command processor” that loops forever by yielding for the next command
-Any tool (UI, CLI, MCP, LLM) can send "commands" with _any_ of your
-application language effects by simply resuming with effect structs.
+Because effects are just documented structs, if you are feeling fancy,
+you can easily build a “command processor” that loops forever by
+yielding for the next command. Any tool (UI, CLI, MCP, LLM) can
+send "commands" with _any_ of your application language effects by
+simply resuming with effect structs.
 
 ```elixir
 defmodule MyApp.Commands.Stop do

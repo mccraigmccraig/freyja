@@ -24,15 +24,21 @@ defmodule Freyja.Run.SerializableStruct do
   @spec decode(map) :: struct | map
   def decode(map) when is_map(map) do
     with {:ok, module} <- fetch_struct_module(map) do
-      attrs =
-        map
-        |> Map.delete("__struct__")
-        |> Map.delete(:__struct__)
-        |> Enum.reduce(%{}, fn {k, v}, acc ->
-          Map.put(acc, key_to_existing_atom(k), v)
-        end)
+      cond do
+        function_exported?(module, :from_json, 1) ->
+          module.from_json(map)
 
-      struct(module, attrs)
+        true ->
+          attrs =
+            map
+            |> Map.delete("__struct__")
+            |> Map.delete(:__struct__)
+            |> Enum.reduce(%{}, fn {k, v}, acc ->
+              Map.put(acc, key_to_existing_atom(k), v)
+            end)
+
+          struct(module, attrs)
+      end
     else
       :error -> map
     end

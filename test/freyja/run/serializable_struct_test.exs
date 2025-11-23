@@ -7,6 +7,14 @@ defmodule Freyja.Run.SerializableStructTest do
     defstruct [:foo, bar: 10]
   end
 
+  defmodule SampleWithFromJson do
+    defstruct [:foo]
+
+    def from_json(map) do
+      %__MODULE__{foo: {:from_json, map["foo"] || map[:foo]}}
+    end
+  end
+
   test "encode injects __struct__ metadata" do
     encoded = SerializableStruct.encode(%Sample{foo: :ok})
 
@@ -22,6 +30,15 @@ defmodule Freyja.Run.SerializableStructTest do
     }
 
     assert SerializableStruct.decode(encoded) == %Sample{foo: 42}
+  end
+
+  test "decode delegates to module.from_json when available" do
+    encoded = %{
+      "__struct__" => Atom.to_string(SampleWithFromJson),
+      "foo" => "bar"
+    }
+
+    assert SerializableStruct.decode(encoded) == %SampleWithFromJson{foo: {:from_json, "bar"}}
   end
 
   test "decode falls back to map when metadata missing" do

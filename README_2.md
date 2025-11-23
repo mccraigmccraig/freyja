@@ -295,60 +295,52 @@ structured logging infrastructure, or expose subsets to tools.
 
 ### 2.4 Commands as Effects (Great for MCP/LLM Tooling)
 
-Because effects are just documented structs, if you are feeling fancy,
-you can easily build a “command processor” that loops forever by
-yielding for the next command. Any tool (UI, CLI, MCP, LLM) can
-send "commands" with _any_ of your application language effects by
-simply resuming with effect structs.
+Effects are a ready-made command language. In the example
+[`command_processor.ex`](https://github.com/.../lib/freyja/examples/command_processor.ex),
+the processor loops forever, yielding for the next command:
 
 ```elixir
-defmodule MyApp.Commands.Stop do
-  defstruct []
+defmodule Freyja.Examples.CommandProcessor.Commands do
+  def query(table, id), do: %__MODULE__{type: :query, payload: {table, id}}
+  def notify(user_id, message), do: %__MODULE__{type: :notify, payload: {user_id, message}}
+  def stop(), do: %__MODULE__{type: :stop}
 end
 
-defmodule MyApp.CommandProcessor do
-  def loop do
-    con do
-      next_command <- Coroutine.yield(:next_command)
-
-      case next_command do
-        %MyApp.Storage.Query{} ->
-          _ <- MyApp.Storage.query(next_command.table, next_command.id)
-          loop()
-
-        %MyApp.Notifications.SendPush{} ->
-          _ <- MyApp.Notifications.send_push(next_command.user_id, next_command.message)
-          loop()
-
-        %MyApp.Commands.Stop{} ->
-          return(:stopped)
-
-        other ->
-          Throw.throw_error({:unknown_command, other})
-      end
-    end
-  end
+defcon loop, [Coroutine, Throw] do
+  command <- Coroutine.yield(:next_command)
+  dispatch(command)
 end
-
-# Run the processor and feed commands
-builder =
-  MyApp.CommandProcessor.loop()
-  |> MyApp.Storage.PostgreSQLHandler.run(db_conn)
-  |> MyApp.Notifications.PigeonHandler.run(push_adapter)
-  |> Throw.Handler.run()
-  |> Coroutine.Handler.run()
-
-processor = Run.run(builder)
-
-# Send commands
-processor = Run.resume(builder, processor, %MyApp.Storage.Query{table: :products, id: "SKU-123"})
-processor = Run.resume(builder, processor, %MyApp.Notifications.SendPush{user_id: 5, message: "Hi!"})
-final = Run.resume(builder, processor, %MyApp.Commands.Stop{})
 ```
 
-Because the commands are just structs, you can expose or restrict them however you
-like—register them with MCP, log them, or feed them from a script/LLM—all without
-extra glue code.
+The `dispatch/1` functions simply emit storage or notification effects—or stop:
 
-You can whitelist which effects are exposed, log them, or mock their handlers—
-no extra integration layer required.
+```elixir
+defconp dispatch(%Commands{type: :query, payload: {table, id}}), [Storage, Coroutine, Throw] do
+  _ <- Storage.query(table, id)
+  loop()
+end
+
+defconp dispatch(%Commands{type: :stop}), [Throw] do
+  return(:stopped)
+end
+```
+
+To run it in IEx:
+
+```elixir
+builder = Freyja.Examples.CommandProcessor.builder()
+processor = Run.run(builder)
+
+commands = [
+  Commands.query(:products, "A1"),
+  Commands.notify(1, "Hello!"),
+  Commands.stop()
+]
+
+Enum.reduce(commands, processor, fn cmd, outcome ->
+  Run.resume(builder, outcome, cmd)
+end)
+```
+
+Because commands are plain structs, you can expose them to MCP/LLM tooling,
+log them, or mock the handlers—no extra glue code required.

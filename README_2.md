@@ -143,7 +143,9 @@ end
 This illustrates how Freyja lets your domain logic stay pure while the handlers
 deal with the impure plumbing.
 
-## 2. A Quick Tour: Cool Things Algebraic Effects Enable
+## 2. A Quick Tour: A short list of some cool things Algebraic Effects enable
+
+Not nearly an exhaustive list, but there are IEx runnable examples for each case!
 
 ### 2.1 Coroutine-Based Programming
 

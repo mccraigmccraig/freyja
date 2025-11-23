@@ -48,11 +48,16 @@ defmodule Freyja.Examples.CommandProcessor do
   Example usage:
 
   ```
+  alias Freyja.Examples.CommandProcessor.Commands
+
   builder = Freyja.Examples.CommandProcessor.builder()
-  processor = Run.run(builder)
-  processor = Run.resume(builder, processor, Commands.query(:products, "A1"))
-  Run.resume(builder, processor, Commands.stop())
+  processor = Freyja.Run.run(builder)
+  processor = Freyja.Run.resume(builder, processor, Commands.query(:products, "A1"))
+  outcome = Freyja.Run.resume(builder, processor, Commands.stop())
   # => %RunOutcome{result: {:done, {:ok, :stopped}}, ...}
+
+  # inspect the commands that were run
+  outcome.outputs[Freyja.Examples.CommandProcessor.Storage.Handler]
   ```
 
   Running a list of commands:

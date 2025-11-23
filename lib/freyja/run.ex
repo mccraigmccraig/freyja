@@ -174,10 +174,14 @@ defmodule Freyja.Run do
   @doc """
   Resume a suspended computation with a value.
 
-  Accepts the original builder along with either the live `RunOutcome` returned by
-  `Run.run/1` or a serialized map (e.g., decoded JSON). When the outcome contains
-  runtime continuation state the resume happens immediately. Otherwise the builder
-  is rerun using the recorded outputs to reconstruct the continuation before resuming.
+  Accepts the original builder along with either:
+
+  * The live `RunOutcome` returned by `Run.run/1` (hot resume)
+  * A serialized outcome map (decoded JSON) produced from `RunOutcome` (cold resume)
+
+  Hot resumes reuse the captured continuation and `run_state`. Cold resumes rebuild
+  the builder from the recorded outputs, inject the resume value for `Coroutine.Handler`,
+  and then run once to continue from the suspension point.
   """
   def resume(%RunBuilder{} = builder, %RunOutcome{} = outcome, input) do
     resume_with_builder(builder, outcome, input)

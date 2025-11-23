@@ -145,34 +145,71 @@ deal with the impure plumbing.
 
 ## 2. A Quick Tour: Cool Things Algebraic Effects Enable
 
-### 2.1 Coroutine-Based Programming (with Hot or Cold Resume)
+### 2.1 Coroutine-Based Programming
 
-Coroutine effects let you suspend and resume computations. Your domain logic can be
-completely agnostic about how responses are gathered—interactive UI, CLI prompts,
-or batch pipelines can all drive the same pure core.
+From the IEx runnable  [`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex)
+example:
+
+A Coroutine effect let you suspend and resume computations. Domain logic
+can be completely agnostic about how responses are gathered—interactive UI, CLI
+prompts, LLMs, or batch pipelines can all drive the same pure core.
+
+Since effects are just simple data-structures you can use your effects as
+commands - and your whole system becomes command-driven with little effort.
+
+Here's a simple coroutine-based command processor which repeatedly suspends,
+asking for the next command. You can feed it commands from a UI or CLI or, since
+your commands are just easily documented strucs, you can have an LLM
+build commands and AI enable your whole app for free:
 
 ```elixir
-computation =
-  con do
-    amount <- Coroutine.yield("how much?")
-    return("final amount: #{amount}")
+defcon loop do
+  # yield to outside the computation to ask for the next command
+  command <- Coroutine.yield(:next_command)
+
+  case command do
+    %Storage.Query{} = effect ->
+      handle_effect(effect)
+
+    %Storage.Change{} = effect ->
+      handle_effect(effect)
+
+    %Notifications.SendPush{} = effect ->
+      handle_effect(effect)
+
+    :stop ->
+      return(:stopped)
+
+    other ->
+      Throw.throw_error({:unknown_command, other})
   end
+end
 
-builder = computation |> Freyja.Effects.Coroutine.Handler.run()
+defconp handle_effect(effect) do
+  _ <- effect
+  loop()
+end
 
-outcome = builder |> Run.run()
-# outcome.result => {:suspend, "how much?", continuation}
+# provide handlers for all the effects
+builder = Freyja.Examples.CommandProcessor.builder()
+# run the computation up to the yield
+processor = Freyja.Run.run(builder)
 
-# Hot resume (same process, immediate continuation)
-outcome2 = Run.resume(builder, outcome, 42)
-# outcome2.result => {:done, "final amount: 42"}
+commands = [
+  Storage.query(:products, "A1"),
+  Storage.change(:users, %{id: 1, name: "Ann"}),
+  Notifications.send_push(1, "Hello!"),
+  :stop
+]
+# repeatedly resume the computation with successive commands/effects
+final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->
+  Freyja.Run.resume(builder, outcome, cmd)
+end)
 
-# Cold resume (later, from JSON) — see Section 2.2(c) for details
-json = outcome |> Jason.encode!()
-decoded = Jason.decode!(json)
-outcome3 = Run.resume(builder, decoded, 99)
-# outcome3.result => {:done, "final amount: 99"}
 ```
+
+Because commands are just effect structs, you can whitelist them for MCP tooling,
+log them, or feed them manually—no extra glue code required.
 
 ### 2.2 EffectLogger: Log, Replay, and Resume Anything
 
@@ -256,8 +293,8 @@ deserialized logs, even though the original continuation has been lost!
 
 ### 2.3 Change Capture: TaggedWriter + Hefty Algebra
 
-From [`lib/freyja/examples/change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
-here is a trimmed down snippet showing how TaggedWriter, State, and Hefty 
+From the IEx runnable [`change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
+exmple here is a trimmed down snippet showing how TaggedWriter, State, and Hefty 
 algebras (see below) work together:
 
 ```elixir
@@ -290,53 +327,3 @@ end
 Each processing function (e.g., `remove_email_from_user/1`) can call
 `Storage.change/2`, `TaggedWriter.tell/2`, or throw errors without changing
 `process_users/2`.
-
-
-### 2.4 Commands as Effects (Great for MCP/LLM Tooling)
-
-Effects are a ready-made command language. In the example
-[`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex),
-the processor loops forever, yielding for the next command:
-
-```elixir
-defcon loop, [Coroutine, Throw] do
-  command <- Coroutine.yield(:next_command)
-
-  case command do
-    %Storage.Query{} = effect ->
-      _ <- effect
-      loop()
-    %Storage.Change{} = effect ->
-      _ <- effect
-      loop()
-    %Notifications.SendPush{} = effect ->
-      _ <- effect
-      loop()
-    :stop ->
-      return(:stopped)
-    other ->
-      Throw.throw_error({:unknown_command, other})
-  end
-end
-```
-
-Running the processor:
-
-```elixir
-builder = Freyja.Examples.CommandProcessor.builder()
-processor = Run.run(builder)
-
-commands = [
-  Storage.query(:products, "A1"),
-  Storage.change(:users, %{id: 1, name: "Ann"}),
-  Notifications.send_push(1, "Hello!"),
-  :stop
-]
-
-Enum.reduce(commands, processor, fn cmd, acc ->
-  Run.resume(builder, acc, cmd)
-end)
-```
-
-Because commands are plain structs, you can expose them to MCP/LLM tooling,
-log them, or mock the handlers—no extra glue code required.

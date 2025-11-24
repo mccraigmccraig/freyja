@@ -1,8 +1,8 @@
-# Freyja
-
 [![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
 [![Hex.pm](https://img.shields.io/hexpm/v/freyja.svg)](https://hex.pm/packages/freyja)
 [![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/freyja/)
+
+# Freyja
 
 ## Installation
 
@@ -418,7 +418,7 @@ Each processing function (e.g., `remove_email_from_user/1`) can call
 * operation structs
 * handler module/s
 * algebra modules/s
-
+mix
 
 ## References
 

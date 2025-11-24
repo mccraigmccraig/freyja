@@ -4,10 +4,12 @@ defmodule Freyja.Effects.Coroutine do
   The Coroutine effect signature
   """
   import Freyja.Freer.Sig.DefEffectStruct
+  alias Freyja.Freer
 
   def_effect_struct(Yield, value: nil)
 
-  def yield(value), do: %Yield{value: value}
+  @spec yield(any) :: Freer.t()
+  def yield(value), do: %Yield{value: value} |> Freer.send_effect()
 
   defmodule Suspend do
     @moduledoc """

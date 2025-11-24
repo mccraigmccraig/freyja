@@ -1,4 +1,4 @@
-[![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
+  [![Test](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml/badge.svg)](https://github.com/mccraigmccraig/freyja/actions/workflows/test.yml)
 [![Hex.pm](https://img.shields.io/hexpm/v/freyja.svg)](https://hex.pm/packages/freyja)
 [![Documentation](https://img.shields.io/badge/documentation-gray)](https://hexdocs.pm/freyja/)
 
@@ -52,9 +52,9 @@ offers a gentle introduction to why they are called Algebraic Effects.
 ### 1.1 A real effect: Tagged State
 
 Freyja is bundled with a number of Effects and Handlers - `TaggedState` is one
-one of them - it gives access to "mutable" (not really!) state cells -
-from anywhere inside nested pure functions, without having to add any extra
-parameters to function signatures
+one of them - it gives access to "apparently mutable" (not really mutable!) 
+state cells - from anywhere inside a nested stack of pure functions, without
+having to add any extra parameters to function signatures
 
 ```elixir
 # TaggedState: get/put state associated with a tag
@@ -322,11 +322,12 @@ deserialized logs, even though the original continuation has been lost! See
 [`Freyja.Examples.EffectLoggerResume`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_resume.ex)
 for a copy/pasteable builder demonstrating the pattern in IEx.
 
-### 2.3 Change Capture: TaggedWriter + Hefty Algebra
+### 2.3 Change Capture with TaggedWriter
 
 From the IEx runnable [`change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
-exmple here is a trimmed down snippet showing how TaggedWriter, State, and Hefty 
-algebras (see below) work together:
+example here is a trimmed down snippet showing how an application domain 
+`ApplyAllChanges` effect can internally use `TaggedWriter`, and `State` effects
+to capture changes emitted in nested funcion calls. 
 
 ```elixir
 defmodule Storage do
@@ -355,9 +356,10 @@ defhefty process_users(ids, process_user_fn) do
 end
 ```
 
-Each processing function (e.g., `remove_email_from_user/1`) can call
-`Storage.change/2`, `TaggedWriter.tell/2`, or throw errors without changing
-`process_users/2`.
+Each `process_user_fn` processing function (e.g., `remove_email_from_user/1`)
+can use different effects, such as`Storage.change/2`, `TaggedWriter.tell/2`,
+or throw errors without requiring any changes to the `process_users/2`
+function signature (such as adding accumulator parameters).
 
 ---
 
@@ -418,7 +420,7 @@ Each processing function (e.g., `remove_email_from_user/1`) can call
 * operation structs
 * handler module/s
 * algebra modules/s
-mix
+
 
 ## References
 
@@ -427,8 +429,8 @@ mix
 - **Algebraic Effects Overview**: [What is algebraic about algebraic effects?](https://arxiv.org/abs/1807.05923)
 - **Freer Monads, More Extensible Effects**: [Kiselyov & Ishii](https://okmij.org/ftp/Haskell/extensible/more.pdf)
 - **freer-simple — a friendly effect system for Haskell**: [lexi-lambda/freer-simple](https://github.com/lexi-lambda/freer-simple)
-- ** effects - an Elixir effect system **: [bootstarted/effects](https://github.com/bootstarted/effects)
-- ** freer - an Elixir Freer monad ** : [aemaeth-me/freer](https://github.com/aemaeth-me/freer) 
+- **effects - an Elixir effect system**: [bootstarted/effects](https://github.com/bootstarted/effects)
+- **freer - an Elixir Freer monad**: [aemaeth-me/freer](https://github.com/aemaeth-me/freer) 
 ---
 
 ## License

@@ -11,6 +11,7 @@ defmodule Freyja.Freer do
 
   alias Freyja.Freer
   alias Freyja.Freer.Sig.ISendable
+  alias Freyja.Freer.Sig.ISignature
 
   # Freer values are %Pure{} and %Impure{}
 
@@ -55,6 +56,12 @@ defmodule Freyja.Freer do
   """
   @spec send_effect(any, atom) :: freer
   def send_effect(fa, sig) do
+    %Impure{sig: sig, data: fa, q: [&Freer.pure/1]}
+  end
+
+  @spec send_effect(any) :: freer
+  def send_effect(fa) do
+    sig = ISignature.signature(fa)
     %Impure{sig: sig, data: fa, q: [&Freer.pure/1]}
   end
 

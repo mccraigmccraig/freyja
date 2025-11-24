@@ -10,6 +10,7 @@ defmodule Freyja.Freer.Sig.DefEffectStruct do
     quote do
       defmodule unquote(mod) do
         use Freyja.Freer.Sig.Sendable, sig: unquote(sig)
+        use Freyja.Freer.Sig.Signature, sig: unquote(sig)
         defstruct unquote(struct_args)
       end
 

@@ -82,6 +82,8 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
       end
   """
   defmacro def_hefty_struct(name, fields) do
+    sig = __CALLER__.module
+
     quote do
       defmodule unquote(name) do
         @moduledoc """
@@ -93,10 +95,10 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
 
         See `Freyja.Hefty.Algebra` for how to define elaboration algebras.
         """
+        use Freyja.Freer.Sig.Sendable, sig: unquote(sig)
+        use Freyja.Hefty.Sig.HeftySendable
 
         defstruct unquote(fields)
-
-        use Freyja.Hefty.Sig.HeftySendable
       end
     end
   end

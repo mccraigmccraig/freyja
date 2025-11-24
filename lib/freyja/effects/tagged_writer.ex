@@ -70,6 +70,7 @@ defmodule Freyja.Effects.TaggedWriter do
 
   import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Hefty.Sig.DefHeftyStruct
+  alias Freyja.Freer
 
   # First-order operations
   def_effect_struct(TellTagged, tag: nil, val: nil)
@@ -84,7 +85,8 @@ defmodule Freyja.Effects.TaggedWriter do
 
   The value is prepended to the log list for `tag`.
   """
-  def tell(tag, val), do: %TellTagged{tag: tag, val: val}
+  @spec tell(atom, any) :: Freer.t()
+  def tell(tag, val), do: %TellTagged{tag: tag, val: val} |> Freer.send_effect()
 
   @doc """
   Query the current accumulated log for the given tag.
@@ -92,7 +94,8 @@ defmodule Freyja.Effects.TaggedWriter do
   Returns the log list for `tag` in reverse chronological order (most recent first).
   Returns an empty list if the tag has no logged values yet.
   """
-  def peek(tag), do: %PeekTagged{tag: tag}
+  @spec peek(atom) :: Freer.t()
+  def peek(tag), do: %PeekTagged{tag: tag} |> Freer.send_effect()
 
   @doc """
   Query the current accumulated logs for all tags.
@@ -100,7 +103,8 @@ defmodule Freyja.Effects.TaggedWriter do
   Returns a map of `%{tag => [logs]}` for all tags that have been written to.
   Each tag's log list is in reverse chronological order (most recent first).
   """
-  def peek_all(), do: %PeekAll{}
+  @spec peek_all :: Freer.t()
+  def peek_all(), do: %PeekAll{} |> Freer.send_effect()
 
   @doc """
   Execute a computation and capture all logs written during it.

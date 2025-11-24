@@ -10,11 +10,13 @@ defmodule Freyja.Effects.Reader do
   """
   import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Hefty.Sig.DefHeftyStruct
+  alias Freyja.Freer
 
   # First-order operation
   def_effect_struct(Ask)
 
-  def ask, do: %Ask{}
+  @spec ask :: Freer.t()
+  def ask, do: %Ask{} |> Freer.send_effect()
 
   # Higher-order operation
   def_hefty_struct(Local, modifier_fn: nil)

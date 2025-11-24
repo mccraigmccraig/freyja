@@ -3,14 +3,20 @@ defmodule Freyja.Effects.State do
   Operations in the State effect
   """
   import Freyja.Freer.Sig.DefEffectStruct
+  alias Freyja.Freer
 
   def_effect_struct(Get)
   def_effect_struct(Put, val: nil)
   def_effect_struct(Update, f: nil)
 
-  def put(v), do: %Put{val: v}
-  def get, do: %Get{}
-  def update(f), do: %Update{f: f}
+  @spec put(any) :: Freer.t()
+  def put(v), do: %Put{val: v} |> Freer.send_effect()
+
+  @spec get :: Freer.t()
+  def get, do: %Get{} |> Freer.send_effect()
+
+  @spec update((any -> any)) :: Freer.t()
+  def update(f), do: %Update{f: f} |> Freer.send_effect()
 end
 
 defmodule Freyja.Effects.State.Handler do

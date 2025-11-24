@@ -1,10 +1,12 @@
 defmodule Freyja.Effects.Writer do
   @moduledoc "Operations (Ops) for the Writer effect"
   import Freyja.Freer.Sig.DefEffectStruct
+  alias Freyja.Freer
 
   def_effect_struct(Tell, val: nil)
 
-  def tell(v), do: %Tell{val: v}
+  @spec tell(any) :: Freer.t()
+  def tell(v), do: %Tell{val: v} |> Freer.send_effect()
 end
 
 defmodule Freyja.Effects.Writer.Handler do

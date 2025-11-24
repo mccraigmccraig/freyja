@@ -38,6 +38,7 @@ defmodule Freyja.Effects.TaggedState do
   """
 
   import Freyja.Freer.Sig.DefEffectStruct
+  alias Freyja.Freer
 
   def_effect_struct(GetTagged, tag: nil)
   def_effect_struct(PutTagged, tag: nil, val: nil)
@@ -48,7 +49,8 @@ defmodule Freyja.Effects.TaggedState do
 
   Returns the current state associated with `tag`.
   """
-  def get(tag), do: %GetTagged{tag: tag}
+  @spec get(atom) :: Freer.t()
+  def get(tag), do: %GetTagged{tag: tag} |> Freer.send_effect()
 
   @doc """
   Put a new state value for the given tag.
@@ -56,7 +58,8 @@ defmodule Freyja.Effects.TaggedState do
   Sets the state associated with `tag` to `val`.
   Returns the previous state value for that tag.
   """
-  def put(tag, val), do: %PutTagged{tag: tag, val: val}
+  @spec put(atom, any) :: Freer.t()
+  def put(tag, val), do: %PutTagged{tag: tag, val: val} |> Freer.send_effect()
 
   @doc """
   Update the state value for the given tag using a function.
@@ -73,7 +76,8 @@ defmodule Freyja.Effects.TaggedState do
         return(old_count)
       end
   """
-  def update(tag, f), do: %UpdateTagged{tag: tag, f: f}
+  @spec update(atom, (any -> any)) :: Freer.t()
+  def update(tag, f), do: %UpdateTagged{tag: tag, f: f} |> Freer.send_effect()
 end
 
 defmodule Freyja.Effects.TaggedState.Handler do

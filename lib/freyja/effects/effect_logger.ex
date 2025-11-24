@@ -5,10 +5,12 @@ defmodule Freyja.Effects.EffectLogger do
   Signature of the EffectLogger effect
   """
   import Freyja.Freer.Sig.DefEffectStruct
+  alias Freyja.Freer
 
   def_effect_struct(LogInterpretedEffectValue, value: nil)
 
-  def log_interpreted_effect_value(v), do: %LogInterpretedEffectValue{value: v}
+  def log_interpreted_effect_value(v),
+    do: %LogInterpretedEffectValue{value: v} |> Freer.send_effect()
 end
 
 defmodule Freyja.Effects.EffectLogger.Handler do

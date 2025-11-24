@@ -20,6 +20,7 @@ defmodule Freyja.Effects.Throw do
   - `Freyja.Effects.Catch` - For the higher-order catch operation
   """
   import Freyja.Freer.Sig.DefEffectStruct
+  alias Freyja.Freer
 
   def_effect_struct(ThrowOp, error: nil)
 
@@ -28,7 +29,8 @@ defmodule Freyja.Effects.Throw do
 
   Returns a Freer effect that will fail with the given error value.
   """
-  def throw_error(err), do: %ThrowOp{error: err}
+  @spec throw_error(any) :: Freer.t()
+  def throw_error(err), do: %ThrowOp{error: err} |> Freer.send_effect()
 end
 
 defmodule Freyja.Effects.Throw.Handler do

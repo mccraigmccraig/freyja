@@ -52,6 +52,7 @@ defmodule Freyja.Effects.TaggedReader do
 
   import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Hefty.Sig.DefHeftyStruct
+  alias Freyja.Freer
 
   # First-order operations
   def_effect_struct(AskTagged, tag: nil)
@@ -62,7 +63,8 @@ defmodule Freyja.Effects.TaggedReader do
 
   Returns the read-only environment associated with `tag`.
   """
-  def ask(tag), do: %AskTagged{tag: tag}
+  @spec ask(atom) :: Freer.t()
+  def ask(tag), do: %AskTagged{tag: tag} |> Freer.send_effect()
 
   @doc """
   Ask for all tagged environments as a map.
@@ -83,7 +85,8 @@ defmodule Freyja.Effects.TaggedReader do
         return({all_envs, db})
       end
   """
-  def ask_all, do: %AskAll{}
+  @spec ask_all :: Freer.t()
+  def ask_all, do: %AskAll{} |> Freer.send_effect()
 
   # Higher-order operations
   def_hefty_struct(Local, tag: nil, modifier_fn: nil)

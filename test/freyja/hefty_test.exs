@@ -50,13 +50,6 @@ defmodule Freyja.HeftyTest do
                psi: %{try: ^comp1, catch: ^comp2}
              } = result
     end
-
-    test "defaults forks to empty map when not provided" do
-      result = Hefty.send_hefty(:State, %{op: :get})
-
-      assert %Impure{psi: psi} = result
-      assert psi == %{}
-    end
   end
 
   describe "bind/2 - monad laws" do

@@ -255,13 +255,18 @@ defmodule Freyja.Hefty do
       %Freyja.Hefty.Pure{val: 3}
   """
   @spec send_hefty(atom, struct, %{any => t()}) :: Impure.t()
-  def send_hefty(sig, operation, forks \\ %{}) do
+  def send_hefty(sig, operation, %{} = forks) when is_atom(sig) do
     %Impure{
       sig: sig,
       data: operation,
       psi: forks,
       k: &pure/1
     }
+  end
+
+  def send_hefty(operation, %{} = forks) when is_map(forks) do
+    sig = Freyja.Freer.Sig.ISignature.signature(operation)
+    send_hefty(sig, operation, forks)
   end
 
   @doc """

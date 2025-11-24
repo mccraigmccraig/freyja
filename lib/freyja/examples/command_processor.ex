@@ -14,20 +14,23 @@ defmodule Freyja.Examples.CommandProcessor do
 
   defmodule Storage do
     import Freyja.Freer.Sig.DefEffectStruct
+    alias Freyja.Freer
 
     def_effect_struct(Query, table: nil, id: nil)
     def_effect_struct(Change, table: nil, record: nil)
 
-    def query(table, id), do: %Query{table: table, id: id}
-    def change(table, record), do: %Change{table: table, record: record}
+    def query(table, id), do: %Query{table: table, id: id} |> Freer.send_effect()
+    def change(table, record), do: %Change{table: table, record: record} |> Freer.send_effect()
   end
 
   defmodule Notifications do
     import Freyja.Freer.Sig.DefEffectStruct
+    alias Freyja.Freer
 
     def_effect_struct(SendPush, user_id: nil, message: nil)
 
-    def send_push(user_id, message), do: %SendPush{user_id: user_id, message: message}
+    def send_push(user_id, message),
+      do: %SendPush{user_id: user_id, message: message} |> Freer.send_effect()
   end
 
   @doc """
@@ -41,7 +44,8 @@ defmodule Freyja.Examples.CommandProcessor do
 
   builder = Freyja.Examples.CommandProcessor.builder()
   processor = Freyja.Run.run(builder)
-  outcome = Freyja.Run.resume(builder, processor, Storage.query(:products, "A1"))
+  outcome =
+    Freyja.Run.resume(builder, processor, %Storage.Query{table: :products, id: "A1"})
   # => %RunOutcome{result: {:done, {:ok, :stopped}}, ...}
 
   # inspect the commands that were run
@@ -59,9 +63,9 @@ defmodule Freyja.Examples.CommandProcessor do
 
   # run some commands
   commands = [
-    Storage.query(:products, "A1"),
-    Storage.change(:users, %{id: 1, name: "Ann"}),
-    Notifications.send_push(1, "Hello!"),
+    %Storage.Query{table: :products, id: "A1"},
+    %Storage.Change{table: :users, record: %{id: 1, name: "Ann"}},
+    %Notifications.SendPush{user_id: 1, message: "Hello!"},
     :stop
   ]
   final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->

@@ -98,24 +98,25 @@ defmodule Freyja.Examples.ChangeCapture do
     def_effect_struct(Query, ids: [])
     def_effect_struct(Change, old: nil, new: nil)
     def_effect_struct(UpdateAll, changes: [])
+    alias Freyja.Freer
 
     # Higher-order operation - must be elaborated first
     def_hefty_struct(ApplyAllChanges, [])
 
     @doc "Query records by IDs (first-order)"
-    def query(ids), do: %Query{ids: ids}
+    def query(ids), do: %Query{ids: ids} |> Freer.send_effect()
 
     @doc """
     Record a change from old record to new record (first-order).
     Writes the change to the :changes tag in TaggedWriter.
     """
-    def change(old, new), do: %Change{old: old, new: new}
+    def change(old, new), do: %Change{old: old, new: new} |> Freer.send_effect()
 
     @doc """
     Apply a list of changes in a single bulk operation (first-order).
     Returns the number of records updated.
     """
-    def update_all(changes), do: %UpdateAll{changes: changes}
+    def update_all(changes), do: %UpdateAll{changes: changes} |> Freer.send_effect()
 
     @doc """
     Execute computation with change capture and bulk update (higher-order).

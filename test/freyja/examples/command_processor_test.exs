@@ -17,9 +17,9 @@ defmodule Freyja.Examples.CommandProcessorTest do
 
     outcome =
       outcome
-      |> run_resume(builder, Storage.query(:products, "sku-1"))
-      |> run_resume(builder, Storage.change(:users, %{id: 1, name: "Ann"}))
-      |> run_resume(builder, Notifications.send_push(1, "hello!"))
+      |> run_resume(builder, %Storage.Query{table: :products, id: "sku-1"})
+      |> run_resume(builder, %Storage.Change{table: :users, record: %{id: 1, name: "Ann"}})
+      |> run_resume(builder, %Notifications.SendPush{user_id: 1, message: "hello!"})
       |> run_resume(builder, :stop)
 
     assert {:done, {:ok, :stopped}} = outcome.result
@@ -28,7 +28,11 @@ defmodule Freyja.Examples.CommandProcessorTest do
     notifications_state = outcome.outputs[Notifications.Handler]
 
     assert Enum.reverse(storage_state.queries) == [%Storage.Query{table: :products, id: "sku-1"}]
-    assert Enum.reverse(storage_state.changes) == [%Storage.Change{table: :users, record: %{id: 1, name: "Ann"}}]
+
+    assert Enum.reverse(storage_state.changes) == [
+             %Storage.Change{table: :users, record: %{id: 1, name: "Ann"}}
+           ]
+
     assert Enum.reverse(notifications_state.pushes) == [
              %Notifications.SendPush{user_id: 1, message: "hello!"}
            ]

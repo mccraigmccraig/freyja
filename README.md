@@ -242,37 +242,69 @@ tracing, or offline debugging.
 ```elixir
 outcome =
   con do
-    old_state <- State.put(10)
-    return(old_state)
+    config <- TaggedReader.ask(:config)
+    starting <- State.get()
+    updated = starting + config
+    _ <- State.put(updated)
+    return(updated)
   end
   |> EffectLogger.Handler.run(EffectLogger.Log.new())
-  |> State.Handler.run(5)
+  |> TaggedReader.Handler.run(%{config: 32})
+  |> State.Handler.run(10)
   |> Run.run()
 
-IO.inspect(outcome, pretty: true)
+outcome.result # => 42
+IO.inspect(outcome, pretty: true) # output below
 ```
 
 Example output (abridged):
 
 ```elixir
-%RunOutcome{
-  result: 5,
+%Freyja.Run.RunOutcome{
+  result: 42,
   outputs: %{
-    EffectLogger.Handler => %EffectLogger.Log{
+    Freyja.Effects.TaggedReader.Handler => %{config: 32},
+    Freyja.Effects.EffectLogger.Handler => %Freyja.Effects.EffectLogger.Log{
       stack: [],
       queue: [
-        %StepLogEntry{
+        %Freyja.Effects.EffectLogger.StepLogEntry{
           effects_stack: [],
           effects_queue: [
-            %EffectLogEntry{sig: Freyja.Effects.State, data: %State.Put{val: 10}}
+            %Freyja.Effects.EffectLogger.EffectLogEntry{
+              sig: Freyja.Effects.TaggedReader,
+              data: %Freyja.Effects.TaggedReader.AskTagged{tag: :config}
+            }
           ],
           completed?: true,
-          value: 5
+          value: 32
+        },
+        %Freyja.Effects.EffectLogger.StepLogEntry{
+          effects_stack: [],
+          effects_queue: [
+            %Freyja.Effects.EffectLogger.EffectLogEntry{
+              sig: Freyja.Effects.State,
+              data: %Freyja.Effects.State.Get{}
+            }
+          ],
+          completed?: true,
+          value: 10
+        },
+        %Freyja.Effects.EffectLogger.StepLogEntry{
+          effects_stack: [],
+          effects_queue: [
+            %Freyja.Effects.EffectLogger.EffectLogEntry{
+              sig: Freyja.Effects.State,
+              data: %Freyja.Effects.State.Put{val: 42}
+            }
+          ],
+          completed?: true,
+          value: 10
         }
       ],
       replay_allow_final_divergence?: false
-    }
-  }
+    },
+    Freyja.Effects.State.Handler => 42
+  },
 }
 ```
 
@@ -293,28 +325,43 @@ decoded = Jason.decode!(json)
 debug_outcome = Run.rerun(builder, decoded)
 ```
 
-`Run.rerun/2` will run the computation from "cold" logs (even after JSON
-serialization) and automatically enables “allow divergence” so you can step past
-the original error. Try it live with
+`Run.rerun/2` will "run" a computation from "cold" logs (after a JSON
+serialization/deserialization roundtrip). Until the final
+step `rerun` doesn't really run anything other than the pure domain code -
+it supplies logged effect `values` to each step of the computation,
+so every step gets the _exact same_ data that was logged during the
+failed computation run. At the final step (signalled by the
+`:replay_allow_final_divergence?` flag in the `Log`), where an error may
+have been raised, it switches back to "new computation" mode and
+handles the effect normally, allowing bugfixed code to continue normally after
+the error.
+
+you can try it out in IEx with:
 [`Freyja.Examples.EffectLoggerRerun`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_rerun.ex):
 
-```
+```elixir
 buggy = Freyja.Examples.EffectLoggerRerun.build(:original)
-json = buggy |> Run.run() |> Jason.encode!()
+buggy_outcome = buggy |> Freyja.Run.run()
+buggy_outcome.result # => {:error, :validation_failed} 
+json = buggy_outcome |> Jason.encode!()
 
 fixed = Freyja.Examples.EffectLoggerRerun.build(:patched)
-Run.rerun(fixed, Jason.decode!(json))
+fixed_outcome = Freyja.Run.rerun(fixed, Jason.decode!(json))
+fixed_outcome.result # => {:ok, :ok}
 ```
 
 #### (c) Cold Resume from Logs
 
 ```elixir
+builder = Freyja.Examples.EffectLoggerResume.build()
+outcome = builder |> Freyja.Run.run()
 {:suspend, prompt, _} = outcome.result
 checkpoint = Jason.encode!(outcome)
 
 # Later
 decoded_checkpoint = Jason.decode!(checkpoint)
-resumed = Run.resume(builder, decoded_checkpoint, :new_value)
+resumed = Freyja.Run.resume(builder, decoded_checkpoint, :new_value)
+resumed.result # => {:done, :new_value}
 ```
 
 EffectLogger’s serialized state is also enough to "cold" resume a coroutine from
@@ -325,9 +372,9 @@ for a copy/pasteable builder demonstrating the pattern in IEx.
 ### 2.3 Change Capture with TaggedWriter
 
 From the IEx runnable [`change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
-example here is a trimmed down snippet showing how an application domain 
+example here is a trimmed down snippet showing how an application domain
 `ApplyAllChanges` effect can internally use `TaggedWriter`, and `State` effects
-to capture changes emitted in nested funcion calls. 
+to capture changes emitted in nested funcion calls.
 
 ```elixir
 defmodule Storage do

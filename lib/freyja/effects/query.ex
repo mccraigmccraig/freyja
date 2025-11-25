@@ -127,11 +127,9 @@ defmodule Freyja.Effects.Query.Handler do
   end
 
   defp dispatch(registry, %Request{domain: domain} = request) when is_map(registry) do
-    with {:ok, resolver} <- Map.fetch(registry, domain) do
-      {:ok, invoke(resolver, request)}
-    else
-      :error ->
-        {:error, {:unknown_domain, domain}}
+    case Map.fetch(registry, domain) do
+      {:ok, resolver} -> {:ok, invoke(resolver, request)}
+      :error -> {:error, {:unknown_domain, domain}}
     end
   end
 
@@ -157,13 +155,11 @@ defmodule Freyja.Effects.Query.Handler do
 
   defp invoke(module, %Request{domain: domain, mod: mod, name: name, params: params})
        when is_atom(module) do
-    cond do
-      function_exported?(module, :handle_query, 4) ->
-        apply(module, :handle_query, [domain, mod, name, params])
-
-      true ->
-        raise ArgumentError,
-              "#{inspect(module)} must export handle_query/4 to be used as a Query handler entry"
+    if function_exported?(module, :handle_query, 4) do
+      apply(module, :handle_query, [domain, mod, name, params])
+    else
+      raise ArgumentError,
+            "#{inspect(module)} must export handle_query/4 to be used as a Query handler entry"
     end
   end
 

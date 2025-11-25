@@ -63,6 +63,12 @@ defmodule Freyja.Examples.QueryExample do
 
   @doc """
   Build a RunBuilder that uses `Query.TestHandler` with canned responses.
+
+  ```
+    builder = Freyja.Examples.QueryExample.build_test_builder()
+    output = builder |> Freyja.Run.run()
+    output.result # => %{user: ... ...}
+  ```
   """
   def build_test_builder(user_id \\ 1) do
     responses = %{

@@ -39,6 +39,6 @@ defmodule Freyja.Run.RunOutcomeTest do
     assert reconstructed.run_state == nil
     assert reconstructed.result == {:error, :fail}
     assert reconstructed.outputs[Freyja.Effects.EffectLogger.Log]
-           == %Freyja.Effects.EffectLogger.Log{queue: [], stack: [], replay_allow_final_divergence?: false}
+           == %Freyja.Effects.EffectLogger.Log{queue: [], stack: [], allow_divergence?: false}
   end
 end

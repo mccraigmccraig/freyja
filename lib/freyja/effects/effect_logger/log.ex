@@ -179,12 +179,12 @@ defmodule Freyja.Effects.EffectLogger.Log do
   alias Freyja.Effects.EffectLogger.StepLogEntry
   alias Freyja.Freer.Impure
 
-  defstruct stack: [], queue: [], replay_allow_final_divergence?: false
+  defstruct stack: [], queue: [], allow_divergence?: false
 
   @type t :: %__MODULE__{
           stack: list(StepLogEntry.t()),
           queue: list(StepLogEntry.t()),
-          replay_allow_final_divergence?: boolean()
+          allow_divergence?: boolean()
         }
 
   def new() do
@@ -273,7 +273,7 @@ defmodule Freyja.Effects.EffectLogger.Log do
     %__MODULE__{
       stack: Enum.map(map["stack"] || [], &StepLogEntry.from_json/1),
       queue: Enum.map(map["queue"] || [], &StepLogEntry.from_json/1),
-      replay_allow_final_divergence?: map["replay_allow_final_divergence?"] || false
+      allow_divergence?: map["allow_divergence?"] || false
     }
   end
 
@@ -283,7 +283,7 @@ defmodule Freyja.Effects.EffectLogger.Log do
   the code has been fixed and the error no longer occurs.
   """
   def for_error_resume(log) do
-    %{log | replay_allow_final_divergence?: true}
+    %{log | allow_divergence?: true}
   end
 end
 
@@ -293,7 +293,7 @@ defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.Log do
       %{
         stack: value.stack,
         queue: value.queue,
-        replay_allow_final_divergence?: value.replay_allow_final_divergence?
+        allow_divergence?: value.allow_divergence?
       },
       opts
     )

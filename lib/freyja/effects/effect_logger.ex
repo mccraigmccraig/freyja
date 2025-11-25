@@ -237,7 +237,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         #     "current_log: #{inspect(current_log, pretty: true)}"
         # )
 
-        if log.replay_allow_final_divergence? do
+        if log.allow_divergence? do
           log_new_effect(computation, drop_pending_entries(log))
         else
           # push the new effect to the current log entry and carry on
@@ -247,7 +247,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
       _ ->
         # Effect diverged from log
-        if log.replay_allow_final_divergence? do
+        if log.allow_divergence? do
           log_new_effect(computation, drop_pending_entries(log))
         else
           raise ArgumentError,

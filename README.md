@@ -301,7 +301,7 @@ Example output (abridged):
           value: 10
         }
       ],
-      replay_allow_final_divergence?: false
+      allow_divergence?: false
     },
     Freyja.Effects.State.Handler => 42
   },
@@ -331,7 +331,7 @@ step `rerun` doesn't really run anything other than the pure domain code -
 it supplies logged effect `values` to each step of the computation,
 so every step gets the _exact same_ data that was logged during the
 failed computation run. At the final step (signalled by the
-`:replay_allow_final_divergence?` flag in the `Log`), where an error may
+`:allow_divergence?` flag in the `Log`), where an error may
 have been raised, it switches back to "new computation" mode and
 handles the effect normally, allowing bugfixed code to continue normally after
 the error.

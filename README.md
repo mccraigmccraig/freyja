@@ -165,7 +165,59 @@ deal with the impure plumbing.
 
 Not nearly an exhaustive list, but there are IEx runnable examples for each case!
 
-### 2.1 Coroutine-Based Programming
+### 2.1 Query: Decouple Domain Logic from Storage Plumbing
+
+The new [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
+shows how a single effect can express “run this query” without knowing which
+backend will satisfy it. Domain code asks for data by specifying a logical
+`domain`, a module/function pair, and a params struct; handlers decide whether to
+hit Postgres, Elastic, or a canned test response.
+
+```elixir
+defmodule Domain do
+  import Freyja.Freer.FreerBlock
+  alias Freyja.Effects.Query
+
+  defcon fetch_profile(user_id) do
+    user <- Query.request(:users, Backend, :fetch_user, %{id: user_id})
+    orders <- Query.request(:orders, Backend, :fetch_orders, %{user_id: user_id})
+    stats <- Query.request(:stats, Backend, :fetch_stats, %{user_id: user_id})
+    return(%{user: user, orders: orders, stats: stats})
+  end
+end
+```
+
+Because `Query.request/4` returns a plain Freer effect, the same domain code can
+run against a live registry:
+
+```elixir
+Domain.fetch_profile(42)
+|> Query.Handler.run(%{
+  users: :direct,
+  orders: :direct,
+  stats: &QueryExample.route_stats/4
+})
+|> Run.run()
+```
+
+…or a canned response map in tests:
+
+```elixir
+responses = %{
+  Query.key(:users, Backend, :fetch_user, %{id: 42}) => %{id: 42, name: "Test User"},
+  Query.key(:orders, Backend, :fetch_orders, %{user_id: 42}) => []
+}
+
+Domain.fetch_profile(42)
+|> Query.TestHandler.run(responses)
+|> Run.run()
+```
+
+This keeps domain logic free of storage plumbing while still letting handlers
+control authentication, connection pools, and mocking concerns.
+
+
+### 2.2 Coroutine-Based Programming
 
 From the IEx runnable  [`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex)
 example:
@@ -231,7 +283,7 @@ end)
 Because commands are just effect structs, you can whitelist them for MCP tooling,
 log them, or feed them manually—no extra glue code required.
 
-### 2.2 EffectLogger: Log, Replay, and Resume Anything
+### 2.3 EffectLogger: Log, Replay, and Resume Anything
 
 #### (a) Automatic Log Collection
 
@@ -369,7 +421,7 @@ deserialized logs, even though the original continuation has been lost! See
 [`Freyja.Examples.EffectLoggerResume`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_resume.ex)
 for a copy/pasteable builder demonstrating the pattern in IEx.
 
-### 2.3 Change Capture with TaggedWriter
+### 2.4 Change Capture with TaggedWriter
 
 From the IEx runnable [`change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
 example here is a trimmed down snippet showing how an application domain
@@ -410,58 +462,6 @@ can use different effects, such as`Storage.change/2`, `TaggedWriter.tell/2`,
 or throw errors without requiring any changes to the `process_users/2`
 function signature (such as adding accumulator parameters).
 
-
-
-### 2.4 Query: Decouple Domain Logic from Storage Plumbing
-
-The new [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
-shows how a single effect can express “run this query” without knowing which
-backend will satisfy it. Domain code asks for data by specifying a logical
-`domain`, a module/function pair, and a params struct; handlers decide whether to
-hit Postgres, Elastic, or a canned test response.
-
-```elixir
-defmodule Domain do
-  import Freyja.Freer.FreerBlock
-  alias Freyja.Effects.Query
-
-  defcon fetch_profile(user_id) do
-    user <- Query.request(:users, Backend, :fetch_user, %{id: user_id})
-    orders <- Query.request(:orders, Backend, :fetch_orders, %{user_id: user_id})
-    stats <- Query.request(:stats, Backend, :fetch_stats, %{user_id: user_id})
-    return(%{user: user, orders: orders, stats: stats})
-  end
-end
-```
-
-Because `Query.request/4` returns a plain Freer effect, the same domain code can
-run against a live registry:
-
-```elixir
-Domain.fetch_profile(42)
-|> Query.Handler.run(%{
-  users: :direct,
-  orders: :direct,
-  stats: &QueryExample.route_stats/4
-})
-|> Run.run()
-```
-
-…or a canned response map in tests:
-
-```elixir
-responses = %{
-  Query.key(:users, Backend, :fetch_user, %{id: 42}) => %{id: 42, name: "Test User"},
-  Query.key(:orders, Backend, :fetch_orders, %{user_id: 42}) => []
-}
-
-Domain.fetch_profile(42)
-|> Query.TestHandler.run(responses)
-|> Run.run()
-```
-
-This keeps domain logic free of storage plumbing while still letting handlers
-control authentication, connection pools, and mocking concerns.
 
 ---
 

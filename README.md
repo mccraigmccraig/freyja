@@ -167,7 +167,7 @@ Not nearly an exhaustive list, but there are IEx runnable examples for each case
 
 ### 2.1 Query: Decouple Domain Logic from Storage Plumbing
 
-The new [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
+The [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
 shows how a single effect can express “run this query” without knowing which
 backend will satisfy it. Domain code asks for data by specifying a logical
 `domain`, a module/function pair, and a params struct; handlers decide whether to

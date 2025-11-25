@@ -394,6 +394,7 @@ defmodule Storage do
     Freyja.Hefty.send_hefty(__MODULE__, %ApplyAllChanges{}, %{inner: computation})
   end
 end
+```
 
 ### 2.4 Query: Decouple Domain Logic from Storage Plumbing
 

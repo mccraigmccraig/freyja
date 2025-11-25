@@ -395,6 +395,57 @@ defmodule Storage do
   end
 end
 
+### 2.4 Query: Decouple Domain Logic from Storage Plumbing
+
+The new [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
+shows how a single effect can express “run this query” without knowing which
+backend will satisfy it. Domain code asks for data by specifying a logical
+`domain`, a module/function pair, and a params struct; handlers decide whether to
+hit Postgres, Elastic, or a canned test response.
+
+```elixir
+defmodule Domain do
+  import Freyja.Freer.FreerBlock
+  alias Freyja.Effects.Query
+
+  defcon fetch_profile(user_id) do
+    user <- Query.request(:users, Backend, :fetch_user, %{id: user_id})
+    orders <- Query.request(:orders, Backend, :fetch_orders, %{user_id: user_id})
+    stats <- Query.request(:stats, Backend, :fetch_stats, %{user_id: user_id})
+    return(%{user: user, orders: orders, stats: stats})
+  end
+end
+```
+
+Because `Query.request/4` returns a plain Freer effect, the same domain code can
+run against a live registry:
+
+```elixir
+Domain.fetch_profile(42)
+|> Query.Handler.run(%{
+  users: :direct,
+  orders: :direct,
+  stats: &QueryExample.route_stats/4
+})
+|> Run.run()
+```
+
+…or a canned response map in tests:
+
+```elixir
+responses = %{
+  Query.key(:users, Backend, :fetch_user, %{id: 42}) => %{id: 42, name: "Test User"},
+  Query.key(:orders, Backend, :fetch_orders, %{user_id: 42}) => []
+}
+
+Domain.fetch_profile(42)
+|> Query.TestHandler.run(responses)
+|> Run.run()
+```
+
+This keeps domain logic free of storage plumbing while still letting handlers
+control authentication, connection pools, and mocking concerns.
+
 defhefty process_users(ids, process_user_fn) do
   users <- Storage.query(ids)
   {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))

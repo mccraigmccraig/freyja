@@ -34,7 +34,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
              ]
 
       # Should have captured 3 changes
-      captured_changes = result.all_logs[:changes] || []
+      captured_changes = result.changes
       assert length(captured_changes) == 3
 
       # Should have processed 3 records
@@ -59,7 +59,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       result = outcome.result
 
       assert result.updated_users == []
-      assert result.all_logs[:changes] == nil || result.all_logs[:changes] == []
+      assert result.changes == []
       assert result.processed_count == 0
     end
   end
@@ -94,18 +94,20 @@ defmodule Freyja.Examples.ChangeCaptureTest do
              ]
 
       # Should have captured 2 changes (Alice and Charlie)
-      captured_changes = result.all_logs[:changes] || []
+      captured_changes = result.changes
       assert length(captured_changes) == 2
 
       # Should have processed all 3 records
       assert result.processed_count == 3
 
-      # The extra effect: validation logging!
-      validation_results = result.all_logs[:validations] || []
-      assert length(validation_results) == 3
+      # The extra effect: validation logging is available via TaggedWriter.Handler output
+      # This demonstrates effect polymorphism - validate_and_update_user uses MORE effects
+      # than remove_email_from_user, but process_users doesn't need to change!
+      validation_logs = outcome.outputs[Freyja.Effects.TaggedWriter.Handler][:validations] || []
+      assert length(validation_logs) == 3
 
       # Check validation results
-      validation_map = Map.new(validation_results, fn {action, id} -> {id, action} end)
+      validation_map = Map.new(validation_logs, fn {action, id} -> {id, action} end)
       assert validation_map[1] == :removed_test_email
       assert validation_map[2] == :kept_email
       assert validation_map[3] == :removed_test_email
@@ -117,7 +119,7 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       }
 
       # KEY POINT: audit_user uses DIFFERENT effects than the other functions!
-      # It uses TaggedWriter for audit logs but NOT Storage.change
+      # It uses TaggedWriter for audit logs but NOT Changes.change
       # Yet it works with the same process_users function!
       outcome =
         ChangeCapture.builder(
@@ -135,11 +137,12 @@ defmodule Freyja.Examples.ChangeCaptureTest do
                %{id: 1, name: "Alice", email: "alice@example.com", created_at: ~D[2020-01-01]}
              ]
 
-      # No changes recorded (audit doesn't call Storage.change)
-      assert result.all_logs[:changes] == nil || result.all_logs[:changes] == []
+      # No changes recorded (audit doesn't call Changes.change)
+      assert result.changes == []
 
       # But we have audit logs! Different effect set, same process_users function
-      audit_logs = result.all_logs[:audit] || []
+      # Available via TaggedWriter.Handler output
+      audit_logs = outcome.outputs[Freyja.Effects.TaggedWriter.Handler][:audit] || []
       assert length(audit_logs) == 1
       [audit_entry] = audit_logs
       assert audit_entry.action == :reviewed
@@ -189,17 +192,17 @@ defmodule Freyja.Examples.ChangeCaptureTest do
 
   describe "comparison with old ChangeCapture approach" do
     test "achieves same results with simpler code and better composition" do
-      # This test demonstrates that Hefty achieves the same functionality
-      # as the old scoped effects, but with:
-      # 1. MUCH simpler code
+      # This test demonstrates that the simplified approach achieves
+      # the same functionality with:
+      # 1. MUCH simpler code - no custom Algebra needed
       # 2. BETTER composition via effect polymorphism
+      # 3. Direct use of existing Changes effect
 
       initial_users = %{
         1 => %{id: 1, name: "Alice", email: "alice@example.com", created_at: ~D[2020-01-01]}
       }
 
-      # OLD WAY: Would need separate process_users, process_users_with_validation, etc.
-      # NEW WAY: Single process_users function, pass different processing functions!
+      # Single process_users function, pass different processing functions!
       outcome =
         ChangeCapture.builder(
           [1],
@@ -211,19 +214,18 @@ defmodule Freyja.Examples.ChangeCaptureTest do
 
       result = outcome.result
 
-      # Same capabilities as old ChangeCapture
+      # Core capabilities
       assert Map.has_key?(result, :updated_users)
-      assert Map.has_key?(result, :all_logs)
+      assert Map.has_key?(result, :changes)
       assert Map.has_key?(result, :processed_count)
 
-      # But with these benefits:
-      # 1. Storage.Algebra is ~25 lines vs ~150 line scoped handler (15x reduction!)
-      # 2. No manual RunOutcome handling
-      # 3. No ScopedOk/ScopedError complexity
-      # 4. No suspension special cases
+      # Benefits of this approach:
+      # 1. No Storage.Algebra at all - uses Changes.Algebra directly
+      # 2. No redundant Storage.change - uses Changes.change directly
+      # 3. No redundant Storage.apply_all_changes - uses Changes.capture directly
+      # 4. Storage effect reduced to just update_all for bulk application
       # 5. Effect polymorphism - single process_users, many processing functions
       # 6. No parameter threading - effects compose naturally
-      # 7. Theoretically sound foundation
     end
   end
 end

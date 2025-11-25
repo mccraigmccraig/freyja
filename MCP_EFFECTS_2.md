@@ -142,20 +142,17 @@ Handlers can compose multiple effects to implement higher-level operations. From
 
 ```elixir
 def interpret(%ApplyAllChanges{computation: computation}, _, state, %{q: q}) do
-  # Handler composes multiple effects using con block
   composed =
     con do
-      # 1. Run computation and capture logs
-      {result, all_logs} <- TaggedWriter.listen(computation)
+      # 1. Capture changes + logs in one pass
+      {{result, captured_changes}, logs} <-
+        TaggedWriter.listen(Changes.capture(computation))
 
-      # 2. Extract changes from logs
-      changes = all_logs[:changes] || []
+      # 2. Apply changes in bulk
+      Storage.update_all(captured_changes)
 
-      # 3. Apply changes in bulk
-      Storage.update_all(changes)
-
-      # 4. Return result
-      return({result, all_logs})
+      # 3. Return result + enriched logs
+      return({result, Map.put(logs, :changes, captured_changes)})
     end
 
   {Impl.bindp(composed, q), state}

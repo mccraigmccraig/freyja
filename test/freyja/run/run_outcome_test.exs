@@ -30,7 +30,9 @@ defmodule Freyja.Run.RunOutcomeTest do
   test "from_json reconstructs outcome without run_state" do
     run_state = %RunState{handlers: [], states: %{}}
     log = Freyja.Effects.EffectLogger.Log.new()
-    outcome = RunOutcome.new({:error, :fail}, %{Freyja.Effects.EffectLogger.Log => log}, run_state)
+
+    outcome =
+      RunOutcome.new({:error, :fail}, %{Freyja.Effects.EffectLogger.Log => log}, run_state)
 
     json = Jason.encode!(outcome)
     decoded = Jason.decode!(json)
@@ -38,7 +40,8 @@ defmodule Freyja.Run.RunOutcomeTest do
 
     assert reconstructed.run_state == nil
     assert reconstructed.result == {:error, :fail}
-    assert reconstructed.outputs[Freyja.Effects.EffectLogger.Log]
-           == %Freyja.Effects.EffectLogger.Log{queue: [], stack: [], allow_divergence?: false}
+
+    assert reconstructed.outputs[Freyja.Effects.EffectLogger.Log] ==
+             %Freyja.Effects.EffectLogger.Log{queue: [], stack: [], allow_divergence?: false}
   end
 end

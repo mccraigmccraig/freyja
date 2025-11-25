@@ -6,7 +6,7 @@ defmodule Freyja.EffectLoggerErrorTest do
   import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.EffectLogger.Log
+  alias Freyja.Effects.EffectLogger.{Log, StepLogEntry}
   alias Freyja.Effects.Throw
   alias Freyja.Effects.State
   alias Freyja.Run
@@ -104,6 +104,7 @@ defmodule Freyja.EffectLoggerErrorTest do
         con [State] do
           _ <- put(10)
           _x <- get()
+
           if should_error do
             Throw.throw_error(:validation_failed)
           else
@@ -204,7 +205,7 @@ defmodule Freyja.EffectLoggerErrorTest do
       end
     end
 
-    test "divergence mid-log - still raises even with flag" do
+    test "divergence mid-log - allowed with flag and rest of log is fresh" do
       make_computation = fn value_at_step2 ->
         con [State] do
           _ <- put(10)
@@ -230,13 +231,25 @@ defmodule Freyja.EffectLoggerErrorTest do
       json_log = Jason.encode!(log)
       resume_log = json_log |> Jason.decode!() |> Log.from_json() |> Log.for_error_resume()
 
-      # Resume with different value at step 2 - should still raise (not final step)
-      assert_raise ArgumentError, ~r/Effect diverged from log/, fn ->
+      # Resume with different value at step 2 - should diverge gracefully
+      outcome2 =
         make_computation.(999)
         |> EffectLogger.Handler.run(resume_log)
         |> State.Handler.run(0)
         |> Run.run()
-      end
+
+      assert %RunOutcome{result: 30} = outcome2
+
+      resumed_log = Log.prepare_for_retrace(outcome2.outputs[EffectLogger.Handler])
+      resumed_entries = resumed_log.queue
+
+      # First logged step (put 10) should match original
+      [%StepLogEntry{effects_queue: [first_effect | _]} | rest] = resumed_entries
+      assert first_effect.sig == State
+      assert match?(%State.Put{val: 10}, first_effect.data)
+
+      # Following steps should be freshly logged single-effect entries
+      assert Enum.all?(rest, fn entry -> length(entry.effects_queue) == 1 end)
     end
 
     test "state preserved through error resume" do

@@ -163,17 +163,8 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
     case log.queue do
       [] ->
-        # Logger.error(
-        #   "#{__MODULE__}.log_or_resume UNSEEN\n" <>
-        #     "computation: #{inspect(computation, pretty: true)}\n" <>
-        #     "current_log: #{inspect(current_log, pretty: true)}"
-        # )
-
         # unseen computation - log and carry on
-        updated_log = Log.log_effect(log, computation)
-        capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
-        updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
-        {%Freer.Impure{sig: sig, data: u, q: updated_q}, updated_log}
+        log_new_effect(computation, log)
 
       # resumed fully interpreted computation - we have a value
       [
@@ -246,24 +237,18 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         #     "current_log: #{inspect(current_log, pretty: true)}"
         # )
 
-        # push the new effect to the current log entry
-        # and carry on
-        updated_log = Log.push_effect(log, computation)
-
-        # Logger.error("#{__MODULE__}.partial #{inspect(updated_log, pretty: true)}")
-
-        {computation, updated_log}
+        if log.replay_allow_final_divergence? do
+          log_new_effect(computation, drop_pending_entries(log))
+        else
+          # push the new effect to the current log entry and carry on
+          updated_log = Log.push_effect(log, computation)
+          {computation, updated_log}
+        end
 
       _ ->
         # Effect diverged from log
-        if log.replay_allow_final_divergence? and length(log.queue) == 1 do
-          # Last entry, divergence allowed - discard it and execute normally
-          updated_log = Log.consume_log_entry(log)
-          # Execute as unseen effect
-          updated_log = Log.log_effect(updated_log, computation)
-          capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
-          updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
-          {%Freer.Impure{sig: sig, data: u, q: updated_q}, updated_log}
+        if log.replay_allow_final_divergence? do
+          log_new_effect(computation, drop_pending_entries(log))
         else
           raise ArgumentError,
             message:
@@ -291,4 +276,14 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   def run(computation_or_builder, initial_state) do
     Freyja.Run.RunBuilder.add(computation_or_builder, __MODULE__, initial_state)
   end
+
+  defp log_new_effect(%Impure{} = computation, %Log{} = log) do
+    %Impure{sig: sig, data: u, q: q} = computation
+    updated_log = Log.log_effect(log, computation)
+    capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
+    updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
+    {%Freer.Impure{sig: sig, data: u, q: updated_q}, updated_log}
+  end
+
+  defp drop_pending_entries(%Log{} = log), do: %{log | queue: []}
 end

@@ -396,6 +396,22 @@ defmodule Storage do
 end
 ```
 
+``` elixir
+defhefty process_users(ids, process_user_fn) do
+  users <- Storage.query(ids)
+  {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
+  count <- State.get()
+  return(%{updated_users: updated_users, all_logs: logs, processed_count: count})
+end
+```
+
+Each `process_user_fn` processing function (e.g., `remove_email_from_user/1`)
+can use different effects, such as`Storage.change/2`, `TaggedWriter.tell/2`,
+or throw errors without requiring any changes to the `process_users/2`
+function signature (such as adding accumulator parameters).
+
+
+
 ### 2.4 Query: Decouple Domain Logic from Storage Plumbing
 
 The new [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
@@ -446,19 +462,6 @@ Domain.fetch_profile(42)
 
 This keeps domain logic free of storage plumbing while still letting handlers
 control authentication, connection pools, and mocking concerns.
-
-defhefty process_users(ids, process_user_fn) do
-  users <- Storage.query(ids)
-  {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
-  count <- State.get()
-  return(%{updated_users: updated_users, all_logs: logs, processed_count: count})
-end
-```
-
-Each `process_user_fn` processing function (e.g., `remove_email_from_user/1`)
-can use different effects, such as`Storage.change/2`, `TaggedWriter.tell/2`,
-or throw errors without requiring any changes to the `process_users/2`
-function signature (such as adding accumulator parameters).
 
 ---
 

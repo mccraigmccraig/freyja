@@ -4,8 +4,6 @@ defmodule Freyja.Examples.ChangeCaptureTest do
   alias Freyja.Examples.ChangeCapture
 
   alias Freyja.Examples.ChangeCapture.Storage
-  alias Freyja.Effects.Lift
-  alias Freyja.Effects.{FxList, TaggedWriter, State}
   alias Freyja.Run
 
   describe "basic change capture example with Hefty" do
@@ -18,17 +16,12 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       }
 
       outcome =
-        ChangeCapture.process_users(
+        ChangeCapture.builder(
           [1, 2, 3],
-          &ChangeCapture.remove_email_from_user/1
+          &ChangeCapture.remove_email_from_user/1,
+          users: initial_users,
+          initial_count: 0
         )
-        |> Lift.Algebra.run()
-        |> Storage.Algebra.run()
-        |> FxList.Algebra.run()
-        |> TaggedWriter.Algebra.run()
-        |> Storage.Handler.run(initial_users)
-        |> TaggedWriter.Handler.run(%{})
-        |> State.Handler.run(0)
         |> Run.run()
 
       result = outcome.result
@@ -57,14 +50,10 @@ defmodule Freyja.Examples.ChangeCaptureTest do
 
     test "handles empty user list" do
       outcome =
-        ChangeCapture.process_users([], &ChangeCapture.remove_email_from_user/1)
-        |> Lift.Algebra.run()
-        |> Storage.Algebra.run()
-        |> FxList.Algebra.run()
-        |> TaggedWriter.Algebra.run()
-        |> Storage.Handler.run(%{})
-        |> TaggedWriter.Handler.run(%{})
-        |> State.Handler.run(0)
+        ChangeCapture.builder([], &ChangeCapture.remove_email_from_user/1,
+          users: %{},
+          initial_count: 0
+        )
         |> Run.run()
 
       result = outcome.result
@@ -87,17 +76,12 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       # The validate_and_update_user function uses MORE effects (TaggedWriter for validation)
       # but process_users doesn't need to know or care!
       outcome =
-        ChangeCapture.process_users(
+        ChangeCapture.builder(
           [1, 2, 3],
-          &ChangeCapture.validate_and_update_user/1
+          &ChangeCapture.validate_and_update_user/1,
+          users: initial_users,
+          initial_count: 0
         )
-        |> Lift.Algebra.run()
-        |> Storage.Algebra.run()
-        |> FxList.Algebra.run()
-        |> TaggedWriter.Algebra.run()
-        |> Storage.Handler.run(initial_users)
-        |> TaggedWriter.Handler.run(%{})
-        |> State.Handler.run(0)
         |> Run.run()
 
       result = outcome.result
@@ -136,14 +120,12 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       # It uses TaggedWriter for audit logs but NOT Storage.change
       # Yet it works with the same process_users function!
       outcome =
-        ChangeCapture.process_users([1], &ChangeCapture.audit_user/1)
-        |> Lift.Algebra.run()
-        |> Storage.Algebra.run()
-        |> FxList.Algebra.run()
-        |> TaggedWriter.Algebra.run()
-        |> Storage.Handler.run(initial_users)
-        |> TaggedWriter.Handler.run(%{})
-        |> State.Handler.run(0)
+        ChangeCapture.builder(
+          [1],
+          &ChangeCapture.audit_user/1,
+          users: initial_users,
+          initial_count: 0
+        )
         |> Run.run()
 
       result = outcome.result
@@ -176,14 +158,10 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       }
 
       outcome =
-        ChangeCapture.multi_stage_process([1, 2])
-        |> Lift.Algebra.run()
-        |> Storage.Algebra.run()
-        |> FxList.Algebra.run()
-        |> TaggedWriter.Algebra.run()
-        |> Storage.Handler.run(initial_users)
-        |> TaggedWriter.Handler.run(%{})
-        |> State.Handler.run(0)
+        ChangeCapture.multi_stage_builder([1, 2],
+          users: initial_users,
+          initial_count: 0
+        )
         |> Run.run()
 
       result = outcome.result
@@ -223,14 +201,12 @@ defmodule Freyja.Examples.ChangeCaptureTest do
       # OLD WAY: Would need separate process_users, process_users_with_validation, etc.
       # NEW WAY: Single process_users function, pass different processing functions!
       outcome =
-        ChangeCapture.process_users([1], &ChangeCapture.remove_email_from_user/1)
-        |> Lift.Algebra.run()
-        |> Storage.Algebra.run()
-        |> FxList.Algebra.run()
-        |> TaggedWriter.Algebra.run()
-        |> Storage.Handler.run(initial_users)
-        |> TaggedWriter.Handler.run(%{})
-        |> State.Handler.run(0)
+        ChangeCapture.builder(
+          [1],
+          &ChangeCapture.remove_email_from_user/1,
+          users: initial_users,
+          initial_count: 0
+        )
         |> Run.run()
 
       result = outcome.result

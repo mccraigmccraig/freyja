@@ -450,7 +450,7 @@ end
 
 ``` elixir
 defhefty process_users(ids, process_user_fn) do
-  users <- Storage.query(ids)
+  users <- Query.request(:users, MyApp.UserRepo, :fetch_users, %{ids: ids})
   {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
   count <- State.get()
   return(%{updated_users: updated_users, all_logs: logs, processed_count: count})

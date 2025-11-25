@@ -70,9 +70,29 @@ defmodule Freyja.Examples.ChangeCapture do
   import Freyja.Freer.Sig.DefEffectStruct
   import Freyja.Hefty.Sig.DefHeftyStruct
 
+  defmodule UserQuery do
+    @moduledoc false
+
+    def fetch_users(_params), do: :handled_by_registry
+
+    def resolver(users) do
+      fn
+        :users, _mod, _name, %{ids: ids} ->
+          ids
+          |> Enum.map(&Map.get(users, &1))
+          |> Enum.filter(& &1)
+
+        domain, mod, name, params ->
+          raise ArgumentError,
+                "Unsupported query #{inspect({domain, mod, name, params})} in ChangeCapture"
+      end
+    end
+  end
+
   use Freyja.Syntax
 
-  alias Freyja.Effects.{State, TaggedWriter, FxList, Lift}
+  alias Freyja.Effects.{State, TaggedWriter, FxList, Lift, Query}
+  alias __MODULE__.UserQuery
 
   # Storage Effect Definition - Mixed first-order and higher-order
   defmodule Storage do
@@ -95,16 +115,12 @@ defmodule Freyja.Examples.ChangeCapture do
     """
 
     # First-order operations - go directly to Freer
-    def_effect_struct(Query, ids: [])
     def_effect_struct(Change, old: nil, new: nil)
     def_effect_struct(UpdateAll, changes: [])
     alias Freyja.Freer
 
     # Higher-order operation - must be elaborated first
     def_hefty_struct(ApplyAllChanges, [])
-
-    @doc "Query records by IDs (first-order)"
-    def query(ids), do: %Query{ids: ids} |> Freer.send_effect()
 
     @doc """
     Record a change from old record to new record (first-order).
@@ -154,7 +170,6 @@ defmodule Freyja.Examples.ChangeCapture do
 
     alias Freyja.Freer.Impure
     alias Freyja.Examples.ChangeCapture.Storage
-    alias Freyja.Examples.ChangeCapture.Storage.Query
     alias Freyja.Examples.ChangeCapture.Storage.Change
     alias Freyja.Examples.ChangeCapture.Storage.UpdateAll
     alias Freyja.Effects.TaggedWriter
@@ -177,11 +192,6 @@ defmodule Freyja.Examples.ChangeCapture do
       alias Freyja.Freer
 
       case operation do
-        %Query{ids: ids} ->
-          # Query records by IDs
-          records = Enum.map(ids, fn id -> Map.get(state, id) end) |> Enum.filter(&(&1 != nil))
-          {Freer.Impl.q_apply(q, records), state}
-
         %Change{old: old, new: new} ->
           # Record a change by writing to TaggedWriter
           # This doesn't modify storage state yet - just logs the change
@@ -314,8 +324,8 @@ defmodule Freyja.Examples.ChangeCapture do
   The effects compose naturally. This is the power of algebraic effects!
   """
   defhefty process_users(user_ids, process_user_fn) do
-    # Query users from storage (first-order, auto-lifted)
-    users <- Storage.query(user_ids)
+    # Query users via Query effect (backend-agnostic)
+    users <- Query.request(:users, UserQuery, :fetch_users, %{ids: user_ids})
 
     # Process users with change tracking
     #
@@ -375,8 +385,29 @@ defmodule Freyja.Examples.ChangeCapture do
   def builder(user_ids, process_fun \\ &remove_email_from_user/1, opts \\ []) do
     users = Keyword.get(opts, :users, %{})
     initial_count = Keyword.get(opts, :initial_count, 0)
+    query_registry = %{users: UserQuery.resolver(users)}
 
     process_users(user_ids, process_fun)
+    |> Query.Handler.run(query_registry)
+    |> Lift.Algebra.run()
+    |> Storage.Algebra.run()
+    |> FxList.Algebra.run()
+    |> TaggedWriter.Algebra.run()
+    |> Storage.Handler.run(users)
+    |> TaggedWriter.Handler.run(%{})
+    |> State.Handler.run(initial_count)
+  end
+
+  @doc """
+  Build a pipeline for `multi_stage_process/1` with the same storage/query setup.
+  """
+  def multi_stage_builder(user_ids, opts \\ []) do
+    users = Keyword.get(opts, :users, %{})
+    initial_count = Keyword.get(opts, :initial_count, 0)
+    query_registry = %{users: UserQuery.resolver(users)}
+
+    multi_stage_process(user_ids)
+    |> Query.Handler.run(query_registry)
     |> Lift.Algebra.run()
     |> Storage.Algebra.run()
     |> FxList.Algebra.run()

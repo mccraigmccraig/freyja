@@ -34,7 +34,11 @@ defmodule Freyja.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:uuid, "~> 1.1"},
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      # Optional Ecto integration
+      {:ecto, "~> 3.11", optional: true},
+      {:ecto_sql, "~> 3.11", only: :test},
+      {:ecto_sqlite3, "~> 0.17", only: :test}
     ]
   end
 

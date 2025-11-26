@@ -48,10 +48,7 @@ defmodule Freyja.Effects.Changes do
   Emit a change value for the active capture scope.
   """
   @spec change(change()) :: Freer.t()
-  def change(value) do
-    %Change{change: value}
-    |> Freer.send_effect()
-  end
+  def change(value), do: %Change{change: value} |> Freer.send_effect()
 
   @doc """
   Convenience helper that records `{old, new}` tuples.
@@ -61,16 +58,12 @@ defmodule Freyja.Effects.Changes do
 
   @doc false
   @spec begin_capture() :: Freer.t()
-  def begin_capture do
-    %BeginCapture{}
-    |> Freer.send_effect()
-  end
+  def begin_capture, do: %BeginCapture{} |> Freer.send_effect()
 
   @doc false
   @spec finish_capture(non_neg_integer(), :commit | :abort) :: Freer.t()
   def finish_capture(ref, mode) when mode in [:commit, :abort] do
-    %FinishCapture{ref: ref, mode: mode}
-    |> Freer.send_effect()
+    %FinishCapture{ref: ref, mode: mode} |> Freer.send_effect()
   end
 
   @doc """

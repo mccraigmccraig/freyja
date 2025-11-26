@@ -64,14 +64,14 @@ defmodule Freyja.Examples.ChangeCapture do
 
     def resolver(users) do
       fn
-        :users, _mod, _name, %{ids: ids} ->
+        UserQuery, :fetch_users, %{ids: ids} ->
           ids
           |> Enum.map(&Map.get(users, &1))
           |> Enum.filter(& &1)
 
-        domain, mod, name, params ->
+        mod, name, params ->
           raise ArgumentError,
-                "Unsupported query #{inspect({domain, mod, name, params})} in ChangeCapture"
+                "Unsupported query #{inspect({mod, name, params})} in ChangeCapture"
       end
     end
   end
@@ -176,7 +176,7 @@ defmodule Freyja.Examples.ChangeCapture do
   """
   defhefty process_users(user_ids, process_user_fn) do
     # Query users via Query effect (backend-agnostic)
-    users <- Query.request(:users, UserQuery, :fetch_users, %{ids: user_ids})
+    users <- Query.request(UserQuery, :fetch_users, %{ids: user_ids})
 
     # Process users with change tracking using Changes.capture directly
     #
@@ -227,7 +227,7 @@ defmodule Freyja.Examples.ChangeCapture do
   def builder(user_ids, process_fun \\ &remove_email_from_user/1, opts \\ []) do
     users = Keyword.get(opts, :users, %{})
     initial_count = Keyword.get(opts, :initial_count, 0)
-    query_registry = %{users: UserQuery.resolver(users)}
+    query_registry = %{UserQuery => UserQuery.resolver(users)}
 
     process_users(user_ids, process_fun)
     |> Query.Handler.run(query_registry)
@@ -247,7 +247,7 @@ defmodule Freyja.Examples.ChangeCapture do
   def multi_stage_builder(user_ids, opts \\ []) do
     users = Keyword.get(opts, :users, %{})
     initial_count = Keyword.get(opts, :initial_count, 0)
-    query_registry = %{users: UserQuery.resolver(users)}
+    query_registry = %{UserQuery => UserQuery.resolver(users)}
 
     multi_stage_process(user_ids)
     |> Query.Handler.run(query_registry)

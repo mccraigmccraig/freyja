@@ -12,7 +12,7 @@ defmodule Freyja.Effects.QueryTest do
   end
 
   defmodule RegistryHandler do
-    def handle_query(:analytics, mod, name, params) do
+    def handle_query(mod, name, params) do
       mod
       |> apply(name, [params])
       |> Map.put(:instrumented?, true)
@@ -23,35 +23,35 @@ defmodule Freyja.Effects.QueryTest do
     test "dispatches using :direct registry entry" do
       comp =
         con [Query] do
-          Query.request(:primary, SampleQueries, :fetch_user, %{id: 1})
+          Query.request(SampleQueries, :fetch_user, %{id: 1})
         end
 
       outcome =
         comp
-        |> Query.Handler.run(%{primary: :direct})
+        |> Query.Handler.run(%{SampleQueries => :direct})
         |> Run.run()
 
       assert outcome.result == %{id: 1, name: "user-1"}
     end
 
-    test "dispatches using module entry with handle_query/4" do
+    test "dispatches using module entry with handle_query/3" do
       comp =
         con [Query] do
-          Query.request(:analytics, SampleQueries, :fetch_user, %{id: 2})
+          Query.request(SampleQueries, :fetch_user, %{id: 2})
         end
 
       outcome =
         comp
-        |> Query.Handler.run(%{analytics: RegistryHandler})
+        |> Query.Handler.run(%{SampleQueries => RegistryHandler})
         |> Run.run()
 
       assert outcome.result == %{id: 2, name: "user-2", instrumented?: true}
     end
 
-    test "returns Throw error when domain missing" do
+    test "returns Throw error when module missing from registry" do
       comp =
         con [Query] do
-          Query.request(:missing, SampleQueries, :fetch_user, %{id: 3})
+          Query.request(SampleQueries, :fetch_user, %{id: 3})
         end
 
       outcome =
@@ -60,21 +60,21 @@ defmodule Freyja.Effects.QueryTest do
         |> Throw.Handler.run()
         |> Run.run()
 
-      assert outcome.result == {:error, {:unknown_domain, :missing}}
+      assert outcome.result == {:error, {:unknown_module, SampleQueries}}
     end
   end
 
   describe "Query.TestHandler" do
     test "returns canned responses with canonical keys" do
       responses = %{
-        Query.key(:search, SampleQueries, :fetch_user, %{id: 5, extra: %{foo: 1}}) => %{
+        Query.key(SampleQueries, :fetch_user, %{id: 5, extra: %{foo: 1}}) => %{
           cached: true
         }
       }
 
       comp =
         con [Query] do
-          Query.request(:search, SampleQueries, :fetch_user, %{extra: %{foo: 1}, id: 5})
+          Query.request(SampleQueries, :fetch_user, %{extra: %{foo: 1}, id: 5})
         end
 
       outcome =
@@ -88,7 +88,7 @@ defmodule Freyja.Effects.QueryTest do
     test "throws when canned response missing" do
       comp =
         con [Query] do
-          Query.request(:search, SampleQueries, :fetch_user, %{id: 9})
+          Query.request(SampleQueries, :fetch_user, %{id: 9})
         end
 
       outcome =
@@ -98,7 +98,7 @@ defmodule Freyja.Effects.QueryTest do
         |> Run.run()
 
       {:error, {:query_not_stubbed, key}} = outcome.result
-      assert match?({:search, SampleQueries, :fetch_user, _}, key)
+      assert match?({SampleQueries, :fetch_user, _}, key)
     end
   end
 end

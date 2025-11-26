@@ -2,25 +2,21 @@ defmodule Freyja.Effects.Query do
   @moduledoc """
   Backend-agnostic data query effect.
 
-  This effect lets domain code express “run this query” without binding to a
+  This effect lets domain code express "run this query" without binding to a
   particular storage layer. Each request specifies:
 
-    * `domain` – logical backend identifier (e.g. `:postgres`, `:search`)
     * `mod` – module implementing the query
     * `name` – function name inside `mod`
     * `params` – map/struct of query parameters
 
   Handlers decide how to dispatch each request. The default runtime handler
-  accepts a registry map keyed by domain so applications can plug in their own
+  accepts a registry map keyed by module so applications can plug in their own
   routing logic, while `TestHandler` makes it easy to stub responses in tests.
   """
   import Freyja.Freer.Sig.DefEffectStruct
   alias Freyja.Freer
 
-  def_effect_struct(Request, domain: nil, mod: nil, name: nil, params: %{})
-
-  @typedoc "Logical backend identifier (application-defined)"
-  @type domain :: atom()
+  def_effect_struct(Request, mod: nil, name: nil, params: %{})
 
   @typedoc "Query module implementing `name/1`"
   @type query_module :: module()
@@ -32,11 +28,11 @@ defmodule Freyja.Effects.Query do
   @type params :: map() | struct()
 
   @doc """
-  Build a query request for the given domain/module/function.
+  Build a query request for the given module/function.
   """
-  @spec request(domain(), query_module(), query_name(), params()) :: Freyja.Freer.t()
-  def request(domain, mod, name, params \\ %{}) do
-    %Request{domain: domain, mod: mod, name: name, params: params}
+  @spec request(query_module(), query_name(), params()) :: Freyja.Freer.t()
+  def request(mod, name, params \\ %{}) do
+    %Request{mod: mod, name: name, params: params}
     |> Freer.send_effect()
   end
 
@@ -46,10 +42,10 @@ defmodule Freyja.Effects.Query do
   Parameters are normalized so that structurally-equal maps/structs produce the
   same key, independent of key ordering.
   """
-  @spec key(domain(), query_module(), query_name(), params()) ::
-          {domain(), query_module(), query_name(), binary()}
-  def key(domain, mod, name, params) do
-    {domain, mod, name, normalize_params(params)}
+  @spec key(query_module(), query_name(), params()) ::
+          {query_module(), query_name(), binary()}
+  def key(mod, name, params) do
+    {mod, name, normalize_params(params)}
   end
 
   @doc false
@@ -86,13 +82,13 @@ defmodule Freyja.Effects.Query.Handler do
   @moduledoc """
   Runtime handler for `Freyja.Effects.Query`.
 
-  Provide a registry map keyed by `domain` when starting the handler. Each entry
-  can be one of:
+  Provide a registry map keyed by query module when starting the handler. Each
+  entry can be one of:
 
-    * `:direct` – blindly call `apply(mod, name, [params])`
-    * `function` (arity 4) – `fun.(domain, mod, name, params)`
-    * `{module, function}` – invokes `apply(module, function, [domain, mod, name, params])`
-    * `module` – invokes `module.handle_query(domain, mod, name, params)`
+    * `:direct` – call `apply(mod, name, [params])`
+    * `function` (arity 3) – `fun.(mod, name, params)`
+    * `{module, function}` – invokes `apply(module, function, [mod, name, params])`
+    * `module` – invokes `module.handle_query(mod, name, params)`
 
   Handlers may return any value. To signal errors, raise or emit
   `Freyja.Effects.Throw.throw_error/1`.
@@ -126,10 +122,10 @@ defmodule Freyja.Effects.Query.Handler do
     end
   end
 
-  defp dispatch(registry, %Request{domain: domain} = request) when is_map(registry) do
-    case Map.fetch(registry, domain) do
+  defp dispatch(registry, %Request{mod: mod} = request) when is_map(registry) do
+    case Map.fetch(registry, mod) do
       {:ok, resolver} -> {:ok, invoke(resolver, request)}
-      :error -> {:error, {:unknown_domain, domain}}
+      :error -> {:error, {:unknown_module, mod}}
     end
   end
 
@@ -144,22 +140,22 @@ defmodule Freyja.Effects.Query.Handler do
     apply(mod, name, [params])
   end
 
-  defp invoke(fun, %Request{domain: domain, mod: mod, name: name, params: params})
-       when is_function(fun, 4) do
-    fun.(domain, mod, name, params)
+  defp invoke(fun, %Request{mod: mod, name: name, params: params})
+       when is_function(fun, 3) do
+    fun.(mod, name, params)
   end
 
-  defp invoke({module, function}, %Request{domain: domain, mod: mod, name: name, params: params}) do
-    apply(module, function, [domain, mod, name, params])
+  defp invoke({module, function}, %Request{mod: mod, name: name, params: params}) do
+    apply(module, function, [mod, name, params])
   end
 
-  defp invoke(module, %Request{domain: domain, mod: mod, name: name, params: params})
+  defp invoke(module, %Request{mod: mod, name: name, params: params})
        when is_atom(module) do
-    if function_exported?(module, :handle_query, 4) do
-      apply(module, :handle_query, [domain, mod, name, params])
+    if function_exported?(module, :handle_query, 3) do
+      apply(module, :handle_query, [mod, name, params])
     else
       raise ArgumentError,
-            "#{inspect(module)} must export handle_query/4 to be used as a Query handler entry"
+            "#{inspect(module)} must export handle_query/3 to be used as a Query handler entry"
     end
   end
 
@@ -171,8 +167,9 @@ defmodule Freyja.Effects.Query.Handler do
   @doc """
   Attach this handler to a computation or builder.
 
-  Pass a domain registry map to control how queries are dispatched. Defaults to
-  an empty registry, which will cause unknown-domain errors until populated.
+  Pass a registry map keyed by query module to control how queries are
+  dispatched. Defaults to an empty registry, which will cause unknown-module
+  errors until populated.
   """
   @spec run(any, map()) :: any
   def run(computation_or_builder, registry \\ %{}) do
@@ -184,10 +181,10 @@ defmodule Freyja.Effects.Query.TestHandler do
   @moduledoc """
   Canned-response handler for `Freyja.Effects.Query`.
 
-  Provide a map of responses keyed by `Freyja.Effects.Query.key/4`. Example:
+  Provide a map of responses keyed by `Freyja.Effects.Query.key/3`. Example:
 
       responses = %{
-        Query.key(:search, MyApp.SearchQueries, :find, %{term: \"foo\"}) => [%{id: 1}]
+        Query.key(MyApp.SearchQueries, :find, %{term: \"foo\"}) => [%{id: 1}]
       }
 
       computation
@@ -216,7 +213,7 @@ defmodule Freyja.Effects.Query.TestHandler do
         responses,
         %RunState{} = _run_state
       ) do
-    key = Query.key(request.domain, request.mod, request.name, request.params)
+    key = Query.key(request.mod, request.name, request.params)
 
     case Map.fetch(responses, key) do
       {:ok, result} ->

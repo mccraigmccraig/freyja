@@ -21,17 +21,13 @@ defmodule Freyja.Examples.QueryExample do
 
     defcon fetch_profile(user_id) do
       user <-
-        Query.request(:users, Backend, :fetch_user, %{id: user_id})
+        Query.request(Backend, :fetch_user, %{id: user_id})
 
       orders <-
-        Query.request(:orders, Backend, :fetch_orders, %{
-          user_id: user_id
-        })
+        Query.request(Backend, :fetch_orders, %{user_id: user_id})
 
       stats <-
-        Query.request(:stats, Backend, :fetch_stats, %{
-          user_id: user_id
-        })
+        Query.request(Backend, :fetch_stats, %{user_id: user_id})
 
       return(%{user: user, orders: orders, stats: stats})
     end
@@ -50,15 +46,18 @@ defmodule Freyja.Examples.QueryExample do
   def build_real_builder(user_id \\ 1) do
     Domain.fetch_profile(user_id)
     |> Query.Handler.run(%{
-      users: :direct,
-      orders: :direct,
-      stats: &__MODULE__.route_stats/4
+      Backend => &__MODULE__.route_query/3
     })
   end
 
-  def route_stats(:stats, _mod, _name, params) do
-    Backend.fetch_stats(params)
-    |> Map.put(:computed_via, :registry_fun)
+  def route_query(mod, name, params) do
+    result = apply(mod, name, [params])
+
+    if name == :fetch_stats do
+      Map.put(result, :computed_via, :registry_fun)
+    else
+      result
+    end
   end
 
   @doc """
@@ -72,12 +71,12 @@ defmodule Freyja.Examples.QueryExample do
   """
   def build_test_builder(user_id \\ 1) do
     responses = %{
-      Query.key(:users, Backend, :fetch_user, %{id: user_id}) => %{
+      Query.key(Backend, :fetch_user, %{id: user_id}) => %{
         id: user_id,
         name: "Test #{user_id}"
       },
-      Query.key(:orders, Backend, :fetch_orders, %{user_id: user_id}) => [%{id: "test", total: 0}],
-      Query.key(:stats, Backend, :fetch_stats, %{user_id: user_id}) => %{total_orders: 0}
+      Query.key(Backend, :fetch_orders, %{user_id: user_id}) => [%{id: "test", total: 0}],
+      Query.key(Backend, :fetch_stats, %{user_id: user_id}) => %{total_orders: 0}
     }
 
     Domain.fetch_profile(user_id)

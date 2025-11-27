@@ -395,6 +395,38 @@ if Code.ensure_loaded?(Ecto) do
     4. Apply updates in bulk with `insert_all` using `on_conflict: :replace_all`
 
     All within a transaction for atomicity.
+
+    ## IEx Example
+
+    Copy and paste the following into IEx:
+
+        alias Freyja.Examples.EctoChangeCapture
+        alias Freyja.Examples.EctoChangeCapture.User
+
+        users = %{
+          "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com", status: "active"},
+          "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com", status: "active"}
+        }
+
+        # The test_builder handles transaction/insert_all as pass-through by default
+        outcome = (
+          EctoChangeCapture.transactional_anonymize(["user-1", "user-2"])
+          |> EctoChangeCapture.test_builder(users)
+          |> Freyja.Run.run()
+        )
+
+        {:ok, {anonymized_users, captured_changes}} = outcome.result
+
+        # Users were anonymized
+        Enum.map(anonymized_users, & &1.name)
+        # => ["Anonymous", "Anonymous"]
+
+        # Changes were captured (and would be persisted in production)
+        length(captured_changes.updates)   # => 2 (user updates)
+        length(captured_changes.inserts)   # => 2 (audit log entries)
+
+        # In production with a real Repo, the insert_all calls would
+        # persist the audit logs and upsert the user updates atomically.
     """
     defhefty transactional_anonymize(user_ids) do
       result <-

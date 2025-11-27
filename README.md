@@ -608,7 +608,11 @@ The macros apply a simple transformation:
 
 1. **Effect binding** (`x <- effect()`) becomes a `bind` call
 2. **Pure binding** (`x = value`) stays as a regular assignment
-3. **The last expression** is returned as-is (should be `return(value)`)
+3. **The last expression** is returned as-is (it must be a `Freer.t()` for 
+   `con`, or a `Hefty.t()` for `hefty` - so plain values should be
+   wrapped with `return(value)`)
+4. **Functions** with `con` or `hefty` bodies can be defined with `defcon`
+   `defhefty`
 
 #### Example: `con` macro expansion
 
@@ -630,13 +634,14 @@ State.get()
 end)
 ```
 
-#### Example: With pure bindings
+#### Example: `defcon` macro expansion
 
-Pure `=` assignments are preserved inline within the continuation:
+The `defcon` macro defines a function with a `con` body. Pure `=` assignments
+are preserved inline within the continuation:
 
 ```elixir
 # Input
-con do
+defcon double_state() do
   x <- State.get()
   doubled = x * 2
   _ <- State.put(doubled)
@@ -644,14 +649,18 @@ con do
 end
 
 # Expands to
-State.get()
-|> Freyja.Freer.bind(fn x ->
-  doubled = x * 2
-  State.put(doubled)
-  |> Freyja.Freer.bind(fn _ ->
-    return(doubled)
+def double_state() do
+  import Freyja.Freer.BaseOps
+
+  State.get()
+  |> Freyja.Freer.bind(fn x ->
+    doubled = x * 2
+    State.put(doubled)
+    |> Freyja.Freer.bind(fn _ ->
+      return(doubled)
+    end)
   end)
-end)
+end
 ```
 
 #### Example: `hefty` macro expansion

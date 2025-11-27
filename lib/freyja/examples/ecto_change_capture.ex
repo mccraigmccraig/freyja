@@ -204,24 +204,6 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     @doc """
-    Anonymize a user and persist immediately.
-
-    Records the change for capture AND persists it via EctoFx.update/1.
-    Useful when you want both audit trail and immediate persistence.
-    """
-    defhefty anonymize_and_persist(user) do
-      changeset = User.anonymize_changeset(user)
-
-      # Record for capture
-      _ <- EctoFx.change(:update, changeset)
-
-      # Also persist immediately (within transaction)
-      updated <- EctoFx.update(changeset)
-
-      return(updated)
-    end
-
-    @doc """
     Deactivate a user and record the change.
 
     Simple processing function that records a single update change.
@@ -301,10 +283,15 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     @doc """
-    Process users within a transaction, with change capture for audit.
+    Process users within a transaction, capturing changes and persisting in bulk.
 
-    Uses `anonymize_and_persist/1` which both captures changes AND
-    persists them immediately within the transaction.
+    This demonstrates the full pattern:
+    1. Query users
+    2. Process each user with simple per-record logic (capture changes)
+    3. Apply inserts in bulk with `insert_all`
+    4. Apply updates in bulk with `insert_all` using `on_conflict: :replace_all`
+
+    All within a transaction for atomicity.
     """
     defhefty transactional_anonymize(user_ids) do
       result <-
@@ -312,8 +299,22 @@ if Code.ensure_loaded?(Ecto) do
           hefty do
             users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
+            # Capture all changes without persisting
             {anonymized, changes} <-
-              EctoFx.capture(FxList.fx_map(users, &anonymize_and_persist/1))
+              EctoFx.capture(FxList.fx_map(users, &anonymize_user/1))
+
+            # Persist inserts in bulk (audit logs)
+            _ <- EctoFx.insert_all(AuditLog, EctoFx.to_entries(changes.inserts))
+
+            # Persist updates in bulk using upsert
+            # on_conflict: :replace_all replaces all fields on conflict with primary key
+            _ <-
+              EctoFx.insert_all(
+                User,
+                EctoFx.to_entries(changes.updates),
+                on_conflict: :replace_all,
+                conflict_target: [:id]
+              )
 
             return({anonymized, changes})
           end

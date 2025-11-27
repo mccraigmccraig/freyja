@@ -236,13 +236,19 @@ if Code.ensure_loaded?(Ecto) do
     # continuation-based model. For now, we track transaction state but don't
     # actually acquire a dedicated connection.
     #
+    # Current behavior:
+    # - Throws inside transactions trigger rollback (via interposition)
+    # - Yields inside transactions are converted to errors and trigger rollback
+    #   (yielding would hold a DB connection indefinitely, which is not allowed)
+    # - Nested transactions raise RuntimeError
+    #
     # For real transaction support, consider:
     # 1. Using Ecto.Adapters.SQL.Sandbox in tests
     # 2. Using raw SQL BEGIN/COMMIT/ROLLBACK via Ecto.Adapters.SQL.query
     # 3. Structuring code to use Repo.transaction at the boundary
     #
-    # Future enhancement: Use DBConnection.run/3 to acquire a connection and
-    # pass it via the :conn option to all Repo operations within the transaction.
+    # Future enhancement: Use Ecto.Adapters.SQL.checkout/2 to acquire a connection
+    # and pass it via the :conn option to all Repo operations within the transaction.
 
     defp execute(%State{conn: nil} = state, %Internal.BeginTransaction{opts: _opts}) do
       # Mark that we're in a transaction (semantic tracking for now)
@@ -371,8 +377,12 @@ if Code.ensure_loaded?(Ecto) do
       con do
         _ <- Internal.begin_transaction(opts)
 
-        # Interpose on Throw to rollback on error
-        guarded_inner = attach_rollback_on_throw(inner)
+        # Interpose on Throw to rollback on error, and on Yield to error
+        # (yielding inside a transaction would hold a DB connection indefinitely)
+        guarded_inner =
+          inner
+          |> attach_rollback_on_throw()
+          |> attach_error_on_yield()
 
         result <- guarded_inner
         _ <- Internal.commit_transaction()
@@ -423,6 +433,25 @@ if Code.ensure_loaded?(Ecto) do
         con do
           _ <- Internal.finish_capture(ref, :abort)
           Throw.throw_error(err)
+        end
+      end)
+    end
+
+    defp attach_error_on_yield(inner) do
+      alias Freyja.Effects.Coroutine
+      alias Freyja.Effects.Coroutine.Yield
+      alias Freyja.Effects.Throw
+      alias Freyja.Freer.Interpose
+
+      use Freyja.Syntax
+
+      Interpose.interpose_with(inner, Coroutine, fn %Yield{value: value}, _cont ->
+        # Yield inside transaction: rollback first, then throw error
+        # (we can't rely on attach_rollback_on_throw because this throw
+        # is emitted inside the interpose handler, bypassing the outer interpose)
+        con do
+          _ <- Internal.rollback_transaction()
+          Throw.throw_error({:yield_in_transaction, value})
         end
       end)
     end

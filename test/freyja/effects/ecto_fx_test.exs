@@ -597,6 +597,46 @@ defmodule Freyja.Effects.EctoFxTest do
         |> Run.run()
       end
     end
+
+    test "yield inside transaction causes error and rollback" do
+      alias Freyja.Effects.Coroutine
+
+      comp =
+        hefty do
+          result <-
+            EctoFx.transaction(
+              hefty do
+                _ <- EctoFx.insert(User.changeset(%{name: "Alice"}))
+                # Attempting to yield inside a transaction should error
+                _ <- Lift.lift(Coroutine.yield(:suspended_value))
+                return(:never_reached)
+              end
+            )
+
+          return(result)
+        end
+
+      outcome =
+        comp
+        |> EctoFx.TestHandler.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Coroutine.Handler.run()
+        |> Run.run()
+
+      # Should get an error about yielding in transaction
+      # Coroutine.Handler.finalize wraps in {:done, _}, so error is {:done, {:error, ...}}
+      assert {:done, {:error, {:yield_in_transaction, :suspended_value}}} = outcome.result
+
+      # Verify rollback was triggered
+      state = outcome.outputs[EctoFx.TestHandler]
+      ops = EctoFx.TestHandler.get_operations(state)
+
+      op_types = Enum.map(ops, &op_type/1)
+      assert :begin_transaction in op_types
+      assert :rollback_transaction in op_types
+      refute :commit_transaction in op_types
+    end
   end
 
   # ============================================================================

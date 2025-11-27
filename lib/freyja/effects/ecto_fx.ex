@@ -272,12 +272,15 @@ if Code.ensure_loaded?(Ecto) do
     applying them. Changes are accumulated and returned when the capture
     scope completes.
 
+    Prefer using `EctoFx.Changes.insert/1`, `EctoFx.Changes.update/1`, or
+    `EctoFx.Changes.delete/1` for clearer intent.
+
     ## Example
 
         {result, changes} <- EctoFx.capture(
           hefty do
-            _ <- EctoFx.change(:insert, user_changeset)
-            _ <- EctoFx.change(:update, order_changeset)
+            _ <- EctoFx.Changes.insert(user_changeset)
+            _ <- EctoFx.Changes.update(order_changeset)
             return(:ok)
           end
         )
@@ -286,6 +289,74 @@ if Code.ensure_loaded?(Ecto) do
     def change(op, changeset) when op in [:insert, :update, :delete] do
       %Change{op: op, changeset: changeset}
       |> Freer.send_effect()
+    end
+
+    # ============================================================================
+    # Changes Submodule
+    # ============================================================================
+
+    defmodule Changes do
+      @moduledoc """
+      Convenience functions for recording change operations.
+
+      These functions are used inside `EctoFx.capture/1` to record intended
+      changes without immediately persisting them. Changes are accumulated
+      and returned when the capture scope completes.
+
+      ## Example
+
+          {result, changes} <- EctoFx.capture(
+            hefty do
+              _ <- EctoFx.Changes.insert(user_changeset)
+              _ <- EctoFx.Changes.update(order_changeset)
+              _ <- EctoFx.Changes.delete(old_record_changeset)
+              return(:ok)
+            end
+          )
+          # changes = %{inserts: [...], updates: [...], deletes: [...]}
+      """
+
+      alias Freyja.Effects.EctoFx.Change
+      alias Freyja.Freer
+
+      @doc """
+      Record an insert change for later capture.
+
+      ## Example
+
+          _ <- EctoFx.Changes.insert(User.changeset(attrs))
+      """
+      @spec insert(Ecto.Changeset.t()) :: Freer.t()
+      def insert(changeset) do
+        %Change{op: :insert, changeset: changeset}
+        |> Freer.send_effect()
+      end
+
+      @doc """
+      Record an update change for later capture.
+
+      ## Example
+
+          _ <- EctoFx.Changes.update(User.activate_changeset(user))
+      """
+      @spec update(Ecto.Changeset.t()) :: Freer.t()
+      def update(changeset) do
+        %Change{op: :update, changeset: changeset}
+        |> Freer.send_effect()
+      end
+
+      @doc """
+      Record a delete change for later capture.
+
+      ## Example
+
+          _ <- EctoFx.Changes.delete(Ecto.Changeset.change(user))
+      """
+      @spec delete(Ecto.Changeset.t()) :: Freer.t()
+      def delete(changeset) do
+        %Change{op: :delete, changeset: changeset}
+        |> Freer.send_effect()
+      end
     end
 
     # ============================================================================

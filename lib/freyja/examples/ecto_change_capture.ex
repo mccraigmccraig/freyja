@@ -129,7 +129,7 @@ if Code.ensure_loaded?(Ecto) do
     @doc """
     Anonymize a single user and record an audit log entry.
 
-    Uses EctoFx.change/2 to record:
+    Uses `EctoFx.Changes` to record:
     - An update change for the user anonymization
     - An insert change for the audit log entry
 
@@ -139,7 +139,7 @@ if Code.ensure_loaded?(Ecto) do
       changeset = User.anonymize_changeset(user)
 
       # Record the change (captured, not persisted)
-      _ <- EctoFx.change(:update, changeset)
+      _ <- EctoFx.Changes.update(changeset)
 
       # Also record an audit log entry
       audit_changeset =
@@ -149,7 +149,7 @@ if Code.ensure_loaded?(Ecto) do
           details: %{original_email: user.email}
         })
 
-      _ <- EctoFx.change(:insert, audit_changeset)
+      _ <- EctoFx.Changes.insert(audit_changeset)
 
       # Return the result of applying the changeset
       return(Ecto.Changeset.apply_changes(changeset))
@@ -169,13 +169,13 @@ if Code.ensure_loaded?(Ecto) do
         "active" ->
           hefty do
             changeset = User.deactivate_changeset(user)
-            _ <- EctoFx.change(:update, changeset)
+            _ <- EctoFx.Changes.update(changeset)
             return({:deactivated, Ecto.Changeset.apply_changes(changeset)})
           end
 
         "inactive" ->
           hefty do
-            _ <- EctoFx.change(:delete, Ecto.Changeset.change(user))
+            _ <- EctoFx.Changes.delete(Ecto.Changeset.change(user))
             return({:deleted, user})
           end
 
@@ -195,7 +195,7 @@ if Code.ensure_loaded?(Ecto) do
 
       if changeset.valid? do
         hefty do
-          _ <- EctoFx.change(:insert, changeset)
+          _ <- EctoFx.Changes.insert(changeset)
           return({:ok, Ecto.Changeset.apply_changes(changeset)})
         end
       else
@@ -210,7 +210,7 @@ if Code.ensure_loaded?(Ecto) do
     """
     defhefty deactivate_user(user) do
       changeset = User.deactivate_changeset(user)
-      _ <- EctoFx.change(:update, changeset)
+      _ <- EctoFx.Changes.update(changeset)
       return(:ok)
     end
 

@@ -457,7 +457,7 @@ example demonstrates capturing intended database changes without immediately
 persisting them - enabling batch operations, dry-run mode, and audit logging.
 
 **The Pattern**: Write simple per-record processing functions that use
-`EctoFx.change/2` to record changes, then use `EctoFx.capture/1` to collect
+`EctoFx.Changes` to record changes, then use `EctoFx.capture/1` to collect
 them without persisting:
 
 ```elixir
@@ -466,7 +466,7 @@ defhefty anonymize_user(user) do
   changeset = User.anonymize_changeset(user)
 
   # Record the change (captured, not persisted)
-  _ <- EctoFx.change(:update, changeset)
+  _ <- EctoFx.Changes.update(changeset)
 
   # Also record an audit log entry
   audit_changeset = AuditLog.changeset(%{
@@ -474,7 +474,7 @@ defhefty anonymize_user(user) do
     action: "anonymize",
     details: %{original_email: user.email}
   })
-  _ <- EctoFx.change(:insert, audit_changeset)
+  _ <- EctoFx.Changes.insert(audit_changeset)
 
   return(Ecto.Changeset.apply_changes(changeset))
 end

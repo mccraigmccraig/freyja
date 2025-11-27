@@ -595,14 +595,107 @@ TaggedReaderDynamicContext.build_v2(accounts, greetings)
 
 ---
 
+## 3. How does it work
+
+### 3.1 The `con` and `hefty` Macros: How They Work
+
+The `con` and `hefty` macros provide a `with`-like syntax that rewrites to nested
+`bind` calls. This is similar to Haskell's `do` notation.
+
+#### Simple Rewrite Rules
+
+The macros apply a simple transformation:
+
+1. **Effect binding** (`x <- effect()`) becomes a `bind` call
+2. **Pure binding** (`x = value`) stays as a regular assignment
+3. **The last expression** is returned as-is (should be `return(value)`)
+
+#### Example: `con` macro expansion
+
+```elixir
+# Input: con block with effect bindings
+con do
+  x <- State.get()
+  y <- Reader.ask()
+  return(x + y)
+end
+
+# Expands to: nested bind calls
+State.get()
+|> Freyja.Freer.bind(fn x ->
+  Reader.ask()
+  |> Freyja.Freer.bind(fn y ->
+    return(x + y)
+  end)
+end)
+```
+
+#### Example: With pure bindings
+
+Pure `=` assignments are preserved inline within the continuation:
+
+```elixir
+# Input
+con do
+  x <- State.get()
+  doubled = x * 2
+  _ <- State.put(doubled)
+  return(doubled)
+end
+
+# Expands to
+State.get()
+|> Freyja.Freer.bind(fn x ->
+  doubled = x * 2
+  State.put(doubled)
+  |> Freyja.Freer.bind(fn _ ->
+    return(doubled)
+  end)
+end)
+```
+
+#### Example: `hefty` macro expansion
+
+The `hefty` macro works the same way but uses `Hefty.bind` instead:
+
+```elixir
+# Input
+defhefty anonymize_users_with_capture(user_ids) do
+  users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
+  {results, changes} <- EctoFx.capture(FxList.fx_map(users, &anonymize_user/1))
+  return({results, changes})
+end
+
+# Expands to
+def anonymize_users_with_capture(user_ids) do
+  import Freyja.Hefty, only: [return: 1]
+
+  EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
+  |> Freyja.Hefty.bind(fn users ->
+    EctoFx.capture(FxList.fx_map(users, &anonymize_user/1))
+    |> Freyja.Hefty.bind(fn {results, changes} ->
+      return({results, changes})
+    end)
+  end)
+end
+```
+
+#### Key Points
+
+- The right-hand side of `<-` must return an effect computation (`Freer.t()` for `con`, `Hefty.t()` for `hefty`)
+- First-order effects (State, Reader, etc.) are auto-lifted in `hefty` blocks via the `IHeftySendable` protocol
+- The `return(value)` function wraps a value in a pure computation (`Freer.pure` or `Hefty.pure`)
+- Unlike `with`, bindings happen inside the `do` block, not before it - this is
+  due to limitations in the syntax expressible with Elixir macros 
+  (vs special forms like `with`)
+
+---
+
 # WIP below
 
 ---
 
-## 3. How does it work
-
-### 3.1 The building blocks - Freer, Hefty,, con, hefty
-### 3.1 Freer
+### 3.2 Freer
 * the Freer structs
 * composing Freer operations
 * bind & return
@@ -613,7 +706,7 @@ TaggedReaderDynamicContext.build_v2(accounts, greetings)
   * ISendable
 * handlers - EffectHandler behaviour
 
-### 3.2 Hefty
+### 3.3 Hefty
 * why higher-order effects are different
 * the Hefty structs
 * composing Hefty operations

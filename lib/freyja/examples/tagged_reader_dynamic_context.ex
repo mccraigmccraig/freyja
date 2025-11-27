@@ -189,19 +189,26 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
   @doc """
   Build a pipeline for Version 1 (no context needed).
 
-  ## Example
+  ## IEx Example
+
+  Copy and paste the following into IEx:
+
+      alias Freyja.Examples.TaggedReaderDynamicContext
 
       accounts = [
         %{name: "Alice", country: "UK", recent_transactions: [%{value: 10.0, merchant: "Tesco"}]},
         %{name: "Bob", country: "US", recent_transactions: [%{value: 20.0, merchant: "Walmart"}]}
       ]
 
-      outcome =
-        TaggedReaderDynamicContext.build_v1(accounts)
-        |> Run.run()
+      outcome = TaggedReaderDynamicContext.build_v1(accounts) |> Freyja.Run.run()
 
+      # Check the result - simple spending summaries
       outcome.result
       # => [%{name: "Alice", recent_spending: 10.0}, %{name: "Bob", recent_spending: 20.0}]
+
+      # Note: no greeting field in Version 1
+      hd(outcome.result) |> Map.keys()
+      # => [:name, :recent_spending]
   """
   def build_v1(accounts) do
     generate_report(accounts, &summarize_spending/1)
@@ -215,28 +222,36 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
   The greetings map is provided here at the handler level,
   completely separate from the business logic.
 
-  ## Example
+  ## IEx Example
 
+  Copy and paste the following into IEx:
+
+      alias Freyja.Examples.TaggedReaderDynamicContext
+
+      # Same accounts as Version 1
       accounts = [
         %{name: "Alice", country: "UK", recent_transactions: [%{value: 10.0, merchant: "Tesco"}]},
         %{name: "Bob", country: "US", recent_transactions: [%{value: 20.0, merchant: "Walmart"}]}
       ]
 
+      # Context provided at handler level - not threaded through functions!
       greetings = %{
         "UK" => "Cheerio!",
         "US" => "Howdy!",
         "DE" => "Guten Tag!"
       }
 
-      outcome =
-        TaggedReaderDynamicContext.build_v2(accounts, greetings)
-        |> Run.run()
+      outcome = TaggedReaderDynamicContext.build_v2(accounts, greetings) |> Freyja.Run.run()
 
+      # Now we have greetings!
       outcome.result
       # => [
       #   %{name: "Alice", recent_spending: 10.0, greeting: "Cheerio!"},
       #   %{name: "Bob", recent_spending: 20.0, greeting: "Howdy!"}
       # ]
+
+      # The key point: generate_report/2 didn't change at all between v1 and v2
+      # Only the mapper function changed, and it got its context via TaggedReader.ask
   """
   def build_v2(accounts, greetings) do
     generate_report(accounts, &summarize_with_greeting/1)
@@ -250,28 +265,37 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
 
   Multiple context values, still no changes to intermediate functions.
 
-  ## Example
+  ## IEx Example
+
+  Copy and paste the following into IEx:
+
+      alias Freyja.Examples.TaggedReaderDynamicContext
 
       accounts = [
         %{name: "Alice", country: "UK", recent_transactions: [%{value: 10.0, merchant: "Tesco"}]},
         %{name: "Bob", country: "US", recent_transactions: [%{value: 20.0, merchant: "Walmart"}]}
       ]
 
+      # Even more context - greetings AND currency formatting
       greetings = %{"UK" => "Cheerio!", "US" => "Howdy!"}
       currencies = %{
         "UK" => %{symbol: "£", rate: 0.79},
         "US" => %{symbol: "$", rate: 1.0}
       }
 
-      outcome =
-        TaggedReaderDynamicContext.build_v3(accounts, greetings, currencies)
-        |> Run.run()
+      outcome = TaggedReaderDynamicContext.build_v3(accounts, greetings, currencies) |> Freyja.Run.run()
 
+      # Now with currency formatting too!
       outcome.result
       # => [
       #   %{name: "Alice", recent_spending: 10.0, formatted_spending: "£7.9", greeting: "Cheerio!"},
       #   %{name: "Bob", recent_spending: 20.0, formatted_spending: "$20.0", greeting: "Howdy!"}
       # ]
+
+      # The summarizer function just asks for what it needs:
+      #   greetings <- TaggedReader.ask(:greetings)
+      #   currencies <- TaggedReader.ask(:currencies)
+      # No changes to generate_report/2 or any intermediate functions!
   """
   def build_v3(accounts, greetings, currencies) do
     generate_report(accounts, &summarize_with_greeting_and_currency/1)

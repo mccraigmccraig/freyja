@@ -740,12 +740,15 @@ end
 ```
 
 The `con` macro shown above is used with first-order effects, and
-given a `Freer.t()` and a continuation `(any->Freer.t())`
-makes `Freer.bind(Freer.t(), (any->Freer.t()))` calls
-return another `Freer`,  which is conceptually a transformation of the
-input by the continuation.
+when given a `Freer.t()` and a continuation `(any->Freer.t())` it
+makes `Freer.bind(Freer.t(), (any->Freer.t()))` calls which
+return another `Freer.t()`.  Conceptually this is a transformation
+of the input by the continuation.
 
-So looking at our very first `con` example again:
+Now, we're going to play the role of a Handler, and interpret a
+`Freer` computation by hand.
+
+Looking at our very first `con` example again:
 
 ``` elixir
 con do
@@ -779,13 +782,19 @@ Freyja.Effects.State.get()
 #  q: [&Freyja.Freer.pure/1]
 #}
 ```
-now, looking at the expansion again, the output of `State.get()` is
+looking at the expansion again, we can see that the output of `State.get()` is
 immediately fed to a `Freer.bind`
 
-here's the whole expansion on one line for easy IEx copy/paste:
+here's the whole expansion without aliases, for copy/paste into IEx:
 
 ``` elixir
-freer_1 = Freyja.Effects.State.get() |> Freyja.Freer.bind(fn x -> Freyja.Effects.Reader.ask() |> Freyja.Freer.bind(fn y -> Freyja.Freer.return(x + y) end) end)
+freer_1 = (
+  Freyja.Effects.State.get()
+  |> Freyja.Freer.bind(fn x ->
+    Freyja.Effects.Reader.ask()
+    |> Freyja.Freer.bind(fn y ->
+      Freyja.Freer.return(x + y) end) end)
+)
 
 #%Freyja.Freer.Impure{
 #  sig: Freyja.Effects.State,
@@ -795,13 +804,15 @@ freer_1 = Freyja.Effects.State.get() |> Freyja.Freer.bind(fn x -> Freyja.Effects
 ```
 
 now you can see what the `Freer.bind` call has done - it's cheating, and hasn't
-done any work at all - it's just put the continuation function from its second
+done any work at all! It's just put the continuation function from its second
 argument at the end of the `q`
 
 The `data` in the `Impure` is an effect, it's describing some impure action
-that the program wants to do. Let's play the interpreter, and say that our
-`State.Get` operation is going to retrieve the value `5` - so we pass that
-value to the first continuation in the `q` (which is `&Freer.pure/1`)
+that the program wants to do. Let's continue playing the interpreter, and
+say that our `State.Get` operation is going to retrieve the value `5` fron some
+state somewhere - so we pass that value to the first continuation in
+the `q` (which is `&Freer.pure/1`), which gives us the value `5` wrapped 
+in a `Freer.Pure` struct.
 
 ``` elixir
 freer_2 = (List.first(freer_1.q)).(5)
@@ -823,23 +834,24 @@ freer_3 = (Enum.at(freer_1.q, 1)).(5)
 #}
 ```
 
-Now we've got something different! we have a new effect to interpret, and more
-continuations in the `q` to pass the results to... let's skip over the
-`Freer.pure` call, because we know what it's going to do, and say
-interpreting the `Ask` returns a value of `15`
+Now we've got something different! We have a new effect to interpret, an `Ask`
+this time, and more continuations in the `q` to pass the results to...
+let's skip over the `Freer.pure` call, because we know what it's going to
+do (just wrap the value in `Pure`), and let's say interpreting the `Ask`
+returns a value of `15`, beause we're the Handler and we can do that:
 
 ``` elixir
 freer_4 = (Enum.at(freer_3.q, 1)).(15)
 # %Freyja.Freer.Pure{val: 20}
 ```
 
-And there we are - we called the final continuation which was the last line of
-the `con` block and it added together out two interpreted values and `return`ed
+And there we are - we called the final continuation, which was the last line of
+the `con` block and it added together our two interpreted values and `return`ed
 the result.
 
 This is essentially what a Handler does - it pattern-matches on the `sig` and
-`data`, decides how to interpret the effect (producing an ordinary value), 
-then passes that value to the next continuation in the queue. 
+`data`, decides how to interpret the effect (producing an ordinary value),
+then passes that value to the next continuation in the queue.
 The `Freyja.Run.impl` module orchestrates this loop.
 
 ---

@@ -528,6 +528,70 @@ end
 - **Validation**: Validate the entire batch before committing any changes
 - **Testing**: Verify change logic without touching the database
 
+### 2.5 TaggedReader: Stable Signatures When Requirements Change
+
+The [`tagged_reader_dynamic_context.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/tagged_reader_dynamic_context.ex)
+example demonstrates how algebraic effects keep function signatures stable
+when requirements change.
+
+**The Problem**: In traditional code, adding context to a deep function
+requires changing every intermediate function's signature:
+
+```elixir
+# Original
+def generate_report(accounts), do: Enum.map(accounts, &summarize/1)
+def summarize(account), do: %{name: account.name, spending: sum(account)}
+
+# After requirements change - need greetings context
+def generate_report(accounts, greetings), do: Enum.map(accounts, &summarize(&1, greetings))
+def summarize(account, greetings), do: %{..., greeting: greetings[account.country]}
+```
+
+**The Solution**: With `TaggedReader`, the deep function simply asks for what
+it needs. No intermediate functions change:
+
+```elixir
+# generate_report NEVER changes - works with any summarizer
+defhefty generate_report(accounts, summarizer_fn) do
+  FxList.fx_map(accounts, summarizer_fn)
+end
+
+# Version 1: Simple summary
+defhefty summarize_spending(account) do
+  total = sum_transactions(account.recent_transactions)
+  return(%{name: account.name, recent_spending: total})
+end
+
+# Version 2: Requirements change! Need greeting - just ASK for it
+defhefty summarize_with_greeting(account) do
+  greetings <- TaggedReader.ask(:greetings)
+  total = sum_transactions(account.recent_transactions)
+  greeting = Map.get(greetings, account.country, "Hello!")
+  return(%{name: account.name, recent_spending: total, greeting: greeting})
+end
+```
+
+The context is provided at handler configuration time, completely decoupled
+from the function call chain:
+
+```elixir
+# Version 1 - no context needed
+TaggedReaderDynamicContext.build_v1(accounts)
+|> Run.run()
+
+# Version 2 - greetings provided at handler level
+greetings = %{"UK" => "Cheerio!", "US" => "Howdy!", "DE" => "Guten Tag!"}
+
+TaggedReaderDynamicContext.build_v2(accounts, greetings)
+|> Run.run()
+# => [%{name: "Alice", recent_spending: 41.49, greeting: "Cheerio!"}, ...]
+```
+
+**Benefits**:
+- **Stable signatures**: Intermediate functions don't change when deep functions need more context
+- **Separation of concerns**: Business logic doesn't know where context comes from
+- **Easy testing**: Provide different context maps for different test scenarios
+- **Incremental extension**: Add more `TaggedReader.ask` calls as requirements evolve
 
 ---
 

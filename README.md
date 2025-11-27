@@ -597,7 +597,7 @@ TaggedReaderDynamicContext.build_v2(accounts, greetings)
 
 ## 3. How does it work
 
-### 3.1 The `con` and `hefty` Macros: How They Work
+### 3.1 The `con` and `hefty` Macros: Breaking down binds
 
 The `con` and `hefty` macros provide a `with`-like syntax that rewrites to nested
 `bind` calls. This is similar to Haskell's `do` notation.
@@ -695,8 +695,163 @@ end
 - First-order effects (State, Reader, etc.) are auto-lifted in `hefty` blocks via the `IHeftySendable` protocol
 - The `return(value)` function wraps a value in a pure computation (`Freer.pure` or `Hefty.pure`)
 - Unlike `with`, bindings happen inside the `do` block, not before it - this is
-  due to limitations in the syntax expressible with Elixir macros 
+  due to limitations in the syntax expressible with Elixir macros
   (vs special forms like `with`)
+
+### 3.2 Freer - let's interpret some effects in IEx
+
+We'll focus on first-order effects now - they are effects which
+_do not_ contain other effetts in their data-structure, and are simpler
+to deal with.
+
+Each computation can be seen as a sequence of steps, and Freyja uses a type
+called `Freer` to capture these steps. `Freer` has two structs, `Pure` which
+wraps an ordinary-value, and `Impure` which holds:
+  * `sig` - an identifier for the type of the `data`
+  * `data` - a piece of data which can be interpreted (by a `Handler`) to
+     yield an ordinary-value
+  * `q` - a queue of continuations `(ordinary_value -> Freer.t())` being
+     the remaining steps in the computation
+
+```elixir
+defmodule Freer do
+
+  defmodule Pure do
+    defstruct val: nil
+
+    @type t :: %__MODULE__{
+            val: any
+          }
+  end
+
+  defmodule Impure do
+    defstruct sig: nil, data: nil, q: []
+
+    @type t :: %__MODULE__{
+            sig: atom,
+            data: any,
+            # should be list((any->freer))
+            q: list((any -> freer))
+          }
+  end
+
+  @type t() :: %Pure{} | %Impure{}
+end
+```
+
+The `con` macro shown above is used with first-order effects, and
+given a `Freer.t()` and a continuation `(any->Freer.t())`
+makes `Freer.bind(Freer.t(), (any->Freer.t()))` calls
+return another `Freer`,  which is conceptually a transformation of the
+input by the continuation.
+
+So looking at our very first `con` example again:
+
+``` elixir
+con do
+  x <- State.get()
+  y <- Reader.ask()
+  return(x + y)
+end
+```
+and its expansion:
+
+``` elixir
+State.get()
+|> Freyja.Freer.bind(fn x ->
+  Reader.ask()
+  |> Freyja.Freer.bind(fn y ->
+    return(x + y)
+  end)
+end)
+```
+
+At the start we have `State.get()`, which is an "effect construtor" call -
+it returns an effect data structure, wrapped in a minimal `Impure`
+structure - try it our yourself in IEx:
+
+``` elixir
+Freyja.Effects.State.get()
+
+# %Freyja.Freer.Impure{
+#  sig: Freyja.Effects.State,
+#  data: %Freyja.Effects.State.Get{},
+#  q: [&Freyja.Freer.pure/1]
+#}
+```
+now, looking at the expansion again, the output of `State.get()` is
+immediately fed to a `Freer.bind`
+
+here's the whole expansion on one line for easy IEx copy/paste:
+
+``` elixir
+freer_1 = Freyja.Effects.State.get() |> Freyja.Freer.bind(fn x -> Freyja.Effects.Reader.ask() |> Freyja.Freer.bind(fn y -> Freyja.Freer.return(x + y) end) end)
+
+#%Freyja.Freer.Impure{
+#  sig: Freyja.Effects.State,
+#  data: %Freyja.Effects.State.Get{},
+#  q: [&Freyja.Freer.pure/1, #Function<42.113135111/1 in :erl_eval.expr/6>]
+#}
+```
+
+now you can see what the `Freer.bind` call has done - it's cheating, and hasn't
+done any work at all - it's just put the continuation function from its second
+argument at the end of the `q`
+
+The `data` in the `Impure` is an effect, it's describing some impure action 
+that the program wants to do. Let's play the interpreter, and say that our 
+`State.Get` operation is going to retrieve the value `5` - so we pass that 
+value to the first continuation in the `q`
+
+``` elixir
+freer_2 = (List.first(freer_1.q)).(5)
+# %Freyja.Freer.Pure{val: 5}
+```
+
+Since this is just an ordinary-value in a `Pure`, we can pass it straight on
+to the next continuation in the `q`
+
+``` elixir
+freer_3 = (Enum.at(freer_1.q, 1)).(5)
+
+#%Freyja.Freer.Impure{
+#  sig: Freyja.Effects.Reader,
+#  data: %Freyja.Effects.Reader.Ask{},
+#  q: [&Freyja.Freer.pure/1, #Function<42.113135111/1 in :erl_eval.expr/6>]
+#}
+```
+
+Now we've got something different! we have a new effect to interpret, and more
+sontinuations in the `q` to pass the results to... let's skip over the 
+`Freer.pure` call, because we know what it's going to do, and say
+interpreting the `Ask` returns a value of `15`
+
+``` elixir
+freer_4 = (Enum.at(freer_3.q, 1)).(15)
+# %Freyja.Freer.Pure{val: 20}
+```
+
+And there we are - we called the final continuation which was the last line of 
+the `con` block and it added together out two interpreted values and `return`ed
+the result
+
+
+
+
+
+
+
+In actual fact, `Freer.bind(...)` cheats. If the input is `Impure`, 
+`bind` does no work and simply adds the continuation to the `q` of the 
+`Impure`
+
+
+
+
+
+
+`
+
 
 ---
 

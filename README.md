@@ -165,7 +165,7 @@ deal with the impure plumbing.
 
 Not nearly an exhaustive list, but there are IEx runnable examples for each case!
 
-### 2.1 EctoFx: Database-Agnostic Domain Services
+### 2.1 EctoFx: Taming dataabase interactions
 
 The [`ecto_user_service.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/ecto_user_service.ex)
 example shows how to build domain services that use Ecto effects for queries and

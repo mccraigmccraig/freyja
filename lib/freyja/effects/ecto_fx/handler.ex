@@ -33,6 +33,9 @@ if Code.ensure_loaded?(Ecto) do
     @behaviour Freyja.Hefty.Algebra
     @behaviour Freyja.Freer.EffectHandler
 
+    # These modules are optional dependencies - suppress undefined warnings
+    @compile {:no_warn_undefined, [Ecto.Adapters.SQL, DBConnection.Holder]}
+
     # ============================================================================
     # Handler State
     # ============================================================================
@@ -44,7 +47,7 @@ if Code.ensure_loaded?(Ecto) do
       Contains:
       - `repo` - The Ecto.Repo module for database operations
       - `registry` - Query routing registry (maps modules to resolvers)
-      - `conn` - Database connection state when inside a transaction
+      - `transaction` - Transaction context when inside a transaction (for cleanup)
       - `capture` - Capture context when capturing changes
       - `next_capture_ref` - Counter for capture scope references
       """
@@ -53,15 +56,20 @@ if Code.ensure_loaded?(Ecto) do
       defstruct [
         :repo,
         registry: %{},
-        conn: nil,
+        transaction: nil,
         capture: nil,
         next_capture_ref: 1
       ]
 
+      @type transaction_context :: %{
+              pool: pid(),
+              pool_ref: any()
+            }
+
       @type t :: %__MODULE__{
               repo: module(),
               registry: map(),
-              conn: :in_transaction | nil,
+              transaction: transaction_context() | nil,
               capture: map() | nil,
               next_capture_ref: non_neg_integer()
             }
@@ -135,50 +143,38 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     # Query execution
-    defp execute(%State{registry: registry, conn: conn, repo: repo} = state, %Query{} = query) do
-      case dispatch_query(registry, query, conn, repo) do
+    # Note: When inside a transaction, the connection is in the process dictionary
+    # and Ecto will automatically use it for all operations.
+    defp execute(%State{registry: registry, repo: repo} = state, %Query{} = query) do
+      case dispatch_query(registry, query, repo) do
         {:ok, result} -> {{:ok, result}, state}
         {:error, reason} -> {{:error, reason}, state}
       end
     end
 
     # Single mutations
-    defp execute(%State{repo: repo, conn: conn} = state, %Insert{changeset: cs, opts: opts}) do
-      opts = maybe_add_conn(opts, conn)
-
+    defp execute(%State{repo: repo} = state, %Insert{changeset: cs, opts: opts}) do
       case repo.insert(cs, opts) do
         {:ok, result} -> {{:ok, result}, state}
         {:error, changeset} -> {{:error, {:changeset_error, changeset}}, state}
       end
     end
 
-    defp execute(%State{repo: repo, conn: conn} = state, %Update{changeset: cs, opts: opts}) do
-      opts = maybe_add_conn(opts, conn)
-
+    defp execute(%State{repo: repo} = state, %Update{changeset: cs, opts: opts}) do
       case repo.update(cs, opts) do
         {:ok, result} -> {{:ok, result}, state}
         {:error, changeset} -> {{:error, {:changeset_error, changeset}}, state}
       end
     end
 
-    defp execute(%State{repo: repo, conn: conn} = state, %Delete{
-           struct_or_changeset: soc,
-           opts: opts
-         }) do
-      opts = maybe_add_conn(opts, conn)
-
+    defp execute(%State{repo: repo} = state, %Delete{struct_or_changeset: soc, opts: opts}) do
       case repo.delete(soc, opts) do
         {:ok, result} -> {{:ok, result}, state}
         {:error, changeset} -> {{:error, {:changeset_error, changeset}}, state}
       end
     end
 
-    defp execute(%State{repo: repo, conn: conn} = state, %InsertOrUpdate{
-           changeset: cs,
-           opts: opts
-         }) do
-      opts = maybe_add_conn(opts, conn)
-
+    defp execute(%State{repo: repo} = state, %InsertOrUpdate{changeset: cs, opts: opts}) do
       case repo.insert_or_update(cs, opts) do
         {:ok, result} -> {{:ok, result}, state}
         {:error, changeset} -> {{:error, {:changeset_error, changeset}}, state}
@@ -186,28 +182,25 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     # Bulk mutations
-    defp execute(%State{repo: repo, conn: conn} = state, %InsertAll{
+    defp execute(%State{repo: repo} = state, %InsertAll{
            schema: schema,
            entries: entries,
            opts: opts
          }) do
-      opts = maybe_add_conn(opts, conn)
       result = repo.insert_all(schema, entries, opts)
       {{:ok, result}, state}
     end
 
-    defp execute(%State{repo: repo, conn: conn} = state, %UpdateAll{
+    defp execute(%State{repo: repo} = state, %UpdateAll{
            queryable: q,
            updates: updates,
            opts: opts
          }) do
-      opts = maybe_add_conn(opts, conn)
       result = repo.update_all(q, updates, opts)
       {{:ok, result}, state}
     end
 
-    defp execute(%State{repo: repo, conn: conn} = state, %DeleteAll{queryable: q, opts: opts}) do
-      opts = maybe_add_conn(opts, conn)
+    defp execute(%State{repo: repo} = state, %DeleteAll{queryable: q, opts: opts}) do
       result = repo.delete_all(q, opts)
       {{:ok, result}, state}
     end
@@ -231,50 +224,91 @@ if Code.ensure_loaded?(Ecto) do
 
     # Transaction control
     #
-    # NOTE: Transaction support is currently limited. Ecto's Repo.transaction/2
-    # uses a callback-based approach that doesn't integrate well with Freyja's
-    # continuation-based model. For now, we track transaction state but don't
-    # actually acquire a dedicated connection.
+    # Real transaction support using DBConnection checkout/checkin.
     #
-    # Current behavior:
+    # We checkout a connection from the pool, store it in the process dictionary
+    # (using the same key format Ecto uses), execute BEGIN, and all subsequent
+    # Repo operations automatically use that connection.
+    #
+    # On commit/rollback, we execute the SQL command, remove from process dict,
+    # and checkin the connection back to the pool.
+    #
+    # Behavior:
     # - Throws inside transactions trigger rollback (via interposition)
     # - Yields inside transactions are converted to errors and trigger rollback
     #   (yielding would hold a DB connection indefinitely, which is not allowed)
     # - Nested transactions raise RuntimeError
-    #
-    # For real transaction support, consider:
-    # 1. Using Ecto.Adapters.SQL.Sandbox in tests
-    # 2. Using raw SQL BEGIN/COMMIT/ROLLBACK via Ecto.Adapters.SQL.query
-    # 3. Structuring code to use Repo.transaction at the boundary
-    #
-    # Future enhancement: Use Ecto.Adapters.SQL.checkout/2 to acquire a connection
-    # and pass it via the :conn option to all Repo operations within the transaction.
 
-    defp execute(%State{conn: nil} = state, %Internal.BeginTransaction{opts: _opts}) do
-      # Mark that we're in a transaction (semantic tracking for now)
-      # TODO: Implement proper connection acquisition when db_connection is available
-      {{:ok, :ok}, %{state | conn: :in_transaction}}
+    defp execute(%State{transaction: nil, repo: repo} = state, %Internal.BeginTransaction{
+           opts: opts
+         }) do
+      # Get adapter metadata to find the pool
+      %{pid: pool} = Ecto.Adapter.lookup_meta(repo)
+
+      # Checkout a connection from the pool
+      case DBConnection.Holder.checkout(pool, [self()], opts) do
+        {:ok, pool_ref, _conn_mod, _checkin_time, _conn_state} ->
+          # Create DBConnection struct and store in process dictionary
+          # This is the same format Ecto uses internally
+          # We use struct/2 because DBConnection's defstruct is not exported for compile-time use
+          conn = struct(DBConnection, pool_ref: pool_ref, conn_ref: make_ref(), conn_mode: nil)
+          Process.put({Ecto.Adapters.SQL, pool}, conn)
+
+          # Execute BEGIN
+          Ecto.Adapters.SQL.query!(repo, "BEGIN", [], opts)
+
+          # Store context for later cleanup
+          transaction = %{pool: pool, pool_ref: pool_ref}
+          {{:ok, :ok}, %{state | transaction: transaction}}
+
+        {:error, err} ->
+          {{:error, {:checkout_failed, err}}, state}
+      end
     end
 
-    defp execute(%State{conn: :in_transaction} = _state, %Internal.BeginTransaction{}) do
+    defp execute(%State{transaction: %{}} = _state, %Internal.BeginTransaction{}) do
       raise RuntimeError, "Nested transactions are not supported"
     end
 
-    defp execute(%State{conn: :in_transaction} = state, %Internal.CommitTransaction{}) do
-      # TODO: Implement proper commit when using real connection
-      {{:ok, :ok}, %{state | conn: nil}}
+    defp execute(
+           %State{transaction: %{pool: pool, pool_ref: pool_ref}, repo: repo} = state,
+           %Internal.CommitTransaction{}
+         ) do
+      # Execute COMMIT
+      Ecto.Adapters.SQL.query!(repo, "COMMIT", [])
+
+      # Remove from process dictionary
+      Process.delete({Ecto.Adapters.SQL, pool})
+
+      # Check connection back into pool
+      DBConnection.Holder.checkin(pool_ref)
+
+      # Clear transaction state
+      {{:ok, :ok}, %{state | transaction: nil}}
     end
 
-    defp execute(%State{conn: nil} = _state, %Internal.CommitTransaction{}) do
+    defp execute(%State{transaction: nil} = _state, %Internal.CommitTransaction{}) do
       raise RuntimeError, "CommitTransaction called outside of transaction"
     end
 
-    defp execute(%State{conn: :in_transaction} = state, %Internal.RollbackTransaction{}) do
-      # TODO: Implement proper rollback when using real connection
-      {{:ok, :ok}, %{state | conn: nil}}
+    defp execute(
+           %State{transaction: %{pool: pool, pool_ref: pool_ref}, repo: repo} = state,
+           %Internal.RollbackTransaction{}
+         ) do
+      # Execute ROLLBACK
+      Ecto.Adapters.SQL.query!(repo, "ROLLBACK", [])
+
+      # Remove from process dictionary
+      Process.delete({Ecto.Adapters.SQL, pool})
+
+      # Check connection back into pool
+      DBConnection.Holder.checkin(pool_ref)
+
+      # Clear transaction state
+      {{:ok, :ok}, %{state | transaction: nil}}
     end
 
-    defp execute(%State{conn: nil} = _state, %Internal.RollbackTransaction{}) do
+    defp execute(%State{transaction: nil} = _state, %Internal.RollbackTransaction{}) do
       raise RuntimeError, "RollbackTransaction called outside of transaction"
     end
 
@@ -314,38 +348,33 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     # Query dispatch helpers
-    defp dispatch_query(registry, %Query{mod: mod} = query, conn, repo) when is_map(registry) do
+    defp dispatch_query(registry, %Query{mod: mod} = query, _repo) when is_map(registry) do
       case Map.fetch(registry, mod) do
-        {:ok, resolver} -> {:ok, invoke_query(resolver, query, conn, repo)}
+        {:ok, resolver} -> {:ok, invoke_query(resolver, query)}
         :error -> {:error, {:unknown_query_module, mod}}
       end
     end
 
-    defp dispatch_query(resolver, query, conn, repo) do
-      {:ok, invoke_query(resolver, query, conn, repo)}
+    defp dispatch_query(resolver, query, _repo) do
+      {:ok, invoke_query(resolver, query)}
     rescue
       exception -> {:error, {:query_failed, exception}}
     end
 
-    defp invoke_query(:direct, %Query{mod: mod, name: name, params: params}, _conn, _repo) do
+    defp invoke_query(:direct, %Query{mod: mod, name: name, params: params}) do
       apply(mod, name, [params])
     end
 
-    defp invoke_query(fun, %Query{mod: mod, name: name, params: params}, _conn, _repo)
+    defp invoke_query(fun, %Query{mod: mod, name: name, params: params})
          when is_function(fun, 3) do
       fun.(mod, name, params)
     end
 
-    defp invoke_query(
-           {module, function},
-           %Query{mod: mod, name: name, params: params},
-           _conn,
-           _repo
-         ) do
+    defp invoke_query({module, function}, %Query{mod: mod, name: name, params: params}) do
       apply(module, function, [mod, name, params])
     end
 
-    defp invoke_query(module, %Query{mod: mod, name: name, params: params}, _conn, _repo)
+    defp invoke_query(module, %Query{mod: mod, name: name, params: params})
          when is_atom(module) do
       if function_exported?(module, :handle_query, 3) do
         apply(module, :handle_query, [mod, name, params])
@@ -354,11 +383,6 @@ if Code.ensure_loaded?(Ecto) do
               "#{inspect(module)} must export handle_query/3 to be used as a Query resolver"
       end
     end
-
-    defp maybe_add_conn(opts, nil), do: opts
-    # :in_transaction is a marker, not an actual connection
-    defp maybe_add_conn(opts, :in_transaction), do: opts
-    defp maybe_add_conn(opts, conn), do: Keyword.put(opts, :conn, conn)
 
     # ============================================================================
     # Algebra Implementation

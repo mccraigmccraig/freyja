@@ -44,7 +44,7 @@ if Code.ensure_loaded?(Ecto) do
       Contains:
       - `repo` - The Ecto.Repo module for database operations
       - `registry` - Query routing registry (maps modules to resolvers)
-      - `conn` - Database connection when inside a transaction
+      - `transaction` - Transaction context when inside a transaction (contains pool_ref for checkin)
       - `capture` - Capture context when capturing changes
       - `next_capture_ref` - Counter for capture scope references
       """
@@ -53,15 +53,20 @@ if Code.ensure_loaded?(Ecto) do
       defstruct [
         :repo,
         registry: %{},
-        conn: nil,
+        transaction: nil,
         capture: nil,
         next_capture_ref: 1
       ]
 
+      @type transaction_context :: %{
+              pool: pid(),
+              pool_ref: any()
+            }
+
       @type t :: %__MODULE__{
               repo: module(),
               registry: map(),
-              conn: DBConnection.conn() | nil,
+              transaction: transaction_context() | nil,
               capture: map() | nil,
               next_capture_ref: non_neg_integer()
             }

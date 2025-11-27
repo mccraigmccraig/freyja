@@ -165,56 +165,85 @@ deal with the impure plumbing.
 
 Not nearly an exhaustive list, but there are IEx runnable examples for each case!
 
-### 2.1 Query: Decouple Domain Logic from Storage Plumbing
+### 2.1 EctoFx: Database-Agnostic Domain Services
 
-The [`query_example.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/query_example.ex)
-shows how a single effect can express “run this query” without knowing which
-backend will satisfy it. Domain code asks for data by specifying a logical
-`domain`, a module/function pair, and a params struct; handlers decide whether to
-hit Postgres, Elastic, or a canned test response.
+The [`ecto_user_service.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/ecto_user_service.ex)
+example shows how to build domain services that use Ecto effects for queries and
+mutations, while keeping domain logic completely testable without a database.
+
+**The Problem**: Traditional Ecto code tightly couples domain logic to the database:
 
 ```elixir
-defmodule Domain do
-  import Freyja.Freer.FreerBlock
-  alias Freyja.Effects.Query
-
-  defcon fetch_profile(user_id) do
-    user <- Query.request(:users, Backend, :fetch_user, %{id: user_id})
-    orders <- Query.request(:orders, Backend, :fetch_orders, %{user_id: user_id})
-    stats <- Query.request(:stats, Backend, :fetch_stats, %{user_id: user_id})
-    return(%{user: user, orders: orders, stats: stats})
-  end
+def create_user_with_profile(attrs) do
+  Repo.transaction(fn ->
+    user = Repo.insert!(User.changeset(attrs))
+    profile = Repo.insert!(Profile.changeset(user, attrs))
+    {user, profile}
+  end)
 end
 ```
 
-Because `Query.request/4` returns a plain Freer effect, the same domain code can
-run against a live registry:
+This is hard to test without a database. **With EctoFx effects**:
 
 ```elixir
-Domain.fetch_profile(42)
-|> Query.Handler.run(%{
-  users: :direct,
-  orders: :direct,
-  stats: &QueryExample.route_stats/4
-})
-|> Run.run()
+defhefty register_user(attrs) do
+  # Check if email already exists
+  existing <- EctoFx.query(Queries, :find_user_by_email, %{email: attrs.email})
+
+  result <-
+    case existing do
+      nil ->
+        # Email not taken - create user and profile in transaction
+        EctoFx.transaction(
+          hefty do
+            user <- EctoFx.insert(User.changeset(attrs))
+            profile <- EctoFx.insert(Profile.changeset(user, attrs))
+            return({user, profile})
+          end
+        )
+
+      _user ->
+        # Email already taken - return error via Throw
+        Throw.throw_error({:email_taken, attrs.email})
+    end
+
+  return(result)
+end
 ```
 
-…or a canned response map in tests:
+**In tests** - no database needed! Use `EctoFx.TestHandler` with stubbed queries:
 
 ```elixir
-responses = %{
-  Query.key(:users, Backend, :fetch_user, %{id: 42}) => %{id: 42, name: "Test User"},
-  Query.key(:orders, Backend, :fetch_orders, %{user_id: 42}) => []
-}
+state =
+  EctoFx.TestHandler.new()
+  |> EctoFx.TestHandler.stub_query(Queries, :find_user_by_email, %{email: "alice@test.com"}, nil)
 
-Domain.fetch_profile(42)
-|> Query.TestHandler.run(responses)
-|> Run.run()
+outcome =
+  EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
+  |> EctoFx.TestHandler.run(state)
+  |> Lift.Algebra.run()
+  |> Throw.Handler.run()
+  |> Run.run()
+
+assert {:ok, {%User{name: "Alice"}, %Profile{}}} = outcome.result
 ```
 
-This keeps domain logic free of storage plumbing while still letting handlers
-control authentication, connection pools, and mocking concerns.
+**In production** - real database with `EctoFx.Handler`:
+
+```elixir
+outcome =
+  EctoUserService.register_user(%{name: "Alice", email: "alice@example.com"})
+  |> EctoFx.Handler.run(MyApp.Repo, %{Queries => :direct})
+  |> Lift.Algebra.run()
+  |> Throw.Handler.run()
+  |> Run.run()
+```
+
+**Benefits**:
+- Domain logic stays pure and testable
+- Test handler automatically applies changeset changes, validating your logic
+- Same code works with real DB or test stubs
+- Transactions compose naturally with other effects
 
 
 ### 2.2 Coroutine-Based Programming
@@ -421,46 +450,77 @@ deserialized logs, even though the original continuation has been lost! See
 [`Freyja.Examples.EffectLoggerResume`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_resume.ex)
 for a copy/pasteable builder demonstrating the pattern in IEx.
 
-### 2.4 Change Capture with TaggedWriter
+### 2.4 Change Capture with EctoFx
 
-From the IEx runnable [`change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/change_capture.ex)
-example here is a trimmed down snippet showing how an application domain
-`ApplyAllChanges` effect can internally use `TaggedWriter`, and `State` effects
-to capture changes emitted in nested funcion calls.
+The [`ecto_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/ecto_change_capture.ex)
+example demonstrates capturing intended database changes without immediately
+persisting them - enabling batch operations, dry-run mode, and audit logging.
+
+**The Pattern**: `EctoFx.capture/1` wraps a computation and collects all
+`EctoFx.change/2` calls without persisting them:
 
 ```elixir
-defmodule Storage do
-  import Freyja.Freer.Sig.DefEffectStruct
-  import Freyja.Hefty.Sig.DefHeftyStruct
+defhefty anonymize_users_with_capture(user_ids) do
+  users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
-  def_effect_struct(Query, ids: [])
-  def_effect_struct(Change, old: nil, new: nil)
-  def_effect_struct(UpdateAll, changes: [])
-  def_hefty_struct(ApplyAllChanges, [])
+  # Process with change capture - changes are collected, not persisted
+  {anonymized_users, captured_changes} <-
+    EctoFx.capture(
+      FxList.fx_map(users, fn user ->
+        hefty do
+          changeset = User.anonymize_changeset(user)
 
-  def query(ids), do: %Query{ids: ids}
-  def change(old, new), do: %Change{old: old, new: new}
-  def update_all(changes), do: %UpdateAll{changes: changes}
+          # Record the change (captured, not persisted)
+          _ <- EctoFx.change(:update, changeset)
 
-  def apply_all_changes(computation) do
-    Freyja.Hefty.send_hefty(__MODULE__, %ApplyAllChanges{}, %{inner: computation})
-  end
+          # Also record an audit log entry
+          audit_changeset = AuditLog.changeset(%{
+            user_id: user.id,
+            action: "anonymize",
+            details: %{original_email: user.email}
+          })
+          _ <- EctoFx.change(:insert, audit_changeset)
+
+          return(Ecto.Changeset.apply_changes(changeset))
+        end
+      end)
+    )
+
+  return({anonymized_users, captured_changes})
 end
 ```
 
-``` elixir
-defhefty process_users(ids, process_user_fn) do
-  users <- Query.request(:users, MyApp.UserRepo, :fetch_users, %{ids: ids})
-  {updated_users, logs} <- Storage.apply_all_changes(FxList.fx_map(users, process_user_fn))
-  count <- State.get()
-  return(%{updated_users: updated_users, all_logs: logs, processed_count: count})
-end
+The captured changes are returned as `%{inserts: [...], updates: [...], deletes: [...]}`
+containing Ecto changesets ready for bulk operations:
+
+```elixir
+# Test without any database
+users = %{
+  "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com"},
+  "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com"}
+}
+
+outcome =
+  EctoChangeCapture.anonymize_users_with_capture(["user-1", "user-2"])
+  |> EctoChangeCapture.test_builder(users)
+  |> Run.run()
+
+{:ok, {anonymized_users, captured_changes}} = outcome.result
+
+# Captured changes ready for bulk application
+length(captured_changes.updates)  # => 2 (user anonymizations)
+length(captured_changes.inserts)  # => 2 (audit logs)
+
+# In production, apply in bulk for efficiency:
+Repo.insert_all(AuditLog, EctoFx.to_entries(captured_changes.inserts))
 ```
 
-Each `process_user_fn` processing function (e.g., `remove_email_from_user/1`)
-can use different effects, such as`Storage.change/2`, `TaggedWriter.tell/2`,
-or throw errors without requiring any changes to the `process_users/2`
-function signature (such as adding accumulator parameters).
+**Use Cases**:
+- **Batch processing**: Process 1000 users individually, but INSERT/UPDATE in bulk
+- **Dry-run mode**: Capture changes without applying them, show what would change
+- **Audit logging**: Record exactly what changes were intended before applying
+- **Validation**: Validate the entire batch before committing any changes
+- **Testing**: Verify change logic without touching the database
 
 
 ---

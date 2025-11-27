@@ -456,63 +456,69 @@ The [`ecto_change_capture.ex`](https://github.com/mccraigmccraig/freyja/blob/mai
 example demonstrates capturing intended database changes without immediately
 persisting them - enabling batch operations, dry-run mode, and audit logging.
 
-**The Pattern**: `EctoFx.capture/1` wraps a computation and collects all
-`EctoFx.change/2` calls without persisting them:
+**The Pattern**: Write simple per-record processing functions that use
+`EctoFx.change/2` to record changes, then use `EctoFx.capture/1` to collect
+them without persisting:
 
 ```elixir
+# Simple per-record processing function
+defhefty anonymize_user(user) do
+  changeset = User.anonymize_changeset(user)
+
+  # Record the change (captured, not persisted)
+  _ <- EctoFx.change(:update, changeset)
+
+  # Also record an audit log entry
+  audit_changeset = AuditLog.changeset(%{
+    user_id: user.id,
+    action: "anonymize",
+    details: %{original_email: user.email}
+  })
+  _ <- EctoFx.change(:insert, audit_changeset)
+
+  return(Ecto.Changeset.apply_changes(changeset))
+end
+
+# Capture changes from processing multiple users
 defhefty anonymize_users_with_capture(user_ids) do
   users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
-  # Process with change capture - changes are collected, not persisted
+  # EctoFx.capture/1 collects all EctoFx.change calls without persisting
   {anonymized_users, captured_changes} <-
-    EctoFx.capture(
-      FxList.fx_map(users, fn user ->
-        hefty do
-          changeset = User.anonymize_changeset(user)
-
-          # Record the change (captured, not persisted)
-          _ <- EctoFx.change(:update, changeset)
-
-          # Also record an audit log entry
-          audit_changeset = AuditLog.changeset(%{
-            user_id: user.id,
-            action: "anonymize",
-            details: %{original_email: user.email}
-          })
-          _ <- EctoFx.change(:insert, audit_changeset)
-
-          return(Ecto.Changeset.apply_changes(changeset))
-        end
-      end)
-    )
+    EctoFx.capture(FxList.fx_map(users, &anonymize_user/1))
 
   return({anonymized_users, captured_changes})
 end
 ```
 
 The captured changes are returned as `%{inserts: [...], updates: [...], deletes: [...]}`
-containing Ecto changesets ready for bulk operations:
+containing Ecto changesets. Apply them in bulk within a transaction:
 
 ```elixir
-# Test without any database
-users = %{
-  "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com"},
-  "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com"}
-}
+defhefty transactional_anonymize(user_ids) do
+  EctoFx.transaction(
+    hefty do
+      users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
-outcome =
-  EctoChangeCapture.anonymize_users_with_capture(["user-1", "user-2"])
-  |> EctoChangeCapture.test_builder(users)
-  |> Run.run()
+      # Capture all changes without persisting
+      {anonymized, changes} <-
+        EctoFx.capture(FxList.fx_map(users, &anonymize_user/1))
 
-{:ok, {anonymized_users, captured_changes}} = outcome.result
+      # Persist inserts in bulk (audit logs)
+      _ <- EctoFx.insert_all(AuditLog, EctoFx.to_entries(changes.inserts))
 
-# Captured changes ready for bulk application
-length(captured_changes.updates)  # => 2 (user anonymizations)
-length(captured_changes.inserts)  # => 2 (audit logs)
+      # Persist updates in bulk using upsert
+      _ <- EctoFx.insert_all(
+        User,
+        EctoFx.to_entries(changes.updates),
+        on_conflict: :replace_all,
+        conflict_target: [:id]
+      )
 
-# In production, apply in bulk for efficiency:
-Repo.insert_all(AuditLog, EctoFx.to_entries(captured_changes.inserts))
+      return({anonymized, changes})
+    end
+  )
+end
 ```
 
 **Use Cases**:

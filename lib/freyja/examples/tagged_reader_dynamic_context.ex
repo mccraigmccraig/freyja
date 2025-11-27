@@ -200,7 +200,7 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
         %{name: "Bob", country: "US", recent_transactions: [%{value: 20.0, merchant: "Walmart"}]}
       ]
 
-      outcome = TaggedReaderDynamicContext.build_v1(accounts) |> Freyja.Run.run()
+      outcome = (TaggedReaderDynamicContext.build_v1(accounts) |> Freyja.Run.run())
 
       # Check the result - simple spending summaries
       outcome.result
@@ -241,7 +241,7 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
         "DE" => "Guten Tag!"
       }
 
-      outcome = TaggedReaderDynamicContext.build_v2(accounts, greetings) |> Freyja.Run.run()
+      outcome = (TaggedReaderDynamicContext.build_v2(accounts, greetings) |> Freyja.Run.run())
 
       # Now we have greetings!
       outcome.result
@@ -283,7 +283,7 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
         "US" => %{symbol: "$", rate: 1.0}
       }
 
-      outcome = TaggedReaderDynamicContext.build_v3(accounts, greetings, currencies) |> Freyja.Run.run()
+      outcome = (TaggedReaderDynamicContext.build_v3(accounts, greetings, currencies) |> Freyja.Run.run())
 
       # Now with currency formatting too!
       outcome.result

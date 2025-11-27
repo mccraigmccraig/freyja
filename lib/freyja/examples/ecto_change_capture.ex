@@ -232,6 +232,41 @@ if Code.ensure_loaded?(Ecto) do
     - Validated before committing
     - Logged for audit purposes
     - Discarded (dry-run mode)
+
+    ## IEx Example
+
+    Copy and paste the following into IEx:
+
+        alias Freyja.Examples.EctoChangeCapture
+        alias Freyja.Examples.EctoChangeCapture.User
+
+        # Create some test users
+        users = %{
+          "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com", status: "active"},
+          "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com", status: "active"}
+        }
+
+        # Run the computation with test_builder (no real database needed!)
+        outcome = (
+          EctoChangeCapture.anonymize_users_with_capture(["user-1", "user-2"])
+          |> EctoChangeCapture.test_builder(users)
+          |> Freyja.Run.run()
+        )
+
+        # Unwrap the result
+        {:ok, {anonymized_users, captured_changes}} = outcome.result
+
+        # Check the anonymized users
+        anonymized_users
+        # => [%User{name: "Anonymous", email: nil, status: "anonymized", ...}, ...]
+
+        # Check the captured changes - 2 updates (users) + 2 inserts (audit logs)
+        length(captured_changes.updates)   # => 2
+        length(captured_changes.inserts)   # => 2
+
+        # Inspect a captured changeset
+        hd(captured_changes.updates).changes
+        # => %{email: nil, name: "Anonymous", status: "anonymized", anonymized_at: ...}
     """
     defhefty anonymize_users_with_capture(user_ids) do
       users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
@@ -247,7 +282,42 @@ if Code.ensure_loaded?(Ecto) do
     Process users with conditional changes based on status.
 
     Uses `process_user_by_status/1` which applies different logic based
-    on each user's status field.
+    on each user's status field:
+    - Active users are deactivated (update change)
+    - Inactive users are deleted (delete change)
+    - Other statuses are skipped (no change)
+
+    ## IEx Example
+
+    Copy and paste the following into IEx:
+
+        alias Freyja.Examples.EctoChangeCapture
+        alias Freyja.Examples.EctoChangeCapture.User
+
+        # Mix of active and inactive users
+        users = %{
+          "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com", status: "active"},
+          "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com", status: "inactive"},
+          "user-3" => %User{id: "user-3", name: "Carol", email: "carol@test.com", status: "active"}
+        }
+
+        outcome = (
+          EctoChangeCapture.process_users_conditionally(["user-1", "user-2", "user-3"])
+          |> EctoChangeCapture.test_builder(users)
+          |> Freyja.Run.run()
+        )
+
+        {:ok, result} = outcome.result
+
+        # Check what happened to each user
+        result.results
+        # => [{:deactivated, %User{status: "inactive", ...}},
+        #     {:deleted, %User{...}},
+        #     {:deactivated, %User{status: "inactive", ...}}]
+
+        # Check captured changes - 2 updates + 1 delete
+        length(result.changes.updates)  # => 2 (deactivations)
+        length(result.changes.deletes)  # => 1 (deletion)
     """
     defhefty process_users_conditionally(user_ids) do
       users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
@@ -263,6 +333,39 @@ if Code.ensure_loaded?(Ecto) do
 
     Uses `create_user_if_valid/1` to validate each set of attributes
     and capture insert changes only for valid users.
+
+    ## IEx Example
+
+    Copy and paste the following into IEx:
+
+        alias Freyja.Examples.EctoChangeCapture
+
+        # Mix of valid and invalid user attributes
+        user_attrs = [
+          %{name: "Alice", email: "alice@test.com"},      # valid
+          %{name: "Bob", email: "bob@test.com"},          # valid
+          %{name: "InvalidUser", email: nil}              # invalid - missing email
+        ]
+
+        outcome = (
+          EctoChangeCapture.create_users_batch(user_attrs)
+          |> EctoChangeCapture.test_builder()
+          |> Freyja.Run.run()
+        )
+
+        {:ok, result} = outcome.result
+
+        # Check successfully created users
+        result.users
+        # => [%User{name: "Alice", ...}, %User{name: "Bob", ...}]
+        length(result.users)  # => 2
+
+        # Check validation errors
+        length(result.errors)  # => 1
+        hd(result.errors).errors  # => [email: {"can't be blank", ...}]
+
+        # Check captured changes - only valid users generate insert changes
+        length(result.changes.inserts)  # => 2
     """
     defhefty create_users_batch(user_attrs_list) do
       {users, changes} <-
@@ -328,6 +431,39 @@ if Code.ensure_loaded?(Ecto) do
 
     Uses `deactivate_user/1` to process users, then shows how to
     work with the captured changes using helper functions.
+
+    ## IEx Example
+
+    Copy and paste the following into IEx:
+
+        alias Freyja.Examples.EctoChangeCapture
+        alias Freyja.Examples.EctoChangeCapture.User
+
+        users = %{
+          "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com", status: "active"},
+          "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com", status: "active"}
+        }
+
+        outcome = (
+          EctoChangeCapture.demonstrate_change_helpers(["user-1", "user-2"])
+          |> EctoChangeCapture.test_builder(users)
+          |> Freyja.Run.run()
+        )
+
+        {:ok, result} = outcome.result
+
+        # Check counts
+        result.update_count   # => 2
+        result.insert_count   # => 0
+        result.delete_count   # => 0
+
+        # Check grouped changes by schema
+        result.grouped_by_schema
+        # => %{Freyja.Examples.EctoChangeCapture.User => [%Ecto.Changeset{}, ...]}
+
+        # Access raw changes
+        result.raw_changes.updates
+        # => [%Ecto.Changeset{changes: %{status: "inactive"}, ...}, ...]
     """
     defhefty demonstrate_change_helpers(user_ids) do
       users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})

@@ -36,20 +36,22 @@ if Code.ensure_loaded?(Ecto) do
     ## Example Usage
 
         # In tests - no database!
-        outcome =
+        outcome = (
           UserService.register_user(%{name: "Alice", email: "alice@example.com"})
           |> EctoFx.TestHandler.run()
           |> Throw.Handler.run()
           |> Run.run()
+        )
 
         assert {:ok, %User{name: "Alice"}} = outcome.result
 
         # In production - real database
-        outcome =
+        outcome = (
           UserService.register_user(%{name: "Alice", email: "alice@example.com"})
           |> EctoFx.Handler.run(MyApp.Repo, query_registry)
           |> Throw.Handler.run()
           |> Run.run()
+        )
     """
 
     use Freyja.Syntax
@@ -258,26 +260,55 @@ if Code.ensure_loaded?(Ecto) do
     @doc """
     Build a test pipeline using TestHandler (no database needed).
 
-    ## Example
+    ## IEx Example
 
-        # Simple test
-        outcome =
-          EctoUserService.test_builder(
-            EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
-          )
-          |> Run.run()
+    Copy and paste the following into IEx:
 
-        # With stubbed queries
-        state =
+        alias Freyja.Examples.EctoUserService
+
+        # Register a new user (email not taken - TestHandler returns nil by default)
+        outcome = (
+          EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
+          |> EctoUserService.test_builder()
+          |> Freyja.Run.run()
+        )
+
+        # Check the result - user and profile created
+        {:ok, {user, profile}} = outcome.result
+        user.name      # => "Alice"
+        user.email     # => "alice@test.com"
+        profile.user_id == user.id  # => true
+
+    With stubbed queries to simulate existing user:
+
+        alias Freyja.Examples.EctoUserService
+        alias Freyja.Effects.EctoFx
+
+        # Stub the query to return an existing user
+        existing_user = %EctoUserService.User{
+          id: "existing-id",
+          name: "Existing",
+          email: "alice@test.com"
+        }
+
+        state = (
           EctoFx.TestHandler.new()
-          |> EctoFx.TestHandler.stub_query(Queries, :find_user_by_email, %{email: "alice@test.com"}, nil)
+          |> EctoFx.TestHandler.stub_query(
+               EctoUserService.Queries,
+               :find_user_by_email,
+               %{email: "alice@test.com"},
+               existing_user
+             )
+        )
 
-        outcome =
-          EctoUserService.test_builder(
-            EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"}),
-            state
-          )
-          |> Run.run()
+        outcome = (
+          EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
+          |> EctoUserService.test_builder(state)
+          |> Freyja.Run.run()
+        )
+
+        # Email was taken - returns error
+        outcome.result  # => {:error, {:email_taken, "alice@test.com"}}
     """
     def test_builder(computation, test_handler_state \\ EctoFx.TestHandler.new()) do
       alias Freyja.Effects.{Lift, Throw, FxList}
@@ -294,13 +325,15 @@ if Code.ensure_loaded?(Ecto) do
 
     ## Example
 
-        outcome =
-          EctoUserService.prod_builder(
-            EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"}),
-            MyApp.Repo,
-            %{Queries => :direct}
-          )
-          |> Run.run()
+    This requires a real Ecto Repo and database connection:
+
+        alias Freyja.Examples.EctoUserService
+
+        outcome = (
+          EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
+          |> EctoUserService.prod_builder(MyApp.Repo, %{EctoUserService.Queries => :direct})
+          |> Freyja.Run.run()
+        )
     """
     def prod_builder(computation, repo, query_registry \\ %{}) do
       alias Freyja.Effects.{Lift, Throw, FxList}

@@ -67,10 +67,29 @@ if Code.ensure_loaded?(Ecto) do
     @doc "Create a new test handler state."
     def new, do: %State{}
 
-    @doc "Stub a query response."
+    @doc "Stub a query response for specific params."
     def stub_query(%State{query_stubs: stubs} = state, mod, name, params, result) do
       key = EctoFx.query_key(mod, name, params)
       %{state | query_stubs: Map.put(stubs, key, result)}
+    end
+
+    @doc """
+    Stub a query with a function that receives the params.
+
+    Useful when you need dynamic responses based on query params.
+
+    ## Example
+
+        state =
+          EctoFx.TestHandler.new()
+          |> EctoFx.TestHandler.stub_query_fn(Queries, :find_user, fn %{id: id} ->
+            %User{id: id, name: "User \#{id}"}
+          end)
+    """
+    def stub_query_fn(%State{query_stubs: stubs} = state, mod, name, fun)
+        when is_function(fun, 1) do
+      key = {mod, name, :fn}
+      %{state | query_stubs: Map.put(stubs, key, fun)}
     end
 
     @doc "Stub insert operations for a schema."
@@ -135,10 +154,22 @@ if Code.ensure_loaded?(Ecto) do
          ) do
       state = record_op(state, op)
       key = EctoFx.query_key(mod, name, params)
+      fn_key = {mod, name, :fn}
 
       case Map.fetch(stubs, key) do
-        {:ok, result} -> {{:ok, result}, state}
-        :error -> {{:error, {:query_not_stubbed, key}}, state}
+        {:ok, result} ->
+          # Exact params match
+          {{:ok, result}, state}
+
+        :error ->
+          # Check for function-based stub
+          case Map.fetch(stubs, fn_key) do
+            {:ok, fun} when is_function(fun, 1) ->
+              {{:ok, fun.(params)}, state}
+
+            :error ->
+              {{:error, {:query_not_stubbed, key}}, state}
+          end
       end
     end
 

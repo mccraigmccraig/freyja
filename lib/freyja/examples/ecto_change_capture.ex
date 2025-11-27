@@ -1,0 +1,378 @@
+if Code.ensure_loaded?(Ecto) do
+  defmodule Freyja.Examples.EctoChangeCapture do
+    @moduledoc """
+    Example demonstrating change capture with Ecto changesets using `EctoFx`.
+
+    ## The Pattern
+
+    The `EctoFx.capture/1` higher-order effect allows you to:
+
+    1. Process records individually with simple, focused functions
+    2. Capture all intended changes without executing them
+    3. Review/validate the captured changes
+    4. Apply them in bulk for efficiency
+
+    This separates the "what to change" logic from "how to persist" concerns.
+
+    ## Use Cases
+
+    - **Batch processing**: Process 1000 users individually, but INSERT/UPDATE in bulk
+    - **Dry-run mode**: Capture changes without applying them, show what would change
+    - **Audit logging**: Record exactly what changes were intended before applying
+    - **Validation**: Validate the entire batch before committing any changes
+    - **Testing**: Verify change logic without touching the database
+
+    ## Example
+
+        # Process users and capture changes
+        {results, changes} =
+          EctoChangeCapture.process_users_with_capture(user_ids)
+          |> EctoFx.TestHandler.run()
+          |> Lift.Algebra.run()
+          |> Throw.Handler.run()
+          |> Run.run()
+          |> Map.get(:result)
+
+        # changes is a map with :inserts, :updates, :deletes lists
+        # Each list contains Ecto.Changeset structs ready for bulk operations
+
+        # Apply in bulk (in production)
+        Repo.insert_all(User, EctoFx.to_entries(changes.inserts))
+    """
+
+    use Freyja.Syntax
+
+    alias Freyja.Effects.{EctoFx, Lift, Throw, FxList, State}
+
+    # ============================================================================
+    # Ecto Schemas
+    # ============================================================================
+
+    defmodule User do
+      @moduledoc "User schema for change capture example"
+      use Ecto.Schema
+
+      @primary_key {:id, :binary_id, autogenerate: true}
+      embedded_schema do
+        field(:name, :string)
+        field(:email, :string)
+        field(:status, :string, default: "active")
+        field(:anonymized_at, :utc_datetime)
+        timestamps()
+      end
+
+      def changeset(user \\ %__MODULE__{}, attrs) do
+        user
+        |> Ecto.Changeset.cast(attrs, [:name, :email, :status, :anonymized_at])
+        |> Ecto.Changeset.validate_required([:name, :email])
+      end
+
+      def anonymize_changeset(user) do
+        user
+        |> Ecto.Changeset.change(%{
+          email: nil,
+          name: "Anonymous",
+          status: "anonymized",
+          anonymized_at: DateTime.utc_now()
+        })
+      end
+
+      def deactivate_changeset(user) do
+        Ecto.Changeset.change(user, status: "inactive")
+      end
+    end
+
+    defmodule AuditLog do
+      @moduledoc "Audit log entry schema"
+      use Ecto.Schema
+
+      @primary_key {:id, :binary_id, autogenerate: true}
+      embedded_schema do
+        field(:user_id, :binary_id)
+        field(:action, :string)
+        field(:details, :map)
+        timestamps()
+      end
+
+      def changeset(attrs) do
+        %__MODULE__{}
+        |> Ecto.Changeset.cast(attrs, [:user_id, :action, :details])
+        |> Ecto.Changeset.validate_required([:user_id, :action])
+      end
+    end
+
+    # ============================================================================
+    # Query Module
+    # ============================================================================
+
+    defmodule Queries do
+      @moduledoc "Query functions for the change capture example"
+
+      def find_users_by_ids(%{ids: _ids}) do
+        :handled_by_registry
+      end
+
+      def find_user_by_id(%{id: _id}) do
+        :handled_by_registry
+      end
+    end
+
+    # ============================================================================
+    # Change Capture Examples
+    # ============================================================================
+
+    @doc """
+    Anonymize users and capture all changes without persisting.
+
+    This demonstrates the core pattern:
+    1. Query users
+    2. Process each user (creating changesets)
+    3. Capture changes via `EctoFx.capture/1`
+    4. Return both processed results and captured changes
+
+    The captured changes can then be:
+    - Applied in bulk for efficiency
+    - Validated before committing
+    - Logged for audit purposes
+    - Discarded (dry-run mode)
+    """
+    defhefty anonymize_users_with_capture(user_ids) do
+      # Query users
+      users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
+
+      # Process with change capture
+      # EctoFx.capture/1 wraps the computation and collects all EctoFx.change calls
+      {anonymized_users, captured_changes} <-
+        EctoFx.capture(
+          FxList.fx_map(users, fn user ->
+            hefty do
+              # Create the anonymization changeset
+              changeset = User.anonymize_changeset(user)
+
+              # Record the change (captured, not persisted)
+              _ <- EctoFx.change(:update, changeset)
+
+              # Also record an audit log entry
+              audit_changeset =
+                AuditLog.changeset(%{
+                  user_id: user.id,
+                  action: "anonymize",
+                  details: %{original_email: user.email}
+                })
+
+              _ <- EctoFx.change(:insert, audit_changeset)
+
+              # Return the result of applying the changeset
+              return(Ecto.Changeset.apply_changes(changeset))
+            end
+          end)
+        )
+
+      return({anonymized_users, captured_changes})
+    end
+
+    @doc """
+    Process users with conditional changes based on status.
+
+    Shows how different processing logic can capture different changes.
+    """
+    defhefty process_users_conditionally(user_ids) do
+      users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
+
+      {results, changes} <-
+        EctoFx.capture(
+          FxList.fx_map(users, fn user ->
+            hefty do
+              result <-
+                case user.status do
+                  "active" ->
+                    # Deactivate active users
+                    hefty do
+                      changeset = User.deactivate_changeset(user)
+                      _ <- EctoFx.change(:update, changeset)
+                      return({:deactivated, Ecto.Changeset.apply_changes(changeset)})
+                    end
+
+                  "inactive" ->
+                    # Delete inactive users
+                    hefty do
+                      _ <- EctoFx.change(:delete, Ecto.Changeset.change(user))
+                      return({:deleted, user})
+                    end
+
+                  _ ->
+                    # No change for other statuses
+                    return({:skipped, user})
+                end
+
+              return(result)
+            end
+          end)
+        )
+
+      return(%{results: results, changes: changes})
+    end
+
+    @doc """
+    Batch user creation with change capture.
+
+    Demonstrates capturing insert changes for bulk operations.
+    """
+    defhefty create_users_batch(user_attrs_list) do
+      {users, changes} <-
+        EctoFx.capture(
+          FxList.fx_map(user_attrs_list, fn attrs ->
+            hefty do
+              changeset = User.changeset(attrs)
+
+              result <-
+                if changeset.valid? do
+                  hefty do
+                    _ <- EctoFx.change(:insert, changeset)
+                    return({:ok, Ecto.Changeset.apply_changes(changeset)})
+                  end
+                else
+                  return({:error, changeset})
+                end
+
+              return(result)
+            end
+          end)
+        )
+
+      # Separate successes and failures
+      {successes, failures} =
+        Enum.split_with(users, fn
+          {:ok, _} -> true
+          {:error, _} -> false
+        end)
+
+      return(%{
+        users: Enum.map(successes, fn {:ok, u} -> u end),
+        errors: Enum.map(failures, fn {:error, cs} -> cs end),
+        changes: changes
+      })
+    end
+
+    @doc """
+    Process users within a transaction, with change capture for audit.
+
+    Shows combining transactions with change capture - changes are captured
+    AND persisted atomically.
+    """
+    defhefty transactional_anonymize(user_ids) do
+      result <-
+        EctoFx.transaction(
+          hefty do
+            # Query and anonymize
+            users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
+
+            # Capture changes while also persisting them
+            {anonymized, changes} <-
+              EctoFx.capture(
+                FxList.fx_map(users, fn user ->
+                  hefty do
+                    changeset = User.anonymize_changeset(user)
+
+                    # Record for capture
+                    _ <- EctoFx.change(:update, changeset)
+
+                    # Also persist immediately (within transaction)
+                    updated <- EctoFx.update(changeset)
+
+                    return(updated)
+                  end
+                end)
+              )
+
+            return({anonymized, changes})
+          end
+        )
+
+      return(result)
+    end
+
+    @doc """
+    Demonstrate using captured changes with EctoFx helper functions.
+    """
+    defhefty demonstrate_change_helpers(user_ids) do
+      users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
+
+      {_processed, changes} <-
+        EctoFx.capture(
+          FxList.fx_map(users, fn user ->
+            hefty do
+              changeset = User.deactivate_changeset(user)
+              _ <- EctoFx.change(:update, changeset)
+              return(:ok)
+            end
+          end)
+        )
+
+      # Use helper functions to work with captured changes
+      # group_by_schema groups changesets by their schema module
+      grouped = EctoFx.group_by_schema(changes.updates)
+
+      # to_entries converts changesets to maps for insert_all
+      # (only works for inserts, but showing the API)
+      # entries = EctoFx.to_entries(changes.inserts)
+
+      return(%{
+        raw_changes: changes,
+        grouped_by_schema: grouped,
+        update_count: length(changes.updates),
+        insert_count: length(changes.inserts),
+        delete_count: length(changes.deletes)
+      })
+    end
+
+    # ============================================================================
+    # Builder Functions
+    # ============================================================================
+
+    @doc """
+    Build a test pipeline with stubbed data.
+
+    ## Example
+
+        users = %{
+          "user-1" => %User{id: "user-1", name: "Alice", email: "alice@test.com", status: "active"},
+          "user-2" => %User{id: "user-2", name: "Bob", email: "bob@test.com", status: "inactive"}
+        }
+
+        outcome =
+          EctoChangeCapture.test_builder(
+            EctoChangeCapture.anonymize_users_with_capture(["user-1", "user-2"]),
+            users
+          )
+          |> Run.run()
+
+        {anonymized, changes} = outcome.result
+    """
+    def test_builder(computation, users \\ %{}) do
+      state =
+        EctoFx.TestHandler.new()
+        |> stub_user_queries(users)
+
+      computation
+      |> EctoFx.TestHandler.run(state)
+      |> Lift.Algebra.run()
+      |> FxList.Algebra.run()
+      |> Throw.Handler.run()
+      |> State.Handler.run(0)
+    end
+
+    defp stub_user_queries(state, users) do
+      # Stub find_users_by_ids to return users matching the IDs
+      state
+      |> EctoFx.TestHandler.stub_query_fn(Queries, :find_users_by_ids, fn %{ids: ids} ->
+        ids
+        |> Enum.map(&Map.get(users, &1))
+        |> Enum.filter(& &1)
+      end)
+      |> EctoFx.TestHandler.stub_query_fn(Queries, :find_user_by_id, fn %{id: id} ->
+        Map.get(users, id)
+      end)
+    end
+  end
+end

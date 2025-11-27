@@ -701,7 +701,7 @@ end
 ### 3.2 Freer - let's interpret some effects in IEx
 
 We'll focus on first-order effects now - they are effects which
-_do not_ contain other effetts in their data-structure, and are simpler
+_do not_ contain other effects in their data-structure, and are simpler
 to deal with.
 
 Each computation can be seen as a sequence of steps, and Freyja uses a type
@@ -768,7 +768,7 @@ end)
 
 At the start we have `State.get()`, which is an "effect construtor" call -
 it returns an effect data structure, wrapped in a minimal `Impure`
-structure - try it our yourself in IEx:
+structure - try it out yourself in IEx:
 
 ``` elixir
 Freyja.Effects.State.get()
@@ -798,18 +798,20 @@ now you can see what the `Freer.bind` call has done - it's cheating, and hasn't
 done any work at all - it's just put the continuation function from its second
 argument at the end of the `q`
 
-The `data` in the `Impure` is an effect, it's describing some impure action 
-that the program wants to do. Let's play the interpreter, and say that our 
-`State.Get` operation is going to retrieve the value `5` - so we pass that 
-value to the first continuation in the `q`
+The `data` in the `Impure` is an effect, it's describing some impure action
+that the program wants to do. Let's play the interpreter, and say that our
+`State.Get` operation is going to retrieve the value `5` - so we pass that
+value to the first continuation in the `q` (which is `&Freer.pure/1`)
 
 ``` elixir
 freer_2 = (List.first(freer_1.q)).(5)
 # %Freyja.Freer.Pure{val: 5}
 ```
 
-Since this is just an ordinary-value in a `Pure`, we can pass it straight on
-to the next continuation in the `q`
+Since `Pure` just wraps an ordinary-value, it needs no further
+interpreation, and we can pop the first continuation from the `q` ,
+and pass the value we have - `5` - straight on to the next
+continuation from the `q`:
 
 ``` elixir
 freer_3 = (Enum.at(freer_1.q, 1)).(5)
@@ -822,7 +824,7 @@ freer_3 = (Enum.at(freer_1.q, 1)).(5)
 ```
 
 Now we've got something different! we have a new effect to interpret, and more
-sontinuations in the `q` to pass the results to... let's skip over the 
+continuations in the `q` to pass the results to... let's skip over the
 `Freer.pure` call, because we know what it's going to do, and say
 interpreting the `Ask` returns a value of `15`
 
@@ -831,27 +833,14 @@ freer_4 = (Enum.at(freer_3.q, 1)).(15)
 # %Freyja.Freer.Pure{val: 20}
 ```
 
-And there we are - we called the final continuation which was the last line of 
+And there we are - we called the final continuation which was the last line of
 the `con` block and it added together out two interpreted values and `return`ed
-the result
+the result.
 
-
-
-
-
-
-
-In actual fact, `Freer.bind(...)` cheats. If the input is `Impure`, 
-`bind` does no work and simply adds the continuation to the `q` of the 
-`Impure`
-
-
-
-
-
-
-`
-
+This is essentially what a Handler does - it pattern-matches on the `sig` and
+`data`, decides how to interpret the effect (producing an ordinary value), 
+then passes that value to the next continuation in the queue. 
+The `Freyja.Run.impl` module orchestrates this loop.
 
 ---
 

@@ -62,6 +62,15 @@ if Code.ensure_loaded?(Ecto) do
                 capture: nil,
                 next_capture_ref: 1,
                 in_transaction: false
+
+      @type t :: %__MODULE__{
+              query_stubs: map(),
+              mutation_stubs: map(),
+              operations: list(),
+              capture: map() | nil,
+              next_capture_ref: non_neg_integer(),
+              in_transaction: boolean()
+            }
     end
 
     @doc "Create a new test handler state."

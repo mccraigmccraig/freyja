@@ -36,6 +36,9 @@ if Code.ensure_loaded?(Ecto) do
     # These modules are optional dependencies - suppress undefined warnings
     @compile {:no_warn_undefined, [Ecto.Adapters.SQL, DBConnection.Holder]}
 
+    # Suppress Dialyzer warnings for optional dependency functions
+    @dialyzer {:nowarn_function, execute: 2}
+
     # ============================================================================
     # Handler State
     # ============================================================================

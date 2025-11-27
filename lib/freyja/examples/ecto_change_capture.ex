@@ -118,6 +118,121 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     # ============================================================================
+    # Per-Record Processing Functions
+    # ============================================================================
+    #
+    # These functions process individual records and can be passed to
+    # FxList.fx_map. This demonstrates effect polymorphism - each function
+    # uses whatever effects it needs, and they compose naturally with
+    # EctoFx.capture/1.
+
+    @doc """
+    Anonymize a single user and record an audit log entry.
+
+    Uses EctoFx.change/2 to record:
+    - An update change for the user anonymization
+    - An insert change for the audit log entry
+
+    Returns the anonymized user struct.
+    """
+    defhefty anonymize_user(user) do
+      changeset = User.anonymize_changeset(user)
+
+      # Record the change (captured, not persisted)
+      _ <- EctoFx.change(:update, changeset)
+
+      # Also record an audit log entry
+      audit_changeset =
+        AuditLog.changeset(%{
+          user_id: user.id,
+          action: "anonymize",
+          details: %{original_email: user.email}
+        })
+
+      _ <- EctoFx.change(:insert, audit_changeset)
+
+      # Return the result of applying the changeset
+      return(Ecto.Changeset.apply_changes(changeset))
+    end
+
+    @doc """
+    Process a user based on their status.
+
+    - Active users are deactivated (update change)
+    - Inactive users are deleted (delete change)
+    - Other statuses are skipped (no change)
+
+    Returns a tagged tuple indicating what action was taken.
+    """
+    defhefty process_user_by_status(user) do
+      case user.status do
+        "active" ->
+          hefty do
+            changeset = User.deactivate_changeset(user)
+            _ <- EctoFx.change(:update, changeset)
+            return({:deactivated, Ecto.Changeset.apply_changes(changeset)})
+          end
+
+        "inactive" ->
+          hefty do
+            _ <- EctoFx.change(:delete, Ecto.Changeset.change(user))
+            return({:deleted, user})
+          end
+
+        _ ->
+          return({:skipped, user})
+      end
+    end
+
+    @doc """
+    Create a user from attributes if valid.
+
+    Records an insert change if the changeset is valid, otherwise
+    returns an error tuple with the invalid changeset.
+    """
+    defhefty create_user_if_valid(attrs) do
+      changeset = User.changeset(attrs)
+
+      if changeset.valid? do
+        hefty do
+          _ <- EctoFx.change(:insert, changeset)
+          return({:ok, Ecto.Changeset.apply_changes(changeset)})
+        end
+      else
+        return({:error, changeset})
+      end
+    end
+
+    @doc """
+    Anonymize a user and persist immediately.
+
+    Records the change for capture AND persists it via EctoFx.update/1.
+    Useful when you want both audit trail and immediate persistence.
+    """
+    defhefty anonymize_and_persist(user) do
+      changeset = User.anonymize_changeset(user)
+
+      # Record for capture
+      _ <- EctoFx.change(:update, changeset)
+
+      # Also persist immediately (within transaction)
+      updated <- EctoFx.update(changeset)
+
+      return(updated)
+    end
+
+    @doc """
+    Deactivate a user and record the change.
+
+    Simple processing function that records a single update change.
+    """
+    defhefty deactivate_user(user) do
+      changeset = User.deactivate_changeset(user)
+      _ <- EctoFx.change(:update, changeset)
+      return(:ok)
+    end
+
+    # ============================================================================
     # Change Capture Examples
     # ============================================================================
 
@@ -126,7 +241,7 @@ if Code.ensure_loaded?(Ecto) do
 
     This demonstrates the core pattern:
     1. Query users
-    2. Process each user (creating changesets)
+    2. Process each user with `anonymize_user/1`
     3. Capture changes via `EctoFx.capture/1`
     4. Return both processed results and captured changes
 
@@ -137,36 +252,11 @@ if Code.ensure_loaded?(Ecto) do
     - Discarded (dry-run mode)
     """
     defhefty anonymize_users_with_capture(user_ids) do
-      # Query users
       users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
-      # Process with change capture
       # EctoFx.capture/1 wraps the computation and collects all EctoFx.change calls
       {anonymized_users, captured_changes} <-
-        EctoFx.capture(
-          FxList.fx_map(users, fn user ->
-            hefty do
-              # Create the anonymization changeset
-              changeset = User.anonymize_changeset(user)
-
-              # Record the change (captured, not persisted)
-              _ <- EctoFx.change(:update, changeset)
-
-              # Also record an audit log entry
-              audit_changeset =
-                AuditLog.changeset(%{
-                  user_id: user.id,
-                  action: "anonymize",
-                  details: %{original_email: user.email}
-                })
-
-              _ <- EctoFx.change(:insert, audit_changeset)
-
-              # Return the result of applying the changeset
-              return(Ecto.Changeset.apply_changes(changeset))
-            end
-          end)
-        )
+        EctoFx.capture(FxList.fx_map(users, &anonymize_user/1))
 
       return({anonymized_users, captured_changes})
     end
@@ -174,41 +264,14 @@ if Code.ensure_loaded?(Ecto) do
     @doc """
     Process users with conditional changes based on status.
 
-    Shows how different processing logic can capture different changes.
+    Uses `process_user_by_status/1` which applies different logic based
+    on each user's status field.
     """
     defhefty process_users_conditionally(user_ids) do
       users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
       {results, changes} <-
-        EctoFx.capture(
-          FxList.fx_map(users, fn user ->
-            hefty do
-              result <-
-                case user.status do
-                  "active" ->
-                    # Deactivate active users
-                    hefty do
-                      changeset = User.deactivate_changeset(user)
-                      _ <- EctoFx.change(:update, changeset)
-                      return({:deactivated, Ecto.Changeset.apply_changes(changeset)})
-                    end
-
-                  "inactive" ->
-                    # Delete inactive users
-                    hefty do
-                      _ <- EctoFx.change(:delete, Ecto.Changeset.change(user))
-                      return({:deleted, user})
-                    end
-
-                  _ ->
-                    # No change for other statuses
-                    return({:skipped, user})
-                end
-
-              return(result)
-            end
-          end)
-        )
+        EctoFx.capture(FxList.fx_map(users, &process_user_by_status/1))
 
       return(%{results: results, changes: changes})
     end
@@ -216,29 +279,12 @@ if Code.ensure_loaded?(Ecto) do
     @doc """
     Batch user creation with change capture.
 
-    Demonstrates capturing insert changes for bulk operations.
+    Uses `create_user_if_valid/1` to validate each set of attributes
+    and capture insert changes only for valid users.
     """
     defhefty create_users_batch(user_attrs_list) do
       {users, changes} <-
-        EctoFx.capture(
-          FxList.fx_map(user_attrs_list, fn attrs ->
-            hefty do
-              changeset = User.changeset(attrs)
-
-              result <-
-                if changeset.valid? do
-                  hefty do
-                    _ <- EctoFx.change(:insert, changeset)
-                    return({:ok, Ecto.Changeset.apply_changes(changeset)})
-                  end
-                else
-                  return({:error, changeset})
-                end
-
-              return(result)
-            end
-          end)
-        )
+        EctoFx.capture(FxList.fx_map(user_attrs_list, &create_user_if_valid/1))
 
       # Separate successes and failures
       {successes, failures} =
@@ -257,33 +303,17 @@ if Code.ensure_loaded?(Ecto) do
     @doc """
     Process users within a transaction, with change capture for audit.
 
-    Shows combining transactions with change capture - changes are captured
-    AND persisted atomically.
+    Uses `anonymize_and_persist/1` which both captures changes AND
+    persists them immediately within the transaction.
     """
     defhefty transactional_anonymize(user_ids) do
       result <-
         EctoFx.transaction(
           hefty do
-            # Query and anonymize
             users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
-            # Capture changes while also persisting them
             {anonymized, changes} <-
-              EctoFx.capture(
-                FxList.fx_map(users, fn user ->
-                  hefty do
-                    changeset = User.anonymize_changeset(user)
-
-                    # Record for capture
-                    _ <- EctoFx.change(:update, changeset)
-
-                    # Also persist immediately (within transaction)
-                    updated <- EctoFx.update(changeset)
-
-                    return(updated)
-                  end
-                end)
-              )
+              EctoFx.capture(FxList.fx_map(users, &anonymize_and_persist/1))
 
             return({anonymized, changes})
           end
@@ -294,20 +324,15 @@ if Code.ensure_loaded?(Ecto) do
 
     @doc """
     Demonstrate using captured changes with EctoFx helper functions.
+
+    Uses `deactivate_user/1` to process users, then shows how to
+    work with the captured changes using helper functions.
     """
     defhefty demonstrate_change_helpers(user_ids) do
       users <- EctoFx.query(Queries, :find_users_by_ids, %{ids: user_ids})
 
       {_processed, changes} <-
-        EctoFx.capture(
-          FxList.fx_map(users, fn user ->
-            hefty do
-              changeset = User.deactivate_changeset(user)
-              _ <- EctoFx.change(:update, changeset)
-              return(:ok)
-            end
-          end)
-        )
+        EctoFx.capture(FxList.fx_map(users, &deactivate_user/1))
 
       # Use helper functions to work with captured changes
       # group_by_schema groups changesets by their schema module

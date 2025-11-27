@@ -1,4 +1,75 @@
 if Code.ensure_loaded?(Ecto) do
+  # ============================================================================
+  # Internal Operations Module (defined first due to compile-time struct usage)
+  # ============================================================================
+
+  defmodule Freyja.Effects.EctoFx.Internal do
+    @moduledoc """
+    Internal effect operations for EctoFx.
+
+    **This module is not part of the public API.** These operations are used
+    internally by the EctoFx algebra to elaborate higher-order operations
+    (transaction, capture) into first-order effects.
+
+    Do not use these operations directly in application code - use the
+    higher-order operations `EctoFx.transaction/2` and `EctoFx.capture/1` instead.
+    """
+
+    import Freyja.Freer.Sig.DefEffectStruct
+    alias Freyja.Freer
+
+    # Transaction control
+    def_effect_struct(BeginTransaction, opts: [])
+    def_effect_struct(CommitTransaction, [])
+    def_effect_struct(RollbackTransaction, [])
+
+    # Capture control
+    def_effect_struct(BeginCapture, [])
+    def_effect_struct(FinishCapture, ref: nil, mode: :commit)
+
+    @typedoc "Repo operation options"
+    @type opts :: keyword()
+
+    @doc false
+    @spec begin_transaction(opts()) :: Freer.t()
+    def begin_transaction(opts \\ []) do
+      %BeginTransaction{opts: opts}
+      |> Freer.send_effect()
+    end
+
+    @doc false
+    @spec commit_transaction() :: Freer.t()
+    def commit_transaction do
+      %CommitTransaction{}
+      |> Freer.send_effect()
+    end
+
+    @doc false
+    @spec rollback_transaction() :: Freer.t()
+    def rollback_transaction do
+      %RollbackTransaction{}
+      |> Freer.send_effect()
+    end
+
+    @doc false
+    @spec begin_capture() :: Freer.t()
+    def begin_capture do
+      %BeginCapture{}
+      |> Freer.send_effect()
+    end
+
+    @doc false
+    @spec finish_capture(non_neg_integer(), :commit | :abort) :: Freer.t()
+    def finish_capture(ref, mode) when mode in [:commit, :abort] do
+      %FinishCapture{ref: ref, mode: mode}
+      |> Freer.send_effect()
+    end
+  end
+
+  # ============================================================================
+  # Main EctoFx Module
+  # ============================================================================
+
   defmodule Freyja.Effects.EctoFx do
     @moduledoc """
     Unified Ecto effect combining Query, Mutate, Changes, and Transaction.
@@ -97,6 +168,7 @@ if Code.ensure_loaded?(Ecto) do
     alias Freyja.Freer.Impl
     alias Freyja.Freer.Impure
     alias Freyja.Run.RunState
+    alias Freyja.Effects.EctoFx.Internal
 
     @behaviour Freyja.Hefty.Algebra
     @behaviour Freyja.Freer.EffectHandler
@@ -121,15 +193,6 @@ if Code.ensure_loaded?(Ecto) do
 
     # Change recording
     def_effect_struct(Change, op: nil, changeset: nil)
-
-    # Transaction control (internal, used by Algebra)
-    def_effect_struct(BeginTransaction, opts: [])
-    def_effect_struct(CommitTransaction, [])
-    def_effect_struct(RollbackTransaction, [])
-
-    # Capture control (internal, used by Algebra)
-    def_effect_struct(BeginCapture, [])
-    def_effect_struct(FinishCapture, ref: nil, mode: :commit)
 
     # Higher-order operations
     def_hefty_struct(Transaction, opts: [])
@@ -369,45 +432,6 @@ if Code.ensure_loaded?(Ecto) do
     end
 
     # ============================================================================
-    # Internal Operations (used by Algebra)
-    # ============================================================================
-
-    @doc false
-    @spec begin_transaction(opts()) :: Freer.t()
-    def begin_transaction(opts \\ []) do
-      %BeginTransaction{opts: opts}
-      |> Freer.send_effect()
-    end
-
-    @doc false
-    @spec commit_transaction() :: Freer.t()
-    def commit_transaction do
-      %CommitTransaction{}
-      |> Freer.send_effect()
-    end
-
-    @doc false
-    @spec rollback_transaction() :: Freer.t()
-    def rollback_transaction do
-      %RollbackTransaction{}
-      |> Freer.send_effect()
-    end
-
-    @doc false
-    @spec begin_capture() :: Freer.t()
-    def begin_capture do
-      %BeginCapture{}
-      |> Freer.send_effect()
-    end
-
-    @doc false
-    @spec finish_capture(non_neg_integer(), :commit | :abort) :: Freer.t()
-    def finish_capture(ref, mode) when mode in [:commit, :abort] do
-      %FinishCapture{ref: ref, mode: mode}
-      |> Freer.send_effect()
-    end
-
-    # ============================================================================
     # Helper Functions (pure, not effects)
     # ============================================================================
 
@@ -609,10 +633,13 @@ if Code.ensure_loaded?(Ecto) do
     # ============================================================================
 
     @impl Freyja.Freer.EffectHandler
-    def handles?(%Impure{sig: sig}, _state), do: sig == __MODULE__
+    def handles?(%Impure{sig: sig}, _state) do
+      sig == __MODULE__ or sig == Freyja.Effects.EctoFx.Internal
+    end
 
     @impl Freyja.Freer.EffectHandler
-    def interpret(%Impure{sig: __MODULE__, data: op, q: q}, _handler_key, state, %RunState{}) do
+    def interpret(%Impure{sig: sig, data: op, q: q}, _handler_key, state, %RunState{})
+        when sig == __MODULE__ or sig == Freyja.Effects.EctoFx.Internal do
       {result, new_state} = execute(state, op)
 
       case result do
@@ -735,55 +762,55 @@ if Code.ensure_loaded?(Ecto) do
     # Future enhancement: Use DBConnection.run/3 to acquire a connection and
     # pass it via the :conn option to all Repo operations within the transaction.
 
-    defp execute(%State{conn: nil} = state, %BeginTransaction{opts: _opts}) do
+    defp execute(%State{conn: nil} = state, %Internal.BeginTransaction{opts: _opts}) do
       # Mark that we're in a transaction (semantic tracking for now)
       # TODO: Implement proper connection acquisition when db_connection is available
       {{:ok, :ok}, %{state | conn: :in_transaction}}
     end
 
-    defp execute(%State{conn: :in_transaction} = _state, %BeginTransaction{}) do
+    defp execute(%State{conn: :in_transaction} = _state, %Internal.BeginTransaction{}) do
       raise RuntimeError, "Nested transactions are not supported"
     end
 
-    defp execute(%State{conn: :in_transaction} = state, %CommitTransaction{}) do
+    defp execute(%State{conn: :in_transaction} = state, %Internal.CommitTransaction{}) do
       # TODO: Implement proper commit when using real connection
       {{:ok, :ok}, %{state | conn: nil}}
     end
 
-    defp execute(%State{conn: nil} = _state, %CommitTransaction{}) do
+    defp execute(%State{conn: nil} = _state, %Internal.CommitTransaction{}) do
       raise RuntimeError, "CommitTransaction called outside of transaction"
     end
 
-    defp execute(%State{conn: :in_transaction} = state, %RollbackTransaction{}) do
+    defp execute(%State{conn: :in_transaction} = state, %Internal.RollbackTransaction{}) do
       # TODO: Implement proper rollback when using real connection
       {{:ok, :ok}, %{state | conn: nil}}
     end
 
-    defp execute(%State{conn: nil} = _state, %RollbackTransaction{}) do
+    defp execute(%State{conn: nil} = _state, %Internal.RollbackTransaction{}) do
       raise RuntimeError, "RollbackTransaction called outside of transaction"
     end
 
     # Capture control
-    defp execute(%State{capture: %{}} = _state, %BeginCapture{}) do
+    defp execute(%State{capture: %{}} = _state, %Internal.BeginCapture{}) do
       raise ArgumentError, "EctoFx.capture is already active - nested captures not supported"
     end
 
-    defp execute(%State{next_capture_ref: ref} = state, %BeginCapture{}) do
+    defp execute(%State{next_capture_ref: ref} = state, %Internal.BeginCapture{}) do
       capture = %{ref: ref, inserts: [], updates: [], deletes: []}
       {{:ok, ref}, %{state | capture: capture, next_capture_ref: ref + 1}}
     end
 
-    defp execute(%State{capture: nil} = _state, %FinishCapture{}) do
+    defp execute(%State{capture: nil} = _state, %Internal.FinishCapture{}) do
       raise ArgumentError, "EctoFx.capture stack underflow"
     end
 
-    defp execute(%State{capture: %{ref: active_ref}} = _state, %FinishCapture{ref: ref})
+    defp execute(%State{capture: %{ref: active_ref}} = _state, %Internal.FinishCapture{ref: ref})
          when ref != active_ref do
       raise ArgumentError,
             "EctoFx.capture closed out of order: expected ref #{active_ref}, got #{ref}"
     end
 
-    defp execute(%State{capture: capture} = state, %FinishCapture{mode: :commit}) do
+    defp execute(%State{capture: capture} = state, %Internal.FinishCapture{mode: :commit}) do
       result = %{
         inserts: Enum.reverse(capture.inserts),
         updates: Enum.reverse(capture.updates),
@@ -793,7 +820,7 @@ if Code.ensure_loaded?(Ecto) do
       {{:ok, result}, %{state | capture: nil}}
     end
 
-    defp execute(%State{} = state, %FinishCapture{mode: :abort}) do
+    defp execute(%State{} = state, %Internal.FinishCapture{mode: :abort}) do
       empty_result = %{inserts: [], updates: [], deletes: []}
       {{:ok, empty_result}, %{state | capture: nil}}
     end
@@ -860,13 +887,13 @@ if Code.ensure_loaded?(Ecto) do
       use Freyja.Syntax
 
       con do
-        _ <- begin_transaction(opts)
+        _ <- Internal.begin_transaction(opts)
 
         # Interpose on Throw to rollback on error
         guarded_inner = attach_rollback_on_throw(inner)
 
         result <- guarded_inner
-        _ <- commit_transaction()
+        _ <- Internal.commit_transaction()
         k.(result)
       end
     end
@@ -877,13 +904,13 @@ if Code.ensure_loaded?(Ecto) do
       use Freyja.Syntax
 
       con do
-        ref <- begin_capture()
+        ref <- Internal.begin_capture()
 
         # Interpose on Throw to abort capture on error
         guarded_inner = attach_abort_on_throw(inner, ref)
 
         result <- guarded_inner
-        changes <- finish_capture(ref, :commit)
+        changes <- Internal.finish_capture(ref, :commit)
         k.({result, changes})
       end
     end
@@ -897,7 +924,7 @@ if Code.ensure_loaded?(Ecto) do
 
       Interpose.interpose_with(inner, Throw, fn %ThrowOp{error: err}, _cont ->
         con do
-          _ <- rollback_transaction()
+          _ <- Internal.rollback_transaction()
           Throw.throw_error(err)
         end
       end)
@@ -912,7 +939,7 @@ if Code.ensure_loaded?(Ecto) do
 
       Interpose.interpose_with(inner, Throw, fn %ThrowOp{error: err}, _cont ->
         con do
-          _ <- finish_capture(ref, :abort)
+          _ <- Internal.finish_capture(ref, :abort)
           Throw.throw_error(err)
         end
       end)
@@ -957,8 +984,15 @@ if Code.ensure_loaded?(Ecto) do
     alias Freyja.Effects.EctoFx.{Insert, Update, Delete, InsertOrUpdate}
     alias Freyja.Effects.EctoFx.{InsertAll, UpdateAll, DeleteAll}
     alias Freyja.Effects.EctoFx.Change
-    alias Freyja.Effects.EctoFx.{BeginCapture, FinishCapture}
-    alias Freyja.Effects.EctoFx.{BeginTransaction, CommitTransaction, RollbackTransaction}
+    alias Freyja.Effects.EctoFx.Internal
+    alias Freyja.Effects.EctoFx.Internal.{BeginCapture, FinishCapture}
+
+    alias Freyja.Effects.EctoFx.Internal.{
+      BeginTransaction,
+      CommitTransaction,
+      RollbackTransaction
+    }
+
     alias Freyja.Effects.Throw
     alias Freyja.Freer.Impl
     alias Freyja.Freer.Impure
@@ -1024,10 +1058,11 @@ if Code.ensure_loaded?(Ecto) do
 
     # Handler implementation
     @impl Freyja.Freer.EffectHandler
-    def handles?(%Impure{sig: sig}, _state), do: sig == EctoEffect
+    def handles?(%Impure{sig: sig}, _state), do: sig == EctoEffect or sig == Internal
 
     @impl Freyja.Freer.EffectHandler
-    def interpret(%Impure{sig: EctoEffect, data: op, q: q}, _handler_key, state, %RunState{}) do
+    def interpret(%Impure{sig: sig, data: op, q: q}, _handler_key, state, %RunState{})
+        when sig == EctoEffect or sig == Internal do
       {result, new_state} = execute(state, op)
 
       case result do

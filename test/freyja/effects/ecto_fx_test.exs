@@ -795,9 +795,9 @@ defmodule Freyja.Effects.EctoFxTest do
   defp op_type(%EctoFx.UpdateAll{}), do: :update_all
   defp op_type(%EctoFx.DeleteAll{}), do: :delete_all
   defp op_type(%EctoFx.Change{}), do: :change
-  defp op_type(%EctoFx.BeginTransaction{}), do: :begin_transaction
-  defp op_type(%EctoFx.CommitTransaction{}), do: :commit_transaction
-  defp op_type(%EctoFx.RollbackTransaction{}), do: :rollback_transaction
-  defp op_type(%EctoFx.BeginCapture{}), do: :begin_capture
-  defp op_type(%EctoFx.FinishCapture{}), do: :finish_capture
+  defp op_type(%EctoFx.Internal.BeginTransaction{}), do: :begin_transaction
+  defp op_type(%EctoFx.Internal.CommitTransaction{}), do: :commit_transaction
+  defp op_type(%EctoFx.Internal.RollbackTransaction{}), do: :rollback_transaction
+  defp op_type(%EctoFx.Internal.BeginCapture{}), do: :begin_capture
+  defp op_type(%EctoFx.Internal.FinishCapture{}), do: :finish_capture
 end

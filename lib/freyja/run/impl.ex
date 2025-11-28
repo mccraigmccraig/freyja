@@ -13,7 +13,6 @@ defmodule Freyja.Run.Impl do
   alias Freyja.Freer
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Pure
-  alias Freyja.Freer.Sig.ISendable
   alias Freyja.Run.RunState
   alias Freyja.Run.RunOutcome
 
@@ -29,10 +28,6 @@ defmodule Freyja.Run.Impl do
       when is_struct(computation, Pure) or is_struct(computation, Impure) do
     initialized_run_state = initialize(computation, run_state)
     do_run(computation, initialized_run_state)
-  end
-
-  def run_with_state(computation, %RunState{} = run_state) do
-    ISendable.send(computation) |> run_with_state(run_state)
   end
 
   @doc """
@@ -81,9 +76,6 @@ defmodule Freyja.Run.Impl do
     # it's %Pure{} now
     do_run(new_computation, updated_run_state)
   end
-
-  # ISendable lets us treat plain structs as Freer values
-  def do_run(sendable, run_state), do: ISendable.send(sendable) |> do_run(run_state)
 
   @doc """
   Initialize handler states before computation starts.
@@ -160,9 +152,6 @@ defmodule Freyja.Run.Impl do
 
     interpret(new_computation, updated_run_state)
   end
-
-  def interpret(computation, %RunState{} = run_state),
-    do: interpret(computation |> ISendable.send(), run_state)
 
   @doc """
   Interpret a single effect.

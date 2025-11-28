@@ -1,15 +1,13 @@
 defmodule Freyja.Freer.Sig.DefEffectStruct do
   @moduledoc """
-  the def_effect_stfuct macro to define an effect
-  signature struct and make it ISendable in a single
-  call
+  The def_effect_struct macro to define an effect signature struct
+  with ISignature implementation for signature lookup.
   """
   defmacro def_effect_struct(mod, struct_args \\ []) do
     sig = __CALLER__.module
 
     quote do
       defmodule unquote(mod) do
-        use Freyja.Freer.Sig.Sendable, sig: unquote(sig)
         use Freyja.Freer.Sig.Signature, sig: unquote(sig)
         defstruct unquote(struct_args)
       end

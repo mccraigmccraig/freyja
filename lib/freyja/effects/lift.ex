@@ -100,10 +100,6 @@ defmodule Freyja.Effects.Lift do
       %{}
     )
   end
-
-  def lift(freer_comp) do
-    Freyja.Freer.Sig.ISendable.send(freer_comp) |> lift()
-  end
 end
 
 defmodule Freyja.Effects.Lift.Algebra do

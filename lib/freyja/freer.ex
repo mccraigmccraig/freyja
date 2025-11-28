@@ -10,7 +10,6 @@ defmodule Freyja.Freer do
   require Logger
 
   alias Freyja.Freer
-  alias Freyja.Freer.Sig.ISendable
   alias Freyja.Freer.Sig.ISignature
 
   # Freer values are %Pure{} and %Impure{}
@@ -34,9 +33,7 @@ defmodule Freyja.Freer do
           }
   end
 
-  # this is terrible - but there's no way of specifying
-  # the ISendable Protocol constraint in typespecs afaics
-  @type freer() :: %Pure{} | %Impure{} | any
+  @type freer() :: %Pure{} | %Impure{}
   @type t() :: freer()
 
   def freer?(%Pure{}), do: true
@@ -81,10 +78,6 @@ defmodule Freyja.Freer do
   def bind(%Impure{sig: sig, data: u, q: q}, k),
     do: %Impure{sig: sig, data: u, q: Freyja.Freer.Impl.q_append(q, k)}
 
-  # this allows plain Sendable structs to behave just like Freer values
-  # which have been sent with `etaf` / `send_effect`
-  def bind(sendable, k), do: ISendable.send(sendable) |> bind(k)
-
   @doc """
   Monadic bind operator (>>=/2).
 
@@ -106,22 +99,5 @@ defmodule Freyja.Freer do
   @spec freer() ~>> (any -> freer()) :: freer()
   def computation ~>> continuation do
     bind(computation, continuation)
-  end
-end
-
-defimpl Freyja.Freer.Sig.ISendable, for: Freyja.Freer.Pure do
-  def send(eff), do: eff
-end
-
-defimpl Freyja.Freer.Sig.ISendable, for: Freyja.Freer.Impure do
-  def send(eff), do: eff
-end
-
-defimpl Freyja.Freer.Sig.ISendable, for: Any do
-  def send(eff) do
-    raise ArgumentError,
-      message:
-        "#{__MODULE__}.send - not Sendable: #{inspect(eff, pretty: true)} - " <>
-          "do you need to return() ?"
   end
 end

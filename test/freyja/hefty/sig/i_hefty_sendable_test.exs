@@ -73,38 +73,42 @@ defmodule Freyja.Hefty.Sig.IHeftySendableTest do
   end
 
   describe "send_to_hefty/1 - unsupported types" do
-    test "plain value raises helpful error from ISendable" do
-      assert_raise ArgumentError, ~r/not Sendable.*do you need to return/, fn ->
-        IHeftySendable.send_to_hefty(42)
+    # Helper to bypass type checking for intentionally invalid inputs
+    defp send_invalid(value), do: IHeftySendable.send_to_hefty(value)
+
+    test "plain value raises Protocol.UndefinedError" do
+      assert_raise Protocol.UndefinedError, ~r/IHeftySendable not implemented/, fn ->
+        send_invalid(42)
       end
     end
 
-    test "plain map raises helpful error from ISendable" do
-      assert_raise ArgumentError, ~r/not Sendable.*do you need to return/, fn ->
-        IHeftySendable.send_to_hefty(%{not: :a_computation})
+    test "plain map raises Protocol.UndefinedError" do
+      assert_raise Protocol.UndefinedError, ~r/IHeftySendable not implemented/, fn ->
+        send_invalid(%{not: :a_computation})
       end
     end
 
-    test "plain list raises helpful error from ISendable" do
-      assert_raise ArgumentError, ~r/not Sendable.*do you need to return/, fn ->
-        IHeftySendable.send_to_hefty([1, 2, 3])
+    test "plain list raises Protocol.UndefinedError" do
+      assert_raise Protocol.UndefinedError, ~r/IHeftySendable not implemented/, fn ->
+        send_invalid([1, 2, 3])
       end
     end
 
-    test "arbitrary struct raises helpful error from ISendable" do
-      assert_raise ArgumentError, ~r/not Sendable.*do you need to return/, fn ->
-        IHeftySendable.send_to_hefty(%NotAnEffect{data: :value})
+    test "arbitrary struct raises Protocol.UndefinedError" do
+      assert_raise Protocol.UndefinedError, ~r/IHeftySendable not implemented/, fn ->
+        send_invalid(%NotAnEffect{data: :value})
       end
     end
 
-    test "error message suggests using return()" do
+    test "error message lists implemented types" do
       error =
-        assert_raise ArgumentError, fn ->
-          IHeftySendable.send_to_hefty(:atom)
+        assert_raise Protocol.UndefinedError, fn ->
+          send_invalid(:atom)
         end
 
-      assert error.message =~ "not Sendable"
-      assert error.message =~ "do you need to return()"
+      message = Exception.message(error)
+      assert message =~ "IHeftySendable"
+      assert message =~ "not implemented"
     end
   end
 

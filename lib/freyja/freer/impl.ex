@@ -7,7 +7,6 @@ defmodule Freyja.Freer.Impl do
 
   alias Freyja.Freer
   alias Freyja.Freer.{Pure, Impure}
-  alias Freyja.Freer.Sig.ISendable
 
   @doc """
   add a continuation `mf` to a queue of continuations `q`
@@ -36,16 +35,13 @@ defmodule Freyja.Freer.Impl do
   def q_concat(qa, qb), do: Enum.concat(qa, qb)
 
   @doc """
-  apply value `x` to a queue `q` of continuations, returning a Freer value.
-  Uses the Sendable.send protocol method to convert a plain effect value
-  to a Freer - so effects can also be plain struct values with a
-  Sendable.send implementation
+  Apply value `x` to a queue `q` of continuations, returning a Freer value.
 
   Applies a value through the list of continuations until it gets an %Impure{},
   then adds any remaining continuations from `q` to that %Impure{}'s queue.
 
   If an exception occurs during continuation application, it will be caught
-  and converted to an Error effect (if Error handler is available in the current
+  and converted to a Throw effect (if Throw handler is available in the current
   context).
   """
   @spec q_apply([(any -> Freer.freer())], any) :: Freer.freer()
@@ -82,7 +78,6 @@ defmodule Freyja.Freer.Impl do
 
     # Create and return Throw effect
     Freyja.Effects.Throw.throw_error(error_data)
-    |> ISendable.send()
   end
 
   # bind continuation queue `k` to Freer value `mx`, returning a new `Freer` value
@@ -92,7 +87,6 @@ defmodule Freyja.Freer.Impl do
     case mx do
       %Pure{val: y} -> q_apply(k, y)
       %Impure{sig: sig, data: u, q: q} -> %Impure{sig: sig, data: u, q: q_concat(q, k)}
-      sendable -> ISendable.send(sendable) |> bindp(k)
     end
   end
 

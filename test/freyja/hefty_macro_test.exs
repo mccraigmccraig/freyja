@@ -317,21 +317,22 @@ defmodule Freyja.HeftyMacroTest do
   end
 
   describe "hefty macro - error cases" do
-    test "using unsupported type in bind raises ISendable error" do
-      # Delegates to ISendable.Any which gives helpful error
-      assert_raise ArgumentError, ~r/not Sendable.*do you need to return/, fn ->
+    test "using unsupported type in bind raises Protocol.UndefinedError" do
+      # No IHeftySendable implementation for Atom
+      assert_raise Protocol.UndefinedError, ~r/IHeftySendable not implemented/, fn ->
         Hefty.bind(:not_a_computation, fn x -> Hefty.pure(x) end)
       end
     end
 
-    test "helpful error when struct doesn't implement ISendable" do
+    test "helpful error when struct doesn't implement IHeftySendable" do
       error =
-        assert_raise ArgumentError, fn ->
+        assert_raise Protocol.UndefinedError, fn ->
           Hefty.bind(%CustomStruct{value: 42}, fn x -> Hefty.pure(x) end)
         end
 
-      assert error.message =~ "not Sendable"
-      assert error.message =~ "do you need to return()"
+      message = Exception.message(error)
+      assert message =~ "IHeftySendable"
+      assert message =~ "not implemented"
     end
   end
 

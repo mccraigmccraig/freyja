@@ -6,7 +6,6 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
 
   ## Differences from def_effect_struct
 
-  - Does NOT implement `Freyja.Freer.Sig.Sendable` (higher-order ops can't be sent to Freer)
   - DOES implement `Freyja.Hefty.Sig.IHeftySendable` (via `HeftySendable`)
   - Creates struct definition with automatic protocol implementation
   - Adds documentation marking it as higher-order
@@ -82,8 +81,6 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
       end
   """
   defmacro def_hefty_struct(name, fields) do
-    sig = __CALLER__.module
-
     quote do
       defmodule unquote(name) do
         @moduledoc """
@@ -95,7 +92,6 @@ defmodule Freyja.Hefty.Sig.DefHeftyStruct do
 
         See `Freyja.Hefty.Algebra` for how to define elaboration algebras.
         """
-        use Freyja.Freer.Sig.Sendable, sig: unquote(sig)
         use Freyja.Hefty.Sig.HeftySendable
 
         defstruct unquote(fields)

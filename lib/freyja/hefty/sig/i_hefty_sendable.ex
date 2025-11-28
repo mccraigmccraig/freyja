@@ -1,6 +1,4 @@
 defprotocol Freyja.Hefty.Sig.IHeftySendable do
-  @fallback_to_any true
-
   @moduledoc """
   Protocol for converting values to Hefty computations.
 
@@ -10,7 +8,7 @@ defprotocol Freyja.Hefty.Sig.IHeftySendable do
 
   ## Design Philosophy
 
-  Similar to `Freyja.Freer.Sig.ISendable` for Freer, this protocol:
+  This protocol:
   - Determines what can be used in Hefty computations
   - Enables auto-lifting of Freer effects via Lift
   - Throws clear errors for unsupported types (NO Any fallback!)
@@ -59,20 +57,9 @@ defprotocol Freyja.Hefty.Sig.IHeftySendable do
   - You're using the wrong computation type
   - You have a struct that should be an effect but isn't properly defined
 
-  ## Comparison with Freer.Sig.ISendable
-
-  | Protocol | Freyja.Freer.Sig.ISendable | Freyja.Hefty.Sig.IHeftySendable |
-  |----------|----------------------|---------------------------------|
-  | Module   | ISendable            | IHeftySendable                  |
-  | Method   | `send/2`             | `send_to_hefty/1`           |
-  | Purpose  | Create Freer.Impure  | Convert to Hefty            |
-  | Fallback | Error (no Any impl)  | Error (no Any impl)         |
-  | Used by  | Freer effects        | Auto-lifting in Hefty       |
-
   ## See Also
 
-  - `Freyja.Freer.Sig.ISendable` - Protocol for first-order effects
-  - `Freyja.Hefty.Effects.Lift` - Bridges Freer to Hefty
+  - `Freyja.Effects.Lift` - Bridges Freer to Hefty
   - `Freyja.Hefty.bind/2` - Uses protocol for auto-lifting
   """
 
@@ -189,33 +176,5 @@ defimpl Freyja.Hefty.Sig.IHeftySendable, for: Freyja.Freer.Impure do
 
   def send_to_hefty(freer_impure) do
     Lift.lift(freer_impure)
-  end
-end
-
-# Any - try to send via Freer.Sig.ISendable, then lift
-# This handles first-order effect operation structs like %State.Get{}
-defimpl Freyja.Hefty.Sig.IHeftySendable, for: Any do
-  @moduledoc """
-  Fallback for types that might be first-order effect operations.
-
-  Attempts to convert via Freyja.Freer.Sig.ISendable (first-order effects),
-  then lift the resulting Freer to Hefty.
-
-  This allows bare effect operation structs (like %State.Get{}, %Reader.Ask{})
-  to work in hefty blocks without manual wrapping.
-
-  If the value doesn't implement ISendable, delegates to ISendable's Any
-  implementation which throws a helpful error: "not Sendable - do you need to return()?"
-  """
-
-  alias Freyja.Effects.Lift
-  alias Freyja.Freer.Sig.ISendable
-
-  def send_to_hefty(value) do
-    # Try to send as first-order effect
-    # If not sendable, ISendable.Any will raise helpful error
-    freer = ISendable.send(value)
-    # Then lift to Hefty
-    Lift.lift(freer)
   end
 end

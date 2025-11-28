@@ -2,8 +2,7 @@ defmodule Freyja.Hefty.Sig.HeftySendable do
   @moduledoc """
   Use this module to make your struct module IHeftySendable.
 
-  Similar to `Freyja.Freer.Sig.Sendable` for first-order effects, but for higher-order
-  Hefty effect operations.
+  This is for higher-order Hefty effect operations.
 
   ## Usage
 
@@ -11,7 +10,7 @@ defmodule Freyja.Hefty.Sig.HeftySendable do
         defmodule Catch do
           defstruct [type: :any]
 
-          use Freyja.Hefty.Sig.HeftySendable, sig: Freyja.Effects.Catch
+          use Freyja.Hefty.Sig.HeftySendable
         end
       end
 
@@ -26,7 +25,6 @@ defmodule Freyja.Hefty.Sig.HeftySendable do
 
   ## See Also
 
-  - `Freyja.Freer.Sig.Sendable` - Similar module for first-order effects
   - `Freyja.Hefty.Sig.IHeftySendable` - The protocol this implements
   - `Freyja.Hefty.Sig.DefHeftyStruct` - Macro that uses this module
   """

@@ -148,31 +148,23 @@ defmodule Freyja.Run.RunBuilder do
         {:hefty, computation}
 
       _ ->
-        # Try auto-lifting via protocols
-        # Try ISendable first (more common for first-order effects)
+        # Try auto-lifting via IHeftySendable protocol (for higher-order effects)
         try_protocol_conversion(computation)
     end
   end
 
   defp try_protocol_conversion(computation) do
-    # Try ISendable first (for first-order effects - more common)
+    # Try IHeftySendable (for higher-order effects that auto-lift)
     try do
-      freer = Freyja.Freer.Sig.ISendable.send(computation)
-      {:freer, freer}
+      hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(computation)
+      {:hefty, hefty}
     rescue
       _e in [Protocol.UndefinedError, ArgumentError] ->
-        # Try IHeftySendable (for higher-order effects)
-        try do
-          hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(computation)
-          {:hefty, hefty}
-        rescue
-          _e2 in [Protocol.UndefinedError, ArgumentError] ->
-            # Neither protocol works - provide a clear error message
-            # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
-            raise ArgumentError,
-                  "Cannot detect computation type for: #{inspect(computation)}. " <>
-                    "Value must be a Freer/Hefty computation or implement ISendable/IHeftySendable protocol."
-        end
+        # Protocol doesn't work - provide a clear error message
+        # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
+        raise ArgumentError,
+              "Cannot detect computation type for: #{inspect(computation)}. " <>
+                "Value must be a Freer.Pure, Freer.Impure, Hefty.Pure, or Hefty.Impure struct."
     end
   end
 

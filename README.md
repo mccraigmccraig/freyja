@@ -52,36 +52,52 @@ offers a gentle introduction to why they are called Algebraic Effects.
 ### 1.1 A real effect: Tagged State
 
 Freyja is bundled with a number of Effects and Handlers - `TaggedState` is one
-one of them - it gives access to "apparently mutable" (not really mutable!) 
+of them - it gives access to "apparently mutable" (not really mutable!)
 state cells - from anywhere inside a nested stack of pure functions, without
 having to add any extra parameters to function signatures
 
+`TaggedState` has a signature module `Freyja.Effects.TaggedState`, which
+defines some structs which represent the "operations" the effect supports,
+`%TaggedState.Get{tag: <tag>}` and `%TaggedState.put{tag: <tag>, val: <val>}`,
+and some "constructor functions" `&TaggedState.get/1` and `&TaggedState.put/2`
+
 ```elixir
 # TaggedState: get/put state associated with a tag
-defmodule Freyja.Effects.TaggedState.GetTagged do
-  defstruct [:tag]
-end
-
-defmodule Freyja.Effects.TaggedState.PutTagged do
-  defstruct [:tag, :value]
-end
-
 defmodule Freyja.Effects.TaggedState do
-  def get(tag), do: %GetTagged{tag: tag}
-  def put(tag, value), do: %PutTagged{tag: tag, value: value}
+  alias Freyja.Freer
+
+  # Effect structs - plain data describing operations
+  defmodule GetTagged do
+    defstruct [:tag]
+  end
+
+  defmodule PutTagged do
+    defstruct [:tag, :val]
+  end
+
+  # Constructor functions wrap structs in Freer.Impure via send_effect
+  def get(tag), do: %GetTagged{tag: tag} |> Freer.send_effect()
+  def put(tag, val), do: %PutTagged{tag: tag, val: val} |> Freer.send_effect()
 end
 ```
-The constructor functions like `get(tag)`, and `put(tag, value)`will build
-the structs for you, but you can also build them direcetly without any
-loss of function:
+
+The constructor functions like `get(tag)` and `put(tag, val)` build effect
+operation structs and wrap them in a minimal `Freer.Impure` structure using
+`Freer.send_effect/1`. This `Impure` struct is what gets interpreted by
+Handlers - see section 3.2 for more details on how `send_effect` and
+`Impure` work.
+
+Remember that the effect structs themselves are just simple data - they 
+are used to signal that a computation wants to do something, but they 
+neither _do_ anything nor say _how_ a thing should be done. 
 
 ```elixir
 %Freyja.Effects.TaggedState.GetTagged{tag: :cart}
-%Freyja.Effects.TaggedState.PutTagged{tag: :cart, value: [:item_a, :item_b]}
+%Freyja.Effects.TaggedState.PutTagged{tag: :cart, val: [:item_a, :item_b]}
 ```
 
-They’re just plain data. Handlers decide exactly what to do with them — read
-from ETS, append to a log, store in a map, or something else entirely.
+Handlers decide exactly what to do with them — read from ETS, append to a log,
+store in a map, or something else entirely.
 
 ### 1.2 Define Your Own Effect Language
 
@@ -124,7 +140,7 @@ def checkout(cart, user) do
     if user.credit < product.price do
       Throw.throw_error(:insufficient_credit)
     else
-      con do 
+      con do
         updated_user = %{user | credit: user.credit - product.price}
         _ <- MyApp.Storage.change(:users, updated_user)
         _ <- MyApp.Notifications.send_push(user.id, "Thanks for buying #{product.name}!")
@@ -316,8 +332,8 @@ log them, or feed them manually—no extra glue code required.
 
 #### (a) Automatic Log Collection
 
-By inserting `EffectLogger.Handler.run/1` at the start of the Handler 
-pipeline, you get full logs of every effect emitted—perfect for audit, 
+By inserting `EffectLogger.Handler.run/1` at the start of the Handler
+pipeline, you get full logs of every effect emitted—perfect for audit,
 tracing, or offline debugging.
 
 ```elixir
@@ -423,7 +439,7 @@ you can try it out in IEx with:
 ```elixir
 buggy = Freyja.Examples.EffectLoggerRerun.build(:original)
 buggy_outcome = buggy |> Freyja.Run.run()
-buggy_outcome.result # => {:error, :validation_failed} 
+buggy_outcome.result # => {:error, :validation_failed}
 json = buggy_outcome |> Jason.encode!()
 
 fixed = Freyja.Examples.EffectLoggerRerun.build(:patched)
@@ -651,7 +667,7 @@ The macros apply a simple transformation:
 
 1. **Effect binding** (`x <- effect()`) becomes a `bind` call
 2. **Pure binding** (`x = value`) stays as a regular assignment
-3. **The last expression** is returned as-is (it must be a `Freer.t()` for 
+3. **The last expression** is returned as-is (it must be a `Freer.t()` for
    `con`, or a `Hefty.t()` for `hefty` - so plain values should be
    wrapped with `return(value)`)
 4. **Functions** with `con` or `hefty` bodies can be defined with `defcon`
@@ -795,12 +811,12 @@ There are a few functions you will need to know about:
   value in a `%Freer.Pure{}` struct - this is how ordinary values from pure
   computations get "lifted" into something the interpreter can deal with,
   and how computations signal "we're done with this step" to the interpreter
-* `Freer.send_effect(any) :: Freer.t()` - this wraps an effect operation 
-  struct (it can be any type, but structs are nicer so the convention is 
-  to use them) into a minimal `%Freer.Impure{}` struct, with just 
-  `&Freer.pure/1` in its continuation queue. Remember `Freer.Impure` is 
+* `Freer.send_effect(any) :: Freer.t()` - this wraps an effect operation
+  struct (it can be any type, but structs are nicer so the convention is
+  to use them) into a minimal `%Freer.Impure{}` struct, with just
+  `&Freer.pure/1` in its continuation queue. Remember `Freer.Impure` is
   a non-terminal state of the computation, so it's saying to the interpreter
-  "here's something you are going to need to interpret, by finding a 
+  "here's something you are going to need to interpret, by finding a
   Handler for"
 * `bind(Freer.t(), (any -> Freer.t())) :: Freer.t()` - `bind` is how
   computations move forward from one step to the next. It takes a `Freer`
@@ -931,9 +947,9 @@ the result - and since `return` represents a terminal state and we have no more
 continuations on the `q`, the value is returned to the caller
 
 This process we have followed is essentially what the Freyja interpreter does -
-it pattern-matches on the `sig` and `data` in `Impure` structs, finds a `Handler` 
-to interpret the effect (producing an ordinary value), then passes that value 
-to the next continuation in the queue. The `Freyja.Run.impl` module 
+it pattern-matches on the `sig` and `data` in `Impure` structs, finds a `Handler`
+to interpret the effect (producing an ordinary value), then passes that value
+to the next continuation in the queue. The `Freyja.Run.impl` module
 orchestrates this loop.
 
 ---
@@ -1002,7 +1018,7 @@ orchestrates this loop.
 - **Freer Monads, More Extensible Effects**: [Kiselyov & Ishii](https://okmij.org/ftp/Haskell/extensible/more.pdf)
 - **freer-simple — a friendly effect system for Haskell**: [lexi-lambda/freer-simple](https://github.com/lexi-lambda/freer-simple)
 - **effects - an Elixir effect system**: [bootstarted/effects](https://github.com/bootstarted/effects)
-- **freer - an Elixir Freer monad**: [aemaeth-me/freer](https://github.com/aemaeth-me/freer) 
+- **freer - an Elixir Freer monad**: [aemaeth-me/freer](https://github.com/aemaeth-me/freer)
 ---
 
 ## License

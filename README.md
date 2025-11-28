@@ -869,11 +869,18 @@ freer_1 = (
 ```
 
 now you can see what the `Freer.bind` call has done - it's cheating, and hasn't
-done any work at all! It's just put the continuation function from its second
-argument at the end of the `Impure`'s continuation `q` - but it has done
-nothing to interpret the `%State.Get{}` effect struct in the `data` field
+done any work at all! It's just added the continuation function from its second
+argument to the end of the `Impure`'s continuation `q` - but it has done
+nothing to interpret the `%State.Get{}` effect struct in the `data` field.
 
-The `data` effect struct in the `Impure` is describing some impure action
+This is the heart of how Algebraic Effects work in Freyja - pure steps in domain
+calculations are expressed as a queue of continuations in `Freer.Impure` structs.
+Those pure steps perform no side-effects, and when they want a side-effect
+they return an effect operation struct to an `Impure`, along with a continuation
+which resumes the computation once the effect operation has been performed
+by the interpreter.
+
+The `data` effect operation struct in the `Impure` describes some impure action
 that the program wants to do, without specifying anything about _how_ the impure
 action is to be achieved - that is left entirely up to the interpreter and its
 `Handlers`. Let's continue playing the interpreter, and

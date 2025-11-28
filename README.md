@@ -919,8 +919,8 @@ freer_4 = (Enum.at(freer_3.q, 1)).(15)
 And we have arrived - we called the final continuation, the function taking
 parameter `y` in the expansion corresponding to the last line of
 the `con` block, and it added together our two interpreted values and `return`ed
-the result - and since `return` represents a terminal state at the top-level of
-the computation, the value is returned to the caller
+the result - and since `return` represents a terminal state and we have no more
+continuations on the `q`, the value is returned to the caller
 
 This process we have followed is essentially what the Freyja interpreter does -
 it pattern-matches on the `sig` and `data` in `Impure` structs, finds a `Handler` 

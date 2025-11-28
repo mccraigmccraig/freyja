@@ -760,7 +760,7 @@ represents a `terminal` state of a computation, and `Impure` which
 represents `non-terminal` states of a computation and holds:
   * `sig` - an identifier for the type of the `data`
   * `data` - a piece of data which can be interpreted (by a `Handler`) to
-     yield an ordinary-value
+     yield an ordinary-value - this is the "effect"
   * `q` - a queue of continuations `(ordinary_value -> Freer.t())` being
      the remaining steps in the computation
 

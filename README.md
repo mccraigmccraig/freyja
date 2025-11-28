@@ -597,6 +597,49 @@ TaggedReaderDynamicContext.build_v2(accounts, greetings)
 
 ## 3. How does it work
 
+Let's look at a simple computation and develop an intuition for how it works:
+
+``` elixir
+con do
+  x <- State.get()
+  y <- Reader.ask()
+  return(x + y)
+end
+```
+
+This computation has a series of "steps", which correspond to lines inside the
+`con` block. We can read the steps as follows:
+
+* `get` the current `State` and bind it to variable `x`
+* `ask` the `Reader` for its value, and bind it to variable `y`
+* `return` `x+y` to the caller
+
+This is the "surface" interpretatino of what's happening - and it's a reasonable
+approximation, but it hides considerable detail. Here's a more detailed reading:
+
+* `State.get()` builds a simple `%Get{}` struct which is returned as the
+   current `non-terminal` value of the computation to an interpreter, to ask
+   the `State` effect for its value
+* the interpreter identifies a `Handler` which can interpret `State` requests
+   and calls it to get a value from somehwere - it could be anywhere at the
+   discreion of the `Handler` - and the computation is resumed with that value
+   which is bound immediately to `x` (`x` is in fact a function parameter -
+   see secion 3.1 for how this happens)
+* `Reader.ask()` builds a simple `%Ask{}` struct which is returns as a
+   `non-terminal` value of the computation to the interpreter to, to request
+   the value from the `Reader` effect
+* the interpreter identifies a `handler` which can interpret `Reader` requests,
+   calls it to get a value, and the computation is resumed again with that value,
+   which is bound to `y`
+* `return` returns the `terminal` value `x+y` to the interpreter, which seeing
+   a terminal value returns to its caller with that value
+
+The `con` block makes the "surface" interpretation easy, and that's
+deliberate - it's an abstractino built to give a convenient mentlal building
+block, but sometimes it's a good idea to understand the details, so in the
+next couple of sections we'll look at how the computation is broken down into
+steps, and those steps are exposed to an interpreter
+
 ### 3.1 The `con` and `hefty` Macros: Breaking down binds
 
 The `con` and `hefty` macros provide a `with`-like syntax that rewrites to nested

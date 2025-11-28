@@ -614,20 +614,20 @@ This computation has a series of "steps", which correspond to lines inside the
 * `ask` the `Reader` for its value, and bind it to variable `y`
 * `return` `x+y` to the caller
 
-This is the "surface" interpretatino of what's happening - and it's a reasonable
+This is the "surface" interpretation of what's happening - and it's a reasonable
 approximation, but it hides considerable detail. Here's a more detailed reading:
 
 * `State.get()` builds a simple `%Get{}` struct which is returned as the
    current `non-terminal` value of the computation to an interpreter, to ask
    the `State` effect for its value
 * the interpreter identifies a `Handler` which can interpret `State` requests
-   and calls it to get a value from somehwere - it could be anywhere at the
-   discreion of the `Handler` - and the computation is resumed with that value
+   and calls it to get a value from somewhere - it could be anywhere at the
+   discretion of the `Handler` - and the computation is resumed with that value
    which is bound immediately to `x` (`x` is in fact a function parameter -
-   see secion 3.1 for how this happens)
-* `Reader.ask()` builds a simple `%Ask{}` struct which is returns as a
-   `non-terminal` value of the computation to the interpreter to, to request
-   the value from the `Reader` effect
+   see section 3.1 for how this happens)
+* `Reader.ask()` builds a simple `%Ask{}` struct which is returned as a
+   `non-terminal` value to the interpreter, requesting the value from the
+   `Reader` effect
 * the interpreter identifies a `handler` which can interpret `Reader` requests,
    calls it to get a value, and the computation is resumed again with that value,
    which is bound to `y`
@@ -635,7 +635,7 @@ approximation, but it hides considerable detail. Here's a more detailed reading:
    a terminal value returns to its caller with that value
 
 The `con` block makes the "surface" interpretation easy, and that's
-deliberate - it's an abstractino built to give a convenient mentlal building
+deliberate - it's an abstraction built to give a convenient mental building
 block, but sometimes it's a good idea to understand the details, so in the
 next couple of sections we'll look at how the computation is broken down into
 steps, and those steps are exposed to an interpreter
@@ -743,13 +743,21 @@ end
 
 ### 3.2 Freer - let's interpret some effects in IEx
 
-We'll focus on first-order effects now - they are effects which
-_do not_ contain other effects in their data-structure, and are simpler
-to deal with.
+Now we have a rough idea of how the computations in `con` and `hefty` blocks
+can be understood, and how they are expanded into normal Elixir code,
+let's develop that intuition further by manually performing the role of
+the interpreter and the `Handlers` the interpreter calls to deal with
+individual effects
 
-Each computation can be seen as a sequence of steps, and Freyja uses a type
-called `Freer` to capture these steps. `Freer` has two structs, `Pure` which
-wraps an ordinary-value, and `Impure` which holds:
+We'll focus on first-order effects - they are effects which
+_do not_ contain other effects in their data-structure, and are simpler
+to deal with - the `con` macro is used to expand first-order effects,
+while the `hefty` macro is used to expand higher-order effects.
+
+Freyja uses a type called `Freer` to capture steps in a computation. `Freer`
+has two structs: There's `Pure` which wraps an ordinary-value, and
+represents a `terminal` state of a computation, and `Impure` which
+represents `non-terminal` states of a computation and holds:
   * `sig` - an identifier for the type of the `data`
   * `data` - a piece of data which can be interpreted (by a `Handler`) to
      yield an ordinary-value
@@ -782,16 +790,29 @@ defmodule Freer do
 end
 ```
 
-The `con` macro shown above is used with first-order effects, and
-when given a `Freer.t()` and a continuation `(any->Freer.t())` it
-makes `Freer.bind(Freer.t(), (any->Freer.t()))` calls which
-return another `Freer.t()`.  Conceptually this is a transformation
-of the input by the continuation.
+There are a few functions you will need to know about:
+* `Freer.return(any) :: Freer.t()` - a.k.a `Freer.pure` - wraps an ordinary
+  value in a `%Freer.Pure{}` struct - this is how ordinary values from pure
+  computations get "lifted" into something the interpreter can deal with,
+  and how computations signal "we're done with this step" to the interpreter
+* `Freer.send_effect(any) :: Freer.t()` - this wraps an effect struct (it
+  can be any type, but structs are nicer so the convention is to use them)
+  into a minimal `%Freer.Impure{}` struct, with just `&Freer.pure/1` in
+  its continuation queue. Remember `Freer.Impure` is a non-terminal state
+  of the computation, so it's saying to the interpreter "here's something
+  you are going to need to interpret, by finding a Handler for"
+* `bind(Freer.t(), (any -> Freer.t())) :: Freer.t()` - `bind` is how
+  computations move forward from one step to the next. It takes a `Freer`
+  computation, extracts a value from it (the job of the interpreter) and
+  gives that value to a "continuation" - which returns another `Freer` -
+  a modified computation, now including the additional function of the
+  next "step"
 
-Now, we're going to play the role of a Handler, and interpret a
-`Freer` computation by hand.
-
-Looking at our very first `con` example again:
+Let's look at the expansion of the simple `con` block from above, and
+by manually playing the role of the interpreter and `Handlers` see how
+the computation gets represented as `Freer` and how the non-terminal
+`Impure` structs get repeatedly interpreted until there is only
+a terminal `Pure` struct.
 
 ``` elixir
 con do
@@ -812,9 +833,9 @@ State.get()
 end)
 ```
 
-At the start we have `State.get()`, which is an "effect construtor" call -
-it returns an effect data structure, wrapped in a minimal `Impure`
-structure - try it out yourself in IEx:
+At the start we have `State.get()`, which is an "effect constructor" call -
+it uses `Freer.send_effect` to wrap a simple effect data structure in a minimal
+`Impure` structure - try it out yourself in IEx:
 
 ``` elixir
 Freyja.Effects.State.get()
@@ -848,14 +869,17 @@ freer_1 = (
 
 now you can see what the `Freer.bind` call has done - it's cheating, and hasn't
 done any work at all! It's just put the continuation function from its second
-argument at the end of the `q`
+argument at the end of the `Impure`'s continuation `q` - but it has done
+nothing to interpret the `%State.Get{}` effect struct in the `data` field
 
-The `data` in the `Impure` is an effect, it's describing some impure action
-that the program wants to do. Let's continue playing the interpreter, and
-say that our `State.Get` operation is going to retrieve the value `5` fron some
+The `data` effect struct in the `Impure` is describing some impure action
+that the program wants to do, without specifying anything about _how_ the impure
+action is to be achieved - that is left entirely up to the interpreter and its
+`Handlers`. Let's continue playing the interpreter, and
+say that our `State.Get` operation is going to retrieve the value `5` from some
 state somewhere - so we pass that value to the first continuation in
-the `q` (which is `&Freer.pure/1`), which gives us the value `5` wrapped 
-in a `Freer.Pure` struct.
+the `q` (which is `&Freer.pure/1`) which, as expected, just gives us the
+value `5` wrapped in a `Freer.Pure` struct.
 
 ``` elixir
 freer_2 = (List.first(freer_1.q)).(5)
@@ -863,7 +887,7 @@ freer_2 = (List.first(freer_1.q)).(5)
 ```
 
 Since `Pure` just wraps an ordinary-value, it needs no further
-interpreation, and we can pop the first continuation from the `q` ,
+interpretation, and we can pop the first continuation from the `q`,
 and pass the value we have - `5` - straight on to the next
 continuation from the `q`:
 
@@ -878,24 +902,31 @@ freer_3 = (Enum.at(freer_1.q, 1)).(5)
 ```
 
 Now we've got something different! We have a new effect to interpret, an `Ask`
-this time, and more continuations in the `q` to pass the results to...
-let's skip over the `Freer.pure` call, because we know what it's going to
-do (just wrap the value in `Pure`), and let's say interpreting the `Ask`
-returns a value of `15`, beause we're the Handler and we can do that:
+this time, and more continuations in the `q` to pass results to... This `Ask`
+struct was built by the `Freyja.Effects.Reader.ask()` call in the
+computation, inside the continuation passed to the first `bind` call.
+
+Let's skip over the `Freer.pure` call we now have at the head of the
+queue, because we know what it's going to do (just wrap the value in `Pure`),
+and let's say interpreting the `Ask` returns a value of `15`, because we're
+both the interpreter and the `Handler` and we can do that:
 
 ``` elixir
 freer_4 = (Enum.at(freer_3.q, 1)).(15)
 # %Freyja.Freer.Pure{val: 20}
 ```
 
-And there we are - we called the final continuation, which was the last line of
-the `con` block and it added together our two interpreted values and `return`ed
-the result.
+And we have arrived - we called the final continuation, the function taking
+parameter `y` in the expansion corresponding to the last line of
+the `con` block, and it added together our two interpreted values and `return`ed
+the result - and since `return` represents a terminal state at the top-level of
+the computation, the value is returned to the caller
 
-This is essentially what a Handler does - it pattern-matches on the `sig` and
-`data`, decides how to interpret the effect (producing an ordinary value),
-then passes that value to the next continuation in the queue.
-The `Freyja.Run.impl` module orchestrates this loop.
+This process we have followed is essentially what the Freyja interpreter does -
+it pattern-matches on the `sig` and `data` in `Impure` structs, finds a `Handler` 
+to interpret the effect (producing an ordinary value), then passes that value 
+to the next continuation in the queue. The `Freyja.Run.impl` module 
+orchestrates this loop.
 
 ---
 

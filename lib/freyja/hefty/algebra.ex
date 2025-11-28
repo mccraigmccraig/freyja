@@ -33,8 +33,8 @@ defmodule Freyja.Hefty.Algebra do
         @behaviour Freyja.Hefty.Algebra
 
         @impl true
-        def handles?(:Catch), do: true
-        def handles?(_), do: false
+        def handles_hefty?(:Catch), do: true
+        def handles_hefty?(_), do: false
 
         @impl true
         def elaborate(%Catch{}, psi, k, _elaborator) do
@@ -69,7 +69,7 @@ defmodule Freyja.Hefty.Algebra do
   ## Composition
 
   Algebras compose automatically via the fold mechanism. Each algebra handles
-  its own signature. The `handles?/1` callback determines which operations
+  its own signature. The `handles_hefty?/1` callback determines which operations
   an algebra processes.
 
   Multiple algebras can be provided to `Hefty.Elaborate.elaborate/2`:
@@ -106,19 +106,23 @@ defmodule Freyja.Hefty.Algebra do
 
   This is used by the fold to dispatch operations to the correct algebra.
 
+  Note: This callback is named `handles_hefty?/1` (not `handles?/1`) to avoid
+  confusion with `Freyja.Freer.EffectHandler.handles?/2` when a module implements
+  both behaviours.
+
   ## Examples
 
       # Catch algebra only handles :Catch
       @impl true
-      def handles?(:Catch), do: true
-      def handles?(_), do: false
+      def handles_hefty?(:Catch), do: true
+      def handles_hefty?(_), do: false
 
       # An algebra that handles multiple related operations
       @impl true
-      def handles?(sig) when sig in [:FxMap, :FxReduce], do: true
-      def handles?(_), do: false
+      def handles_hefty?(sig) when sig in [:FxMap, :FxReduce], do: true
+      def handles_hefty?(_), do: false
   """
-  @callback handles?(sig :: atom) :: boolean
+  @callback handles_hefty?(sig :: atom) :: boolean
 
   @doc """
   Elaborate a higher-order operation into a first-order (Freer) computation.

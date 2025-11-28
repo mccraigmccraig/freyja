@@ -213,7 +213,7 @@ defmodule Freyja.Hefty.Elaborate do
 
   # Find algebra that handles the given signature
   defp find_algebra(sig, algebras) do
-    case Enum.find(algebras, &algebra_handles?(&1, sig)) do
+    case Enum.find(algebras, &algebra_handles_hefty?(&1, sig)) do
       nil ->
         raise ArgumentError, """
         No algebra found for signature: #{inspect(sig)}
@@ -222,15 +222,15 @@ defmodule Freyja.Hefty.Elaborate do
 
         Make sure you've provided an algebra that implements:
           @behaviour Freyja.Hefty.Algebra
-          def handles?(#{inspect(sig)}), do: true
+          def handles_hefty?(#{inspect(sig)}), do: true
 
         Example:
           defmodule MyEffect.Algebra do
             @behaviour Freyja.Hefty.Algebra
 
             @impl true
-            def handles?(#{inspect(sig)}), do: true
-            def handles?(_), do: false
+            def handles_hefty?(#{inspect(sig)}), do: true
+            def handles_hefty?(_), do: false
 
             @impl true
             def elaborate(operation, psi, k, _elaborator) do
@@ -245,9 +245,9 @@ defmodule Freyja.Hefty.Elaborate do
   end
 
   # Check if algebra handles signature, with error handling
-  defp algebra_handles?(algebra, sig) do
+  defp algebra_handles_hefty?(algebra, sig) do
     try do
-      algebra.handles?(sig)
+      algebra.handles_hefty?(sig)
     rescue
       UndefinedFunctionError ->
         # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
@@ -258,7 +258,7 @@ defmodule Freyja.Hefty.Elaborate do
           @behaviour Freyja.Hefty.Algebra
 
           @impl true
-          def handles?(sig), do: ...
+          def handles_hefty?(sig), do: ...
 
           @impl true
           def elaborate(operation, psi, k, elaborator), do: ...

@@ -131,8 +131,8 @@ if Code.ensure_loaded?(Ecto) do
 
     # Algebra implementation (delegates to Handler)
     @impl Freyja.Hefty.Algebra
-    def handles?(sig) when sig == EctoFx, do: true
-    def handles?(_), do: false
+    def handles_hefty?(sig) when sig == EctoFx, do: true
+    def handles_hefty?(_), do: false
 
     @impl Freyja.Hefty.Algebra
     defdelegate elaborate(op, psi, k, elaborator), to: Handler

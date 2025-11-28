@@ -281,8 +281,8 @@ defmodule Freyja.Effects.TaggedWriter.Algebra do
   import Freyja.Freer.FreerBlock
 
   @impl true
-  def handles?(sig) when sig == Freyja.Effects.TaggedWriter, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == Freyja.Effects.TaggedWriter, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%Listen{}, psi, k, _elaborator) do

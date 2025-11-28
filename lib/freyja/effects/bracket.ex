@@ -229,8 +229,8 @@ defmodule Freyja.Effects.Bracket.Algebra do
   alias Freyja.Freer
 
   @impl true
-  def handles?(sig) when sig == Bracket, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == Bracket, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%BracketOp{release_fn: release_fn, use_fn: use_fn} = _op, psi, k, elaborator) do

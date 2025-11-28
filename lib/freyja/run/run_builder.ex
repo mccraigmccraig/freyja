@@ -173,7 +173,7 @@ defmodule Freyja.Run.RunBuilder do
 
     is_algebra =
       function_exported?(module, :elaborate, 4) and
-        function_exported?(module, :handles?, 1)
+        function_exported?(module, :handles_hefty?, 1)
 
     is_handler =
       function_exported?(module, :handles?, 2) and

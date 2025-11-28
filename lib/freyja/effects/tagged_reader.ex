@@ -224,8 +224,8 @@ defmodule Freyja.Effects.TaggedReader.Algebra do
   alias Freyja.Freer.Interpose
 
   @impl true
-  def handles?(sig) when sig == TaggedReader, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == TaggedReader, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%Local{tag: target_tag, modifier_fn: modifier_fn} = _op, psi, k, _elaborator) do

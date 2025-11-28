@@ -135,8 +135,8 @@ defmodule Freyja.Effects.Lift.Algebra do
   alias Freyja.Freer
 
   @impl true
-  def handles?(sig) when sig == Freyja.Effects.Lift, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == Freyja.Effects.Lift, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%Lift{computation: freer_comp}, _psi, k, _elaborator) do

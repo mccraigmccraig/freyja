@@ -11,8 +11,8 @@ defmodule Freyja.Hefty.ElaborateTest do
     @behaviour Algebra
 
     @impl true
-    def handles?(:Identity), do: true
-    def handles?(_), do: false
+    def handles_hefty?(:Identity), do: true
+    def handles_hefty?(_), do: false
 
     @impl true
     def elaborate(operation, _psi, k, _elaborator) do
@@ -26,8 +26,8 @@ defmodule Freyja.Hefty.ElaborateTest do
     @behaviour Algebra
 
     @impl true
-    def handles?(:Sequence), do: true
-    def handles?(_), do: false
+    def handles_hefty?(:Sequence), do: true
+    def handles_hefty?(_), do: false
 
     @impl true
     def elaborate(%{comps: comp_keys}, psi, k, _elaborator) do
@@ -54,8 +54,8 @@ defmodule Freyja.Hefty.ElaborateTest do
     @behaviour Algebra
 
     @impl true
-    def handles?(:Combine), do: true
-    def handles?(_), do: false
+    def handles_hefty?(:Combine), do: true
+    def handles_hefty?(_), do: false
 
     @impl true
     def elaborate(%{op: op}, psi, k, _elaborator) do
@@ -400,8 +400,8 @@ defmodule Freyja.Hefty.ElaborateTest do
         @behaviour Algebra
 
         @impl true
-        def handles?(:Track), do: true
-        def handles?(_), do: false
+        def handles_hefty?(:Track), do: true
+        def handles_hefty?(_), do: false
 
         @impl true
         def elaborate(%{id: id}, _psi, k, _elaborator) do

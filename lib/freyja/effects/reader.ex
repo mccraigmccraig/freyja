@@ -99,8 +99,8 @@ defmodule Freyja.Effects.Reader.Algebra do
   alias Freyja.Freer.Interpose
 
   @impl true
-  def handles?(sig) when sig == Reader, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == Reader, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%Local{modifier_fn: modifier_fn} = _op, psi, k, _elaborator) do

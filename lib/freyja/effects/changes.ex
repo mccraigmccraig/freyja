@@ -210,8 +210,8 @@ defmodule Freyja.Effects.Changes.Algebra do
   alias Freyja.Freer.Interpose
 
   @impl true
-  def handles?(sig) when sig == Freyja.Effects.Changes, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == Freyja.Effects.Changes, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%Capture{}, psi, k, _elaborator) do

@@ -192,8 +192,8 @@ defmodule Freyja.Effects.Catch.Algebra do
   alias Freyja.Freer.Interpose
 
   @impl true
-  def handles?(sig) when sig == Freyja.Effects.Catch, do: true
-  def handles?(_), do: false
+  def handles_hefty?(sig) when sig == Freyja.Effects.Catch, do: true
+  def handles_hefty?(_), do: false
 
   @impl true
   def elaborate(%CatchOp{handler: error_handler_fn} = _op, psi, k, elaborator) do

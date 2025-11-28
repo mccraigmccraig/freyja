@@ -9,6 +9,7 @@ defmodule Freyja.Examples.CommandProcessor do
 
   alias Freyja.Effects.Coroutine
   alias Freyja.Effects.Throw
+  alias Freyja.Freer
 
   # Effect definitions for the domain ----------------------------------------
 
@@ -172,7 +173,7 @@ defmodule Freyja.Examples.CommandProcessor do
   end
 
   defconp handle_effect(effect) do
-    _ <- effect
+    _ <- effect |> Freer.send_effect()
     loop()
   end
 end

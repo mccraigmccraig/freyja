@@ -795,12 +795,13 @@ There are a few functions you will need to know about:
   value in a `%Freer.Pure{}` struct - this is how ordinary values from pure
   computations get "lifted" into something the interpreter can deal with,
   and how computations signal "we're done with this step" to the interpreter
-* `Freer.send_effect(any) :: Freer.t()` - this wraps an effect struct (it
-  can be any type, but structs are nicer so the convention is to use them)
-  into a minimal `%Freer.Impure{}` struct, with just `&Freer.pure/1` in
-  its continuation queue. Remember `Freer.Impure` is a non-terminal state
-  of the computation, so it's saying to the interpreter "here's something
-  you are going to need to interpret, by finding a Handler for"
+* `Freer.send_effect(any) :: Freer.t()` - this wraps an effect operation 
+  struct (it can be any type, but structs are nicer so the convention is 
+  to use them) into a minimal `%Freer.Impure{}` struct, with just 
+  `&Freer.pure/1` in its continuation queue. Remember `Freer.Impure` is 
+  a non-terminal state of the computation, so it's saying to the interpreter
+  "here's something you are going to need to interpret, by finding a 
+  Handler for"
 * `bind(Freer.t(), (any -> Freer.t())) :: Freer.t()` - `bind` is how
   computations move forward from one step to the next. It takes a `Freer`
   computation, extracts a value from it (the job of the interpreter) and
@@ -808,7 +809,7 @@ There are a few functions you will need to know about:
   a modified computation, now including the additional function of the
   next "step"
 
-Let's look at the expansion of the simple `con` block from above, and
+Let's look again at the expansion of the simple `con` block from above, and
 by manually playing the role of the interpreter and `Handlers` see how
 the computation gets represented as `Freer` and how the non-terminal
 `Impure` structs get repeatedly interpreted until there is only

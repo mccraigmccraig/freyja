@@ -758,9 +758,9 @@ Freyja uses a type called `Freer` to capture steps in a computation. `Freer`
 has two structs: There's `Pure` which wraps an ordinary-value, and
 represents a `terminal` state of a computation, and `Impure` which
 represents `non-terminal` states of a computation and holds:
-  * `sig` - an identifier for the type of the `data`
+  * `sig` - an identifier for the type of the `data` - an "effect" module
   * `data` - a piece of data which can be interpreted (by a `Handler`) to
-     yield an ordinary-value - this is the "effect"
+     yield an ordinary-value - this is an "operation" of an "effect"
   * `q` - a queue of continuations `(ordinary_value -> Freer.t())` being
      the remaining steps in the computation
 

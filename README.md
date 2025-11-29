@@ -1056,6 +1056,23 @@ orchestrates this loop.
 * handler module/s
 * algebra modules/s
 
+---
+
+## 6. Performance
+
+Freyja's continuation-based architecture is designed for clarity and correctness. Benchmarking shows that for typical usage patterns, performance is excellent.
+
+**Key findings:**
+
+- The `con` and `hefty` macros generate **nested binds**, keeping continuation queues short (1-2 items typically)
+- With realistic effect workloads, queue overhead is negligible - actual effect interpretation dominates
+- Pathological cases (10,000+ explicitly chained binds with trivial work) can exhibit O(n²) behavior, but such patterns are rare in practice and lose access to intermediate values
+
+**Recommendation:** Don't worry about performance for typical usage. If you're building very deep computation chains, consider restructuring as batched operations.
+
+For detailed benchmarks and analysis, see [PERFORMANCE.md](https://github.com/mccraigmccraig/freyja/blob/main/PERFORMANCE.md).
+
+---
 
 ## References
 

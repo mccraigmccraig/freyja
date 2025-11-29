@@ -33,8 +33,9 @@ defhefty process_order(order_id) do
   # First-order effects are auto-lifted in hefty (higher-order) blocks
   order <- EctoFx.query(Queries, :find_order, %{id: order_id})
 
+  # = assignments/matches are also supported. 
   # Pattern matching with else clause for failures
-  {:ok, validated} <- validate_order(order)
+  {:ok, validated} = validate_order(order)
 
   # More effects - state tracking
   count <- State.get()

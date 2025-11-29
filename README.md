@@ -11,7 +11,7 @@ Add `freyja` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:freyja, "~> 0.1.1"}
+    {:freyja, "~> 0.1.2"}
   ]
 end
 ```
@@ -25,8 +25,8 @@ Freyja is an Algebraic Effects system for Elixir, enabling you to write programs
 ## 0. tl;dr
 
 Algebraic Effects and Handlers for Elixir. Both first-order and higher-order
-effects are supported. A `with`-like syntax is introduced to help with
-sequencing computations:
+effects are supported, and a library of common effects is included.
+A `with`-like syntax is introduced to help with sequencing computations:
 
 ``` elixir
 defhefty process_order(order_id) do
@@ -149,7 +149,7 @@ those verbs as effect structs instead of performing side effects immediately.
 # Domain-specific storage effect
 defmodule MyApp.Storage do
   alias Freyja.Freer
-  
+
   defmodule Query do
     defstruct [:table, :id]
   end
@@ -166,7 +166,7 @@ end
 # Domain-specific notification effect
 defmodule MyApp.Notifications do
   alias Freyja.Freer
-  
+
   defmodule SendPush do
     defstruct [:user_id, :message]
   end

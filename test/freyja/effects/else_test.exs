@@ -14,7 +14,9 @@ defmodule Freyja.Effects.ElseTest do
 
       comp =
         hefty do
-          {:ok, a} <- get_value.()
+          {:ok, a} = x <- get_value.()
+          # check assignments in matches work!
+          _ = assert x == {:ok, {:error, :not_found}}
           return(a)
         else
           {:error, reason} -> return({:handled, reason})

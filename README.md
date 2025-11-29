@@ -30,16 +30,17 @@ sequencing computations:
 
 ``` elixir
 defhefty process_order(order_id) do
-  # First-order effects are auto-lifted in hefty (higher-order) blocks
-  order <- EctoFx.query(Queries, :find_order, %{id: order_id})
+  # First-order effects are auto-lifted in hefty blocks.
+  # Match failures will go to else
+  %{price: order_price} = order <- EctoFx.query(Queries, :find_order, %{id: order_id})
 
-  # = assignments/matches are also supported. 
-  # Pattern matching with else clause for failures
+  # ordinary = assignment & matching with else clause for failures
   {:ok, validated} = validate_order(order)
 
   # More effects - state tracking
-  count <- State.get()
-  _ <- State.put(count + 1)
+  total_value <- State.get()
+  new_total_value = total_value + order_price
+  _ <- State.put(new_total_value)
 
   # Higher-order effect: transaction wrapping
   result <- EctoFx.transaction(

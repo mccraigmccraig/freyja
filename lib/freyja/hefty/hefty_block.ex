@@ -168,73 +168,9 @@ defmodule Freyja.Hefty.HeftyBlock do
   Do-notation for Hefty computations.
 
   Rewrites a do-block with `<-` bindings into `Hefty.bind` calls.
-  Automatically imports `Hefty.return/1` as `return/1`.
+  Supports optional `else` and `catch` clauses.
 
-  ## Syntax
-
-      hefty do
-        x <- computation1()
-        y = plain_value        # Regular assignment
-        z <- computation2(y)
-        Hefty.pure(x + z)
-      end
-
-  ## Else Clause
-
-  You can add an else clause for pattern match failure handling:
-
-      hefty do
-        {:ok, a} <- get_a()
-        {:ok, b} <- get_b(a)
-        return(a + b)
-      else
-        {:error, reason} -> return({:failed, reason})
-      end
-
-  When a complex pattern in `<-` or `=` fails to match, the computation
-  short-circuits to the else clause. Simple variable patterns (like `x`)
-  always match and don't trigger else.
-
-  ## Catch Clause
-
-  You can add a catch clause for error handling:
-
-      hefty do
-        x <- computation()
-        return(x)
-      catch
-        :specific_error -> return(:handled)
-        other -> return({:error, other})
-      end
-
-  This wraps the computation in `Catch.catch_hefty/2`.
-
-  ## Combined Else and Catch
-
-  Both can be used together. Else must come before catch:
-
-      hefty do
-        {:ok, a} <- might_fail_match()
-        _ <- might_throw(a)
-        return(a)
-      else
-        {:error, reason} -> return({:match_failed, reason})
-      catch
-        thrown -> return({:caught, thrown})
-      end
-
-  ## Auto-Lifting
-
-  First-order effects (Freer) are automatically lifted to Hefty:
-
-      hefty do
-        x <- State.get()       # Freer.Impure - auto-lifted via protocol!
-        y <- Catch.catch_hefty(...) # Hefty.Impure - stays as-is
-        Hefty.pure(x + y)
-      end
-
-  The auto-lifting happens in `Hefty.bind/2`'s catch-all clause via
-  `Freyja.Hefty.Sig.IHeftySendable.send_to_hefty/1`.
+  See the module documentation for full details and examples.
   """
   defmacro hefty(clauses) do
     Freyja.Hefty.HeftyBlock.Impl.hefty(__CALLER__, clauses)

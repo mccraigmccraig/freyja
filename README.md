@@ -30,7 +30,7 @@ sequencing computations:
 
 ``` elixir
 defhefty process_order(order_id) do
-  # First-order effects are auto-lifted in hefty blocks
+  # First-order effects are auto-lifted in hefty (higher-order) blocks
   order <- EctoFx.query(Queries, :find_order, %{id: order_id})
 
   # Pattern matching with else clause for failures

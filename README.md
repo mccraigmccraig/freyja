@@ -4,6 +4,29 @@
 
 # Freyja
 
+## Table of Contents
+
+- [Installation](#installation)
+- [What is Freyja?](#what-is-freyja)
+- [0. tl;dr](#0-tldr)
+- [1. What are Algebraic Effects?](#1-what-are-algebraic-effects)
+  - [1.1 A real effect: Tagged State](#11-a-real-effect-tagged-state)
+  - [1.2 Define Your Own Effect Language](#12-define-your-own-effect-language)
+- [2. A Quick Tour](#2-a-quick-tour-a-short-list-of-some-cool-things-algebraic-effects-enable)
+  - [2.1 EctoFx: Taming database interactions](#21-ectofx-taming-dataabase-interactions)
+  - [2.2 Coroutine-Based Programming](#22-coroutine-based-programming)
+  - [2.3 EffectLogger: Log, Replay, and Resume Anything](#23-effectlogger-log-replay-and-resume-anything)
+  - [2.4 Change Capture with EctoFx](#24-change-capture-with-ectofx)
+  - [2.5 TaggedReader: Stable Signatures When Requirements Change](#25-taggedreader-stable-signatures-when-requirements-change)
+- [3. How does it work](#3-how-does-it-work)
+  - [3.1 The `con` and `hefty` Macros](#31-the-con-and-hefty-macros-breaking-down-binds)
+  - [3.2 Freer - let's interpret some effects in IEx](#32-freer---lets-interpret-some-effects-in-iex)
+- [4. Available effects](#4-available-effects)
+- [5. Building your own effects](#5-building-your-own-effects)
+- [6. Performance](#6-performance)
+- [References](#references)
+- [License](#license)
+
 ## Installation
 
 Add `freyja` to your list of dependencies in `mix.exs`:
@@ -1002,33 +1025,6 @@ orchestrates this loop.
 ---
 
 # WIP below
-
----
-
-### 3.2 Freer
-* the Freer structs
-* composing Freer operations
-* bind & return
-* the con / defcon sugar macros
-  * they are _simple_ rewrites - RHS must always be Freer.t() or ISendable
-  * why they can't have an exactly parallel syntax to with (binds before do/end)
-* def_effect_struct
-  * ISendable
-* handlers - EffectHandler behaviour
-
-### 3.3 Hefty
-* why higher-order effects are different
-* the Hefty structs
-* composing Hefty operations
-* bind & return
-* the hefty /defhefty sugar macros
-  * RHS must always be Hefty.t(), Freer.t(), ISendable, or IHeftySendable
-* interoperability with Freer computations
-* catch clauses
-* def_hefty_struct
-  * IHeftySendable
-* Hefty Algebras - elaboration via interpose
-    * how higher-order effects maintain their context alongside control effects liike suspend
 
 ---
 

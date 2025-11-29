@@ -76,11 +76,59 @@ defmodule Freyja.Hefty.HeftyBlock do
 
   The `hefty` macro automatically imports `Hefty.return/1` as `return/1`.
 
+  ## Else Clause
+
+  You can add an else clause for pattern match failure handling:
+
+      hefty do
+        {:ok, a} <- get_a()
+        {:ok, b} <- get_b(a)
+        return(a + b)
+      else
+        {:error, reason} -> return({:failed, reason})
+        other -> return({:unhandled, other})
+      end
+
+  When a pattern in `<-` or `=` fails to match, the else clause handles it.
+
+  ## Catch Clause
+
+  You can add a catch clause for error handling:
+
+      hefty do
+        x <- computation()
+        return(x)
+      catch
+        :specific_error -> return(:handled)
+        other -> return({:error, other})
+      end
+
+  ## Combined Else and Catch
+
+  Both clauses can be used together. The `else` must come before `catch`:
+
+      hefty do
+        {:ok, a} <- might_fail_match()
+        _ <- might_throw_error(a)
+        return(a)
+      else
+        {:error, reason} -> return({:match_failed, reason})
+      catch
+        :some_error -> return(:caught_throw)
+      end
+
+  Semantic ordering is fixed: `catch(else(comp, else_handler), catch_handler)`.
+  This means:
+  - `else` handles pattern match failures from the main computation
+  - `catch` handles throws from both the main computation AND the else handler
+
   ## See Also
 
-  - `Freyja.Hefty.FreerBlock` - For first-order (Freer) computations
+  - `Freyja.Freer.FreerBlock` - For first-order (Freer) computations
   - `Freyja.Hefty.Sig.IHeftySendable` - Protocol for auto-lifting
   - `Freyja.Hefty.bind/2` - Monadic bind with auto-lifting
+  - `Freyja.Effects.Else` - The Else effect for pattern match failures
+  - `Freyja.Effects.Catch` - The Catch effect for exception handling
   """
 
   @doc """
@@ -103,12 +151,8 @@ defmodule Freyja.Hefty.HeftyBlock do
   The function returns `Hefty.t()` which must be elaborated using
   `Run.run/4` or `Hefty.Elaborate.elaborate/2`.
   """
-  defmacro defhefty(call_ast, do: body) do
-    Freyja.Hefty.HeftyBlock.Impl.defhefty(call_ast, body, nil)
-  end
-
-  defmacro defhefty(call_ast, do: body, catch: catch_block) do
-    Freyja.Hefty.HeftyBlock.Impl.defhefty(call_ast, body, catch_block)
+  defmacro defhefty(call_ast, clauses) do
+    Freyja.Hefty.HeftyBlock.Impl.defhefty(__CALLER__, call_ast, clauses)
   end
 
   @doc """
@@ -116,12 +160,8 @@ defmodule Freyja.Hefty.HeftyBlock do
 
   Same as `defhefty` but creates a private function (defp).
   """
-  defmacro defheftyp(call_ast, do: body) do
-    Freyja.Hefty.HeftyBlock.Impl.defheftyp(call_ast, body, nil)
-  end
-
-  defmacro defheftyp(call_ast, do: body, catch: catch_block) do
-    Freyja.Hefty.HeftyBlock.Impl.defheftyp(call_ast, body, catch_block)
+  defmacro defheftyp(call_ast, clauses) do
+    Freyja.Hefty.HeftyBlock.Impl.defheftyp(__CALLER__, call_ast, clauses)
   end
 
   @doc """
@@ -139,6 +179,22 @@ defmodule Freyja.Hefty.HeftyBlock do
         Hefty.pure(x + z)
       end
 
+  ## Else Clause
+
+  You can add an else clause for pattern match failure handling:
+
+      hefty do
+        {:ok, a} <- get_a()
+        {:ok, b} <- get_b(a)
+        return(a + b)
+      else
+        {:error, reason} -> return({:failed, reason})
+      end
+
+  When a complex pattern in `<-` or `=` fails to match, the computation
+  short-circuits to the else clause. Simple variable patterns (like `x`)
+  always match and don't trigger else.
+
   ## Catch Clause
 
   You can add a catch clause for error handling:
@@ -151,17 +207,21 @@ defmodule Freyja.Hefty.HeftyBlock do
         other -> return({:error, other})
       end
 
-  This is syntactic sugar that expands to:
+  This wraps the computation in `Catch.catch_hefty/2`.
 
-      Catch.catch_hefty(
-        hefty do x <- computation(); return(x) end,
-        fn err ->
-          case err do
-            :specific_error -> return(:handled)
-            other -> return({:error, other})
-          end
-        end
-      )
+  ## Combined Else and Catch
+
+  Both can be used together. Else must come before catch:
+
+      hefty do
+        {:ok, a} <- might_fail_match()
+        _ <- might_throw(a)
+        return(a)
+      else
+        {:error, reason} -> return({:match_failed, reason})
+      catch
+        thrown -> return({:caught, thrown})
+      end
 
   ## Auto-Lifting
 
@@ -175,52 +235,9 @@ defmodule Freyja.Hefty.HeftyBlock do
 
   The auto-lifting happens in `Hefty.bind/2`'s catch-all clause via
   `Freyja.Hefty.Sig.IHeftySendable.send_to_hefty/1`.
-
-  ## Examples
-
-      # Simple state computation
-      hefty do
-        x <- State.get()
-        State.put(x + 1)
-        y <- State.get()
-        Hefty.pure(y)
-      end
-
-      # With higher-order effects
-      hefty do
-        result <- Catch.catch_hefty(
-          hefty do
-            x <- State.get()
-            if x < 0 do
-              Error.throw_error("negative")
-            else
-              Hefty.pure(x * 2)
-            end
-          end,
-          fn _err -> Hefty.pure(0) end
-        )
-        Hefty.pure(result)
-      end
-
-      # Using catch clause syntax
-      hefty do
-        x <- State.get()
-        if x < 0 do
-          Error.throw_error("negative")
-        else
-          Hefty.pure(x * 2)
-        end
-      catch
-        "negative" -> return(0)
-        other -> return({:error, other})
-      end
   """
-  defmacro hefty(do: do_block) do
-    Freyja.Hefty.HeftyBlock.Impl.hefty(do_block, nil)
-  end
-
-  defmacro hefty(do: do_block, catch: catch_block) do
-    Freyja.Hefty.HeftyBlock.Impl.hefty(do_block, catch_block)
+  defmacro hefty(clauses) do
+    Freyja.Hefty.HeftyBlock.Impl.hefty(__CALLER__, clauses)
   end
 
   defmodule Impl do
@@ -230,96 +247,169 @@ defmodule Freyja.Hefty.HeftyBlock do
     Expands hefty blocks into Hefty.bind calls with automatic return import.
     """
 
-    def defhefty(call_ast, body, nil) do
+    def defhefty(caller, call_ast, clauses) do
+      validate_clause_ordering!(caller, clauses)
+
+      do_block = Keyword.fetch!(clauses, :do)
+      else_block = Keyword.get(clauses, :else)
+      catch_block = Keyword.get(clauses, :catch)
+
       quote do
         def unquote(call_ast) do
-          Freyja.Hefty.HeftyBlock.hefty do
-            unquote(body)
-          end
+          Freyja.Hefty.HeftyBlock.hefty(
+            unquote(build_hefty_clauses(do_block, else_block, catch_block))
+          )
         end
       end
     end
 
-    def defhefty(call_ast, body, catch_block) do
-      quote do
-        def unquote(call_ast) do
-          Freyja.Hefty.HeftyBlock.hefty do
-            unquote(body)
-          catch
-            unquote(catch_block)
-          end
-        end
-      end
-    end
+    def defheftyp(caller, call_ast, clauses) do
+      validate_clause_ordering!(caller, clauses)
 
-    def defheftyp(call_ast, body, nil) do
+      do_block = Keyword.fetch!(clauses, :do)
+      else_block = Keyword.get(clauses, :else)
+      catch_block = Keyword.get(clauses, :catch)
+
       quote do
         defp unquote(call_ast) do
-          Freyja.Hefty.HeftyBlock.hefty do
-            unquote(body)
-          end
+          Freyja.Hefty.HeftyBlock.hefty(
+            unquote(build_hefty_clauses(do_block, else_block, catch_block))
+          )
         end
       end
     end
 
-    def defheftyp(call_ast, body, catch_block) do
-      quote do
-        defp unquote(call_ast) do
-          Freyja.Hefty.HeftyBlock.hefty do
-            unquote(body)
-          catch
-            unquote(catch_block)
-          end
-        end
-      end
+    defp build_hefty_clauses(do_block, nil, nil) do
+      [do: do_block]
     end
 
-    def hefty(do_block, nil) do
+    defp build_hefty_clauses(do_block, else_block, nil) do
+      [do: do_block, else: else_block]
+    end
+
+    defp build_hefty_clauses(do_block, nil, catch_block) do
+      [do: do_block, catch: catch_block]
+    end
+
+    defp build_hefty_clauses(do_block, else_block, catch_block) do
+      [do: do_block, else: else_block, catch: catch_block]
+    end
+
+    def hefty(caller, clauses) do
+      validate_clause_ordering!(caller, clauses)
+
+      do_block = Keyword.fetch!(clauses, :do)
+      else_block = Keyword.get(clauses, :else)
+      catch_block = Keyword.get(clauses, :catch)
+
+      # Rewrite the do block, generating multi-clause continuations if else is present
+      rewritten_do = rewrite_block(do_block, else_block != nil)
+
+      # Wrap with else if present
+      with_else =
+        if else_block do
+          else_handler_fn = build_else_handler_fn(else_block)
+
+          quote do
+            Freyja.Effects.Else.else_hefty(
+              unquote(rewritten_do),
+              unquote(else_handler_fn)
+            )
+          end
+        else
+          rewritten_do
+        end
+
+      # Wrap with catch if present (outermost)
+      with_catch =
+        if catch_block do
+          catch_handler_fn = build_catch_handler_fn(catch_block)
+
+          quote do
+            Freyja.Effects.Catch.catch_hefty(
+              unquote(with_else),
+              unquote(catch_handler_fn)
+            )
+          end
+        else
+          with_else
+        end
+
       quote do
         # Import Hefty.return as return for convenience
         import Freyja.Hefty, only: [return: 1]
-        unquote(rewrite_block(do_block))
+        unquote(with_catch)
       end
     end
 
-    def hefty(do_block, catch_block) do
-      try_comp = rewrite_block(do_block)
-      handler_fn = build_catch_handler_fn(catch_block)
+    # Validate that else comes before catch in the clause list
+    defp validate_clause_ordering!(caller, clauses) do
+      keys = Keyword.keys(clauses)
+      catch_index = Enum.find_index(keys, &(&1 == :catch))
+      else_index = Enum.find_index(keys, &(&1 == :else))
 
-      quote do
-        # Import Hefty.return as return for convenience
-        import Freyja.Hefty, only: [return: 1]
-
-        Freyja.Effects.Catch.catch_hefty(
-          unquote(try_comp),
-          unquote(handler_fn)
-        )
+      if catch_index && else_index && catch_index < else_index do
+        raise CompileError,
+          file: caller.file,
+          line: caller.line,
+          description:
+            "in hefty block, `else` must come before `catch` " <>
+              "(else handles pattern match failures, catch handles thrown errors and wraps else)"
       end
     end
 
     # Rewrite the entire block
-    defp rewrite_block({:__block__, _, exprs}), do: rewrite_exprs(exprs)
-    defp rewrite_block(expr), do: rewrite_exprs([expr])
+    # has_else: whether to generate multi-clause continuations for complex patterns
+    defp rewrite_block(block, has_else)
+
+    defp rewrite_block({:__block__, _, exprs}, has_else), do: rewrite_exprs(exprs, has_else)
+    defp rewrite_block(expr, has_else), do: rewrite_exprs([expr], has_else)
 
     # Single expression - just return it
-    defp rewrite_exprs([last]) do
+    defp rewrite_exprs([last], _has_else) do
       last
     end
 
     # Pure assignment (=) - preserve as regular assignment, then continue
-    defp rewrite_exprs([{:=, meta, [lhs, rhs]} | rest]) do
-      quote do
-        unquote({:=, meta, [lhs, rhs]})
-        unquote(rewrite_exprs(rest))
+    # If has_else and pattern is complex, wrap in case with bind_match_failed fallback
+    defp rewrite_exprs([{:=, meta, [lhs, rhs]} | rest], has_else) do
+      rest_rewritten = rewrite_exprs(rest, has_else)
+
+      if has_else and complex_pattern?(lhs) do
+        # Wrap in case with fallback
+        quote do
+          case unquote(rhs) do
+            unquote(lhs) ->
+              unquote(rest_rewritten)
+
+            __freyja_nomatch__ ->
+              Freyja.Effects.Lift.lift(Freyja.Effects.Else.bind_match_failed(__freyja_nomatch__))
+          end
+        end
+      else
+        # Simple pattern or no else - regular assignment
+        quote do
+          unquote({:=, meta, [lhs, rhs]})
+          unquote(rest_rewritten)
+        end
       end
     end
 
     # Effect binding (<-) - rewrite to Hefty.bind
-    defp rewrite_exprs([{:<-, _meta, [lhs, rhs]} | rest]) do
-      binder(lhs, rhs, rewrite_exprs(rest))
+    # If has_else and pattern is complex, generate multi-clause continuation
+    defp rewrite_exprs([{:<-, _meta, [lhs, rhs]} | rest], has_else) do
+      rest_rewritten = rewrite_exprs(rest, has_else)
+
+      if has_else and complex_pattern?(lhs) do
+        # Generate multi-clause continuation
+        binder_with_else(lhs, rhs, rest_rewritten)
+      else
+        # Simple pattern or no else - regular bind
+        binder(lhs, rhs, rest_rewritten)
+      end
     end
 
-    # Generate Hefty.bind call
+    # Generate simple Hefty.bind call
     defp binder(lhs, rhs, body) do
       quote do
         unquote(rhs)
@@ -327,15 +417,97 @@ defmodule Freyja.Hefty.HeftyBlock do
       end
     end
 
-    # Build the error handler function from catch block clauses
-    defp build_catch_handler_fn(catch_block) do
-      # Extract clauses from the catch block
-      clauses = extract_catch_clauses(catch_block)
+    # Generate Hefty.bind with multi-clause continuation for else support
+    defp binder_with_else(lhs, rhs, body) do
+      quote do
+        unquote(rhs)
+        |> Freyja.Hefty.bind(fn
+          unquote(lhs) ->
+            unquote(body)
 
-      # Rewrite each clause body using rewrite_block, preserving the pattern structure
+          __freyja_nomatch__ ->
+            Freyja.Effects.Lift.lift(Freyja.Effects.Else.bind_match_failed(__freyja_nomatch__))
+        end)
+      end
+    end
+
+    # Check if a pattern is "complex" (might fail to match)
+    # Simple patterns: variables, underscore
+    # Complex patterns: tuples, lists, maps, structs, literals, pins
+    defp complex_pattern?({name, _meta, context})
+         when is_atom(name) and is_atom(context) and name != :^ do
+      # Simple variable (including underscore variants like _foo)
+      false
+    end
+
+    defp complex_pattern?({:_, _meta, _context}) do
+      # Underscore
+      false
+    end
+
+    defp complex_pattern?(_) do
+      # Everything else: tuples, lists, maps, structs, literals, pins, etc.
+      true
+    end
+
+    # Build the else handler function from else block clauses
+    defp build_else_handler_fn(else_block) do
+      clauses = extract_clauses(else_block)
+
+      # Rewrite each clause body, preserving the pattern structure
       rewritten_clauses =
         Enum.map(clauses, fn {:->, meta, [patterns, body]} ->
-          rewritten_body = rewrite_block(body)
+          # Else clause bodies are hefty blocks too, but shouldn't have else
+          # (nested else would be confusing)
+          rewritten_body = rewrite_block(body, false)
+          {:->, meta, [patterns, rewritten_body]}
+        end)
+
+      # Check if there's a catch-all clause
+      has_catch_all = has_catch_all_clause?(clauses)
+
+      # Add a default rethrow clause if user didn't provide catch-all
+      final_clauses =
+        if has_catch_all do
+          rewritten_clauses
+        else
+          rewritten_clauses ++
+            [
+              {:->, [],
+               [
+                 [quote(do: __freyja_unhandled_match__)],
+                 quote(
+                   do:
+                     Freyja.Effects.Lift.lift(
+                       Freyja.Effects.Throw.throw_error(
+                         {:bind_match_failed, __freyja_unhandled_match__}
+                       )
+                     )
+                 )
+               ]}
+            ]
+        end
+
+      # Build the function: fn val -> case val do ... end end
+      quote do
+        fn __freyja_else_value__ ->
+          import Freyja.Hefty, only: [return: 1]
+
+          case __freyja_else_value__ do
+            unquote(final_clauses)
+          end
+        end
+      end
+    end
+
+    # Build the error handler function from catch block clauses
+    defp build_catch_handler_fn(catch_block) do
+      clauses = extract_clauses(catch_block)
+
+      # Rewrite each clause body, preserving the pattern structure
+      rewritten_clauses =
+        Enum.map(clauses, fn {:->, meta, [patterns, body]} ->
+          rewritten_body = rewrite_block(body, false)
           {:->, meta, [patterns, rewritten_body]}
         end)
 
@@ -374,21 +546,21 @@ defmodule Freyja.Hefty.HeftyBlock do
       end
     end
 
-    # Extract clauses from catch block
+    # Extract clauses from a block
     # Handles both single clause and multiple clauses
-    defp extract_catch_clauses({:->, _, _} = single_clause) do
+    defp extract_clauses({:->, _, _} = single_clause) do
       [single_clause]
     end
 
-    defp extract_catch_clauses({:__block__, _, clauses}) do
+    defp extract_clauses({:__block__, _, clauses}) do
       clauses
     end
 
-    defp extract_catch_clauses(clauses) when is_list(clauses) do
+    defp extract_clauses(clauses) when is_list(clauses) do
       clauses
     end
 
-    defp extract_catch_clauses(nil) do
+    defp extract_clauses(nil) do
       []
     end
 

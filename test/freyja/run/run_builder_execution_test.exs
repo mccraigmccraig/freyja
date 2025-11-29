@@ -98,9 +98,9 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
         |> Throw.Handler.run()
         |> Run.run()
 
-      # Catch returns {:error, _} which is already an error tuple
-      # Throw.Handler sees this and doesn't double-wrap
-      assert outcome.result == {:error, :too_big}
+      # Catch handler returns {:error, :too_big} as a normal value
+      # Throw.Handler wraps ALL normal values in {:ok, _}
+      assert outcome.result == {:ok, {:error, :too_big}}
     end
   end
 

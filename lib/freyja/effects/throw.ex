@@ -58,6 +58,13 @@ defmodule Freyja.Effects.Throw.Handler do
 
   @behaviour Freyja.Freer.EffectHandler
 
+  # Internal marker struct to distinguish thrown errors from normal values
+  # that happen to look like {:error, _} tuples
+  defmodule ThrownError do
+    @moduledoc false
+    defstruct [:error]
+  end
+
   @impl Freyja.Freer.EffectHandler
   def handles?(%Impure{sig: sig}, _state) do
     sig == Throw
@@ -65,7 +72,7 @@ defmodule Freyja.Effects.Throw.Handler do
 
   @doc """
   Interpret a Throw operation.
-  Returns {:error, reason} tuple instead of wrapped ErrorResult struct.
+  Wraps in ThrownError marker so finalize can distinguish from normal values.
   """
   @impl Freyja.Freer.EffectHandler
   def interpret(
@@ -75,23 +82,23 @@ defmodule Freyja.Effects.Throw.Handler do
         _run_state
       ) do
     # Throw short-circuits - discards queue
-    # Return plain {:error, reason} tuple
-    {Freer.return({:error, err}), nil}
+    # Wrap in ThrownError marker so finalize knows this came from throw
+    {Freer.return(%ThrownError{error: err}), nil}
   end
 
   @doc """
-  Wrap completed computations in {:ok, value}.
+  Wrap completed computations in {:ok, value} or {:error, reason}.
 
-  Errors are already {:error, _} tuples from throw_error, so this creates
-  Either-style results when Throw.Handler is in the stack.
+  Uses ThrownError marker to distinguish actual thrown errors from normal
+  values that happen to look like {:error, _} tuples.
   """
   @impl Freyja.Freer.EffectHandler
   def finalize(%Pure{val: val}, _key, state, _run_state) do
-    # Wrap completed values in {:ok, _}
-    # Errors already return {:error, _}, so this creates Either-style tuples
     wrapped_val =
       case val do
-        {:error, _} = err -> err
+        # Actual thrown error - unwrap marker and return as {:error, _}
+        %ThrownError{error: err} -> {:error, err}
+        # Normal value - wrap in {:ok, _}
         value -> {:ok, value}
       end
 

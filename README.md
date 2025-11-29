@@ -22,6 +22,45 @@ end
 
 Freyja is an Algebraic Effects system for Elixir, enabling you to write programs as pure functions that describe all their side effects as "effect" data structures. These effects are then interpreted by handlers, providing a clean separation between **what** your program does (the effects) and **how** it does it (the handlers).
 
+## 0. tl;dr
+
+Algebraic Effects and Handlers for Elixir. Both first-order and higher-order
+effects are supported. A `with`-like syntax is introduced to help with
+sequencing computations:
+
+``` elixir
+defhefty process_order(order_id) do
+  # First-order effects are auto-lifted in hefty blocks
+  order <- EctoFx.query(Queries, :find_order, %{id: order_id})
+
+  # Pattern matching with else clause for failures
+  {:ok, validated} <- validate_order(order)
+
+  # More effects - state tracking
+  count <- State.get()
+  _ <- State.put(count + 1)
+
+  # Higher-order effect: transaction wrapping
+  result <- EctoFx.transaction(
+    hefty do
+      _ <- EctoFx.update(Order.confirm_changeset(validated))
+      _ <- EctoFx.insert(AuditLog.changeset(%{order_id: order_id, action: "confirmed"}))
+      return({:confirmed, validated})
+    end
+  )
+
+  return(result)
+else
+  # Handle pattern match failures (e.g., validate_order returned {:error, _})
+  {:error, :invalid_items} -> return({:rejected, :invalid_items})
+  {:error, reason} -> return({:rejected, reason})
+catch
+  # Handle thrown errors (e.g., from EctoFx operations)
+  :db_connection_error -> return({:error, :database_unavailable})
+  thrown -> return({:error, thrown})
+end
+```
+
 ## 1. What are Algebraic Effects?
 
 Algebraic effects are plain data structures that describe something impure you want
@@ -87,9 +126,9 @@ operation structs and wrap them in a minimal `Freer.Impure` structure using
 Handlers - see section 3.2 for more details on how `send_effect` and
 `Impure` work.
 
-Remember that the effect structs themselves are just simple data - they 
-are used to signal that a computation wants to do something, but they 
-neither _do_ anything nor say _how_ a thing should be done. 
+Remember that the effect structs themselves are just simple data - they
+are used to signal that a computation wants to do something, but they
+neither _do_ anything nor say _how_ a thing should be done.
 
 ```elixir
 %Freyja.Effects.TaggedState.GetTagged{tag: :cart}

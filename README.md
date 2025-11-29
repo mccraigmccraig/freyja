@@ -140,36 +140,42 @@ store in a map, or something else entirely.
 
 ### 1.2 Define Your Own Effect Language
 
-Most applications invent their own “impure verbs”. With Freyja you can codify
+Most applications invent their own "impure verbs". With Freyja you can codify
 those verbs as effect structs instead of performing side effects immediately.
 
 ```elixir
 # Domain-specific storage effect
-defmodule MyApp.Storage.Query do
-  defstruct [:table, :id]
-end
-
-defmodule MyApp.Storage.Change do
-  defstruct [:table, :record]
-end
-
 defmodule MyApp.Storage do
-  def query(table, id), do: %Query{table: table, id: id}
-  def change(table, record), do: %Change{table: table, record: record}
+  alias Freyja.Freer
+  
+  defmodule Query do
+    defstruct [:table, :id]
+  end
+
+  defmodule Change do
+    defstruct [:table, :record]
+  end
+
+  # Constructor functions use send_effect to wrap structs in Freer.Impure
+  def query(table, id), do: %Query{table: table, id: id} |> Freer.send_effect()
+  def change(table, record), do: %Change{table: table, record: record} |> Freer.send_effect()
 end
 
 # Domain-specific notification effect
-defmodule MyApp.Notifications.SendPush do
-  defstruct [:user_id, :message]
-end
-
 defmodule MyApp.Notifications do
-  def send_push(user_id, message), do: %SendPush{user_id: user_id, message: message}
+  alias Freyja.Freer
+  
+  defmodule SendPush do
+    defstruct [:user_id, :message]
+  end
+
+  def send_push(user_id, message), do: %SendPush{user_id: user_id, message: message} |> Freer.send_effect()
 end
 ```
 
-Your pure business logic can now “describe” what it needs. The `con` macro
-helps you compose effectful computations using a familiar `with`-like syntax:
+Your pure business logic can now "describe" what it needs. The `con` macro
+helps you compose (first-order) effectful computations using a familiar
+`with`-like syntax:
 
 ```elixir
 def checkout(cart, user) do

@@ -169,6 +169,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
   5. Incomplete step, single effect, no match - within-step first run (new intermediate effect)
   6. Divergence - effect doesn't match log, handle based on allow_divergence?
   """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def log_or_resume(%Impure{sig: sig, data: data} = computation, %Log{} = log) do
     case log.queue do
       [] ->

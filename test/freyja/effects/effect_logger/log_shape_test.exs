@@ -46,7 +46,10 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
   end
 
   describe "resume log shape" do
-    test "prefix is preserved and resumed steps remain single-effect" do
+    test "prefix is preserved and resumed steps remain single-effect (with divergence allowed)" do
+      # This test verifies that when resuming with DIFFERENT code (diverged_comp),
+      # the log preserves the prefix and new steps are single-effect.
+      # This requires explicitly allowing divergence since the code differs.
       base_comp =
         con [Coroutine, State] do
           _ <- State.put(0)
@@ -74,7 +77,8 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
         |> Coroutine.Handler.run(nil)
         |> State.Handler.run(0)
 
-      cold_outcome = serialize_outcome(base_outcome)
+      # Enable divergence since we're resuming with different code
+      cold_outcome = serialize_outcome_with_divergence(base_outcome)
       resumed_outcome = Run.resume(builder, cold_outcome, 42)
       resumed_log = Log.prepare_for_retrace(resumed_outcome.outputs[EffectLogger.Handler])
       resumed_entries = resumed_log.queue
@@ -136,5 +140,13 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
 
   defp clone(term), do: term |> :erlang.term_to_binary() |> :erlang.binary_to_term()
 
-  defp serialize_outcome(outcome), do: outcome |> Jason.encode!() |> Jason.decode!()
+  defp serialize_outcome_with_divergence(outcome) do
+    outcome
+    |> Jason.encode!()
+    |> Jason.decode!()
+    |> update_in(
+      ["outputs", "Elixir.Freyja.Effects.EffectLogger.Handler", "allow_divergence?"],
+      fn _ -> true end
+    )
+  end
 end

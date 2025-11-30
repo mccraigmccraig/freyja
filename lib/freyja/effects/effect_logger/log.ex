@@ -290,12 +290,37 @@ defmodule Freyja.Effects.EffectLogger.Log do
   end
 
   @doc """
-  Create a log for resuming from an error.
-  Allows divergence at the final log entry, enabling debugging scenarios where
-  the code has been fixed and the error no longer occurs.
+  Enable divergence mode on a log.
+
+  When `allow_divergence?` is true, the logger will accept effects that don't
+  match the logged entries, dropping stale entries and logging new effects.
+  This is primarily used for **error rerun** scenarios: replaying a failed
+  computation with patched code that takes a different path (e.g., no longer
+  throws an error).
+
+  By default, `allow_divergence?` is false, which means any mismatch between
+  the computation's effects and the logged effects will raise an error. This
+  strict mode helps catch bugs like serialization issues (e.g., atoms becoming
+  strings) that might otherwise go unnoticed.
+
+  Note: `Run.rerun/2` automatically enables divergence. `Run.resume/3` does not,
+  since resumed computations should replay effects exactly. If you need to resume
+  with modified code, you can manually enable divergence on the log.
+
+  ## Examples
+
+      # For rerun with patched code (done automatically by Run.rerun)
+      log |> Log.allow_divergence()
+  """
+  def allow_divergence(log) do
+    %{log | allow_divergence?: true}
+  end
+
+  @doc """
+  Alias for `allow_divergence/1` for backward compatibility.
   """
   def for_error_resume(log) do
-    %{log | allow_divergence?: true}
+    allow_divergence(log)
   end
 end
 

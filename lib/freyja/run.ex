@@ -204,13 +204,16 @@ defmodule Freyja.Run do
 
   # "cold" resume - probably from a deserialized RunOutcome, with the
   # unserializable continuation erased
+  #
+  # Note: we do NOT enable log divergence for resume. After replaying the logged
+  # effects up to and including the incomplete yield, the queue will be empty and
+  # new effects will be logged normally. Keeping allow_divergence?: false ensures
+  # that any unexpected divergence during replay is caught as an error.
   defp resume_with_builder(
          %RunBuilder{} = builder,
          %RunOutcome{result: {:suspend, _value, _k}, run_state: nil} = outcome,
          input
        ) do
-    outcome = enable_log_divergence(outcome)
-
     builder
     |> builder_with_outputs(outcome.outputs)
     |> inject_coroutine_resume_value(input)
@@ -261,7 +264,7 @@ defmodule Freyja.Run do
     updated_outputs =
       Enum.reduce(outcome.outputs, %{}, fn
         {EffectLogger.Handler, %EffectLogger.Log{} = log}, acc ->
-          Map.put(acc, EffectLogger.Handler, EffectLogger.Log.for_error_resume(log))
+          Map.put(acc, EffectLogger.Handler, EffectLogger.Log.allow_divergence(log))
 
         {key, value}, acc ->
           Map.put(acc, key, value)

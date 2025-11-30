@@ -59,6 +59,7 @@ defmodule Freyja.Examples.EffectLoggerResumeTest do
     #   2. Coroutine.Yield (now completed with resume value 42)
     #   3. State.Put{val: 42} (new work after resume)
     # - State.Put{val: 5} should appear exactly ONCE (regression test for duplication bug)
+    # - allow_divergence? is false (resume should not allow divergence - unlike rerun)
     resumed_log = resumed.outputs[EffectLoggerHandler]
 
     assert %Log{
@@ -86,7 +87,7 @@ defmodule Freyja.Examples.EffectLoggerResumeTest do
                  ]
                }
              ],
-             allow_divergence?: true
+             allow_divergence?: false
            } = resumed_log
 
     # Explicit check: State.Put{val: 5} appears exactly once (not duplicated)

@@ -13,9 +13,9 @@
   - [1.1 A real effect: Tagged State](#11-a-real-effect-tagged-state)
   - [1.2 Define Your Own Effect Language](#12-define-your-own-effect-language)
 - [2. A Quick Tour](#2-a-quick-tour-a-short-list-of-some-cool-things-algebraic-effects-enable)
-  - [2.1 EctoFx: Taming database interactions](#21-ectofx-taming-dataabase-interactions)
-  - [2.2 Coroutine-Based Programming](#22-coroutine-based-programming)
-  - [2.3 EffectLogger: Log, Replay, and Resume Anything](#23-effectlogger-log-replay-and-resume-anything)
+  - [2.1 EffectLogger: Log, Replay, and Resume Anything](#21-effectlogger-log-replay-and-resume-anything)
+  - [2.2 EctoFx: Taming database interactions](#22-ectofx-taming-database-interactions)
+  - [2.3 Coroutine-Based Programming](#23-coroutine-based-programming)
   - [2.4 Change Capture with EctoFx](#24-change-capture-with-ectofx)
   - [2.5 TaggedReader: Stable Signatures When Requirements Change](#25-taggedreader-stable-signatures-when-requirements-change)
 - [3. How does it work](#3-how-does-it-work)
@@ -251,154 +251,36 @@ deal with the impure plumbing.
 
 Not nearly an exhaustive list, but there are IEx runnable examples for each case!
 
-### 2.1 EctoFx: Taming dataabase interactions
+### 2.3 Serializable Coroutines
 
-The [`ecto_user_service.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/ecto_user_service.ex)
-example shows how to build domain services that use Ecto effects for queries and
-mutations, while keeping domain logic completely testable without a database.
+This was the use-case that lead to Freyja - having built a
+[library](https://github.com/yapsterapp/a-frame) in
+Clojure which supported serializable and resumable computations - albeit
+with very strict limitations on the form of the computation to a simple
+list of steps - I wanted to explore the possibility of a more general
+approach, with a more natural style, and which wouldn't limit the shape
+of the computation.
 
-**The Problem**: Traditional Ecto code tightly couples domain logic to the database:
+The result is Freyja, and the EffectLogger effect. It's an advanced effect,
+and if you add its Handler to the start of any handler queue, it will log all
+effects which are emitted by a computation or any of the other Handlers.
 
-```elixir
-def create_user_with_profile(attrs) do
-  Repo.transaction(fn ->
-    user = Repo.insert!(User.changeset(attrs))
-    profile = Repo.insert!(Profile.changeset(user, attrs))
-    {user, profile}
-  end)
-end
-```
+Having captured a structured log of all the effects emitted by a computation,
+the EffectLogger can then be used to:
 
-This is hard to test without a database. **With EctoFx effects**:
+* resume a suspended computation from a hot or cold (serialized then deserialized)
+  log
+* rerun a failed computation from a hot or cold log
 
-```elixir
-defhefty register_user(attrs) do
-  # Check if email already exists
-  existing <- EctoFx.query(Queries, :find_user_by_email, %{email: attrs.email})
-
-  result <-
-    case existing do
-      nil ->
-        # Email not taken - create user and profile in transaction
-        EctoFx.transaction(
-          hefty do
-            user <- EctoFx.insert(User.changeset(attrs))
-            profile <- EctoFx.insert(Profile.changeset(user, attrs))
-            return({user, profile})
-          end
-        )
-
-      _user ->
-        # Email already taken - return error via Throw
-        Throw.throw_error({:email_taken, attrs.email})
-    end
-
-  return(result)
-end
-```
-
-**In tests** - no database needed! Use `EctoFx.TestHandler` with stubbed queries:
-
-```elixir
-state =
-  EctoFx.TestHandler.new()
-  |> EctoFx.TestHandler.stub_query(Queries, :find_user_by_email, %{email: "alice@test.com"}, nil)
-
-outcome =
-  EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
-  |> EctoFx.TestHandler.run(state)
-  |> Lift.Algebra.run()
-  |> Throw.Handler.run()
-  |> Run.run()
-
-assert {:ok, {%User{name: "Alice"}, %Profile{}}} = outcome.result
-```
-
-**In production** - real database with `EctoFx.Handler`:
-
-```elixir
-outcome =
-  EctoUserService.register_user(%{name: "Alice", email: "alice@example.com"})
-  |> EctoFx.Handler.run(MyApp.Repo, %{Queries => :direct})
-  |> Lift.Algebra.run()
-  |> Throw.Handler.run()
-  |> Run.run()
-```
-
-**Benefits**:
-- Domain logic stays pure and testable
-- Test handler automatically applies changeset changes, validating your logic
-- Same code works with real DB or test stubs
-- Transactions compose naturally with other effects
-
-
-### 2.2 Coroutine-Based Programming
-
-From the IEx runnable  [`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex)
-example:
-
-A Coroutine effect let you suspend and resume computations. Domain logic
-can be completely agnostic about how responses are gathered—interactive UI, CLI
-prompts, LLMs, or batch pipelines can all drive the same pure core.
-
-Since effects are just simple data-structures you can use your effects as
-commands - and your whole system becomes command-driven with little effort.
-
-Here's a simple coroutine-based command processor which repeatedly suspends,
-asking for the next command. You can feed it commands from a UI or CLI or, since
-your commands are just easily documented strucs, you can have an LLM
-build commands and AI enable your whole app for free:
-
-```elixir
-defcon loop do
-  # yield to outside the computation to ask for the next command
-  command <- Coroutine.yield(:next_command)
-
-  case command do
-    %Storage.Query{} = effect ->
-      handle_effect(effect)
-
-    %Storage.Change{} = effect ->
-      handle_effect(effect)
-
-    %Notifications.SendPush{} = effect ->
-      handle_effect(effect)
-
-    :stop ->
-      return(:stopped)
-
-    other ->
-      Throw.throw_error({:unknown_command, other})
-  end
-end
-
-defconp handle_effect(effect) do
-  _ <- effect
-  loop()
-end
-
-# provide handlers for all the effects
-builder = Freyja.Examples.CommandProcessor.builder()
-# run the computation up to the yield
-processor = Freyja.Run.run(builder)
-
-commands = [
-  Storage.query(:products, "A1"),
-  Storage.change(:users, %{id: 1, name: "Ann"}),
-  Notifications.send_push(1, "Hello!"),
-  :stop
-]
-# repeatedly resume the computation with successive commands/effects
-final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->
-  Freyja.Run.resume(builder, outcome, cmd)
-end)
-
-```
-
-Because commands are just effect structs, you can whitelist them for MCP tooling,
-log them, or feed them manually—no extra glue code required.
-
-### 2.3 EffectLogger: Log, Replay, and Resume Anything
+When resuming or rerunning, if there is a completed StepLogEntry for a step
+in the computation, the EffectLogger will intercept the step and supply the
+logged value for the step to the next step, without doing any effectful work -
+so re-running computations, and cold-resumes follow thhrough the pure elements of
+the computation, rebuilding the continuations, until they reach the end of the
+logged computation, at which point the normal logging behaviour comes into play
+and the computation resumes where it left off before being serialized.
+(hot resumes, where continuations are still available, don't follow this path,
+and immediately resume from where they left off)
 
 #### (a) Automatic Log Collection
 
@@ -535,6 +417,153 @@ EffectLogger’s serialized state is also enough to "cold" resume a coroutine fr
 deserialized logs, even though the original continuation has been lost! See
 [`Freyja.Examples.EffectLoggerResume`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/effect_logger_resume.ex)
 for a copy/pasteable builder demonstrating the pattern in IEx.
+
+### 2.2 EctoFx: Taming dataabase interactions
+
+The [`ecto_user_service.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/ecto_user_service.ex)
+example shows how to build domain services that use Ecto effects for queries and
+mutations, while keeping domain logic completely testable without a database.
+
+**The Problem**: Traditional Ecto code tightly couples domain logic to the database:
+
+```elixir
+def create_user_with_profile(attrs) do
+  Repo.transaction(fn ->
+    user = Repo.insert!(User.changeset(attrs))
+    profile = Repo.insert!(Profile.changeset(user, attrs))
+    {user, profile}
+  end)
+end
+```
+
+This is hard to test without a database. **With EctoFx effects**:
+
+```elixir
+defhefty register_user(attrs) do
+  # Check if email already exists
+  existing <- EctoFx.query(Queries, :find_user_by_email, %{email: attrs.email})
+
+  result <-
+    case existing do
+      nil ->
+        # Email not taken - create user and profile in transaction
+        EctoFx.transaction(
+          hefty do
+            user <- EctoFx.insert(User.changeset(attrs))
+            profile <- EctoFx.insert(Profile.changeset(user, attrs))
+            return({user, profile})
+          end
+        )
+
+      _user ->
+        # Email already taken - return error via Throw
+        Throw.throw_error({:email_taken, attrs.email})
+    end
+
+  return(result)
+end
+```
+
+**In tests** - no database needed! Use `EctoFx.TestHandler` with stubbed queries:
+
+```elixir
+state =
+  EctoFx.TestHandler.new()
+  |> EctoFx.TestHandler.stub_query(Queries, :find_user_by_email, %{email: "alice@test.com"}, nil)
+
+outcome =
+  EctoUserService.register_user(%{name: "Alice", email: "alice@test.com"})
+  |> EctoFx.TestHandler.run(state)
+  |> Lift.Algebra.run()
+  |> Throw.Handler.run()
+  |> Run.run()
+
+assert {:ok, {%User{name: "Alice"}, %Profile{}}} = outcome.result
+```
+
+**In production** - real database with `EctoFx.Handler`:
+
+```elixir
+outcome =
+  EctoUserService.register_user(%{name: "Alice", email: "alice@example.com"})
+  |> EctoFx.Handler.run(MyApp.Repo, %{Queries => :direct})
+  |> Lift.Algebra.run()
+  |> Throw.Handler.run()
+  |> Run.run()
+```
+
+**Benefits**:
+- Domain logic stays pure and testable
+- Test handler automatically applies changeset changes, validating your logic
+- Same code works with real DB or test stubs
+- Transactions compose naturally with other effects
+
+
+### 2.3 Coroutine-Based Programming
+
+From the IEx runnable  [`command_processor.ex`](https://github.com/mccraigmccraig/freyja/blob/main/lib/freyja/examples/command_processor.ex)
+example:
+
+A Coroutine effect let you suspend and resume computations. Domain logic
+can be completely agnostic about how responses are gathered—interactive UI, CLI
+prompts, LLMs, or batch pipelines can all drive the same pure core.
+
+Since effects are just simple data-structures you can use your effects as
+commands - and your whole system becomes command-driven with little effort.
+
+Here's a simple coroutine-based command processor which repeatedly suspends,
+asking for the next command. You can feed it commands from a UI or CLI or, since
+your commands are just easily documented strucs, you can have an LLM
+build commands and AI enable your whole app for free:
+
+```elixir
+defcon loop do
+  # yield to outside the computation to ask for the next command
+  command <- Coroutine.yield(:next_command)
+
+  case command do
+    %Storage.Query{} = effect ->
+      handle_effect(effect)
+
+    %Storage.Change{} = effect ->
+      handle_effect(effect)
+
+    %Notifications.SendPush{} = effect ->
+      handle_effect(effect)
+
+    :stop ->
+      return(:stopped)
+
+    other ->
+      Throw.throw_error({:unknown_command, other})
+  end
+end
+
+defconp handle_effect(effect) do
+  _ <- effect
+  loop()
+end
+
+# provide handlers for all the effects
+builder = Freyja.Examples.CommandProcessor.builder()
+# run the computation up to the yield
+processor = Freyja.Run.run(builder)
+
+commands = [
+  Storage.query(:products, "A1"),
+  Storage.change(:users, %{id: 1, name: "Ann"}),
+  Notifications.send_push(1, "Hello!"),
+  :stop
+]
+# repeatedly resume the computation with successive commands/effects
+final_outcome = Enum.reduce(commands, processor, fn cmd, outcome ->
+  Freyja.Run.resume(builder, outcome, cmd)
+end)
+
+```
+
+Because commands are just effect structs, you can whitelist them for MCP tooling,
+log them, or feed them manually—no extra glue code required.
 
 ### 2.4 Change Capture with EctoFx
 

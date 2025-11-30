@@ -13,7 +13,7 @@
   - [1.1 A real effect: Tagged State](#11-a-real-effect-tagged-state)
   - [1.2 Define Your Own Effect Language](#12-define-your-own-effect-language)
 - [2. A Quick Tour](#2-a-quick-tour-a-short-list-of-some-cool-things-algebraic-effects-enable)
-  - [2.1 EffectLogger: Log, Replay, and Resume Anything](#21-effectlogger-log-replay-and-resume-anything)
+  - [2.1 Serializable Coroutines](#21-serializable-coroutines)
   - [2.2 EctoFx: Taming database interactions](#22-ectofx-taming-database-interactions)
   - [2.3 Coroutine-Based Programming](#23-coroutine-based-programming)
   - [2.4 Change Capture with EctoFx](#24-change-capture-with-ectofx)
@@ -251,7 +251,7 @@ deal with the impure plumbing.
 
 Not nearly an exhaustive list, but there are IEx runnable examples for each case!
 
-### 2.3 Serializable Coroutines
+### 2.1 Serializable Coroutines
 
 This was the use-case that lead to Freyja - having built a
 [library](https://github.com/yapsterapp/a-frame) in

@@ -258,11 +258,23 @@ defmodule Freyja.Effects.EffectLogger.Log do
   end
 
   def prepare_for_retrace(%__MODULE__{} = log) do
+    combined = Enum.reverse(log.stack) ++ log.queue
+
+    # When allow_divergence? is true, drop incomplete entries from the queue.
+    # These are stale entries from a failed run that won't happen in the rerun.
+    # This is safe because prepare_for_retrace is NOT called on suspend/resume
+    # (only on finalize), so we won't accidentally drop entries we need to replay.
+    filtered =
+      if log.allow_divergence? do
+        Enum.filter(combined, & &1.completed?)
+      else
+        combined
+      end
+
     %__MODULE__{
       log
       | stack: [],
-        queue:
-          (Enum.reverse(log.stack) ++ log.queue) |> Enum.map(&StepLogEntry.prepare_for_retrace/1)
+        queue: Enum.map(filtered, &StepLogEntry.prepare_for_retrace/1)
     }
   end
 

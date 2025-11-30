@@ -241,12 +241,19 @@ defmodule Freyja.Effects.EffectLogger.Handler do
 
   # Case 6: Handle divergence from the log
   defp handle_divergence(%Impure{sig: sig, data: data} = computation, %Log{} = log) do
-    if log.allow_divergence? do
-      # Drop pending entries and start fresh
-      log_new_effect(computation, drop_pending_entries(log))
-    else
-      [%StepLogEntry{} = step | _] = log.queue
+    [%StepLogEntry{} = step | _] = log.queue
 
+    if log.allow_divergence? do
+      if StepLogEntry.completed?(step) do
+        # Completed step doesn't match - drop pending entries and start a new step
+        log_new_effect(computation, drop_pending_entries(log))
+      else
+        # Incomplete step - this is a new intermediate effect within the current step
+        # Drop the stale effects from the queue and push this as a new intermediate effect
+        cleared_log = clear_step_effects_queue(log)
+        push_within_step(computation, cleared_log)
+      end
+    else
       error_context =
         if StepLogEntry.completed?(step) do
           "Completed step exists but effect doesn't match.\n" <>
@@ -264,6 +271,15 @@ defmodule Freyja.Effects.EffectLogger.Handler do
             "Log step: #{inspect(step, pretty: true)}\n\n" <>
             "To allow divergence (e.g., for rerun with patched code), use Log.allow_divergence/1"
     end
+  end
+
+  # Clear the effects_queue of the current step, keeping only the head effect
+  # Used when diverging within a step - we keep the step but discard stale logged effects
+  defp clear_step_effects_queue(
+         %Log{queue: [%StepLogEntry{effects_queue: [head | _]} = step | rest]} = log
+       ) do
+    cleared_step = %{step | effects_queue: [head]}
+    %{log | queue: [cleared_step | rest]}
   end
 
   @doc """

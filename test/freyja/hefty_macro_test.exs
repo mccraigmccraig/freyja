@@ -443,6 +443,107 @@ defmodule Freyja.HeftyMacroTest do
       assert {:ok, {:caught, "any error"}} = outcome.result
     end
 
+    test "catch clause with underscore pattern (catch-all)" do
+      # The _ pattern should be recognized as catch-all, so no default re-throw
+      # clause is added (which would cause unreachable code warnings)
+      computation =
+        hefty do
+          Throw.throw_error(:some_error)
+        catch
+          _ -> return(:caught_anything)
+        end
+
+      outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> ThrowHandler.run()
+        |> Run.run()
+
+      assert {:ok, :caught_anything} = outcome.result
+    end
+
+    test "catch clause with underscore-prefixed variable (catch-all)" do
+      # The _error pattern should be recognized as catch-all
+      computation =
+        hefty do
+          Throw.throw_error({:detailed, :error_info})
+        catch
+          _error -> return(:caught_but_ignored)
+        end
+
+      outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> ThrowHandler.run()
+        |> Run.run()
+
+      assert {:ok, :caught_but_ignored} = outcome.result
+    end
+
+    test "catch clause with multiple specific patterns followed by catch-all" do
+      # When there are specific patterns followed by a catch-all,
+      # the macro should not add a default re-throw clause
+      make_computation = fn error_to_throw ->
+        hefty do
+          Throw.throw_error(error_to_throw)
+        catch
+          :specific_error -> return(:handled_specific)
+          {:tagged, reason} -> return({:handled_tagged, reason})
+          other -> return({:caught_other, other})
+        end
+      end
+
+      run_computation = fn comp ->
+        comp
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> ThrowHandler.run()
+        |> Run.run()
+      end
+
+      # Test specific atom match
+      outcome1 = run_computation.(make_computation.(:specific_error))
+      assert {:ok, :handled_specific} = outcome1.result
+
+      # Test tagged tuple match
+      outcome2 = run_computation.(make_computation.({:tagged, :some_reason}))
+      assert {:ok, {:handled_tagged, :some_reason}} = outcome2.result
+
+      # Test catch-all
+      outcome3 = run_computation.(make_computation.("unexpected error"))
+      assert {:ok, {:caught_other, "unexpected error"}} = outcome3.result
+    end
+
+    test "catch clause with only specific patterns re-throws unmatched errors" do
+      # When there's no catch-all pattern, the macro adds a default re-throw clause
+      # This test verifies that specific patterns like :atom and {:ok, _} are NOT
+      # treated as catch-all patterns
+      computation =
+        hefty do
+          Throw.throw_error(:unmatched_error)
+        catch
+          :specific_atom -> return(:handled_atom)
+          {:ok, _value} -> return(:handled_ok_tuple)
+          "string_pattern" -> return(:handled_string)
+        end
+
+      outcome =
+        computation
+        |> Catch.Algebra.run()
+        |> Lift.Algebra.run()
+        |> State.Handler.run(0)
+        |> ThrowHandler.run()
+        |> Run.run()
+
+      # Should propagate error since :unmatched_error doesn't match any specific pattern
+      assert {:error, :unmatched_error} = outcome.result
+    end
+
     test "catch clause re-throws unmatched errors" do
       computation =
         hefty do

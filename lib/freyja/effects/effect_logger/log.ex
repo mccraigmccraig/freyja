@@ -17,7 +17,6 @@ defmodule Freyja.Effects.EffectLogger.EffectLogEntry do
 
   @doc """
   Reconstruct EffectLogEntry from decoded JSON map.
-  Note: data field may be nil if it was not serializable.
   """
   def from_json(map) when is_map(map) do
     %__MODULE__{
@@ -34,20 +33,30 @@ end
 
 defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.EffectLogEntry do
   def encode(value, opts) do
-    # Try to encode data if it's serializable, otherwise omit it
-    data_value =
-      try do
-        # Test if data can be encoded
-        _ = Jason.encode!(value.data)
-        value.data
-      rescue
-        _ -> nil
-      end
+    # Validate that effect data is serializable - fail fast rather than
+    # silently replacing with nil which can cause subtle matching bugs
+    try do
+      _ = Jason.encode!(value.data)
+    rescue
+      _e in [Jason.EncodeError, Protocol.UndefinedError] ->
+        reraise """
+                Effect data is not JSON serializable.
+
+                Effect sig: #{inspect(value.sig)}
+                Effect data: #{inspect(value.data, pretty: true)}
+
+                Effects used with EffectLogger must have serializable data to ensure
+                correct matching during resume/replay. Either:
+                1. Use only serializable data types in your effect structs
+                2. Implement Jason.Encoder for your effect data types
+                """,
+                __STACKTRACE__
+    end
 
     Jason.Encode.map(
       %{
         sig: value.sig,
-        data: data_value
+        data: value.data
       },
       opts
     )

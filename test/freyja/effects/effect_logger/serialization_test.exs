@@ -26,28 +26,16 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       assert effect_entry["sig"] == "test_sig"
     end
 
-    test "encodes Log with non-serializable data (function)" do
+    test "raises on non-serializable data (function)" do
       log =
         Log.new()
         |> Log.log_effect(%Impure{sig: :test_sig, data: fn x -> x + 1 end})
         |> Log.log_interpreted_effect_value(99)
 
-      # Should not raise - non-serializable data should be omitted
-      json = Jason.encode!(log)
-      decoded = Jason.decode!(json)
-
-      # Verify structure is preserved
-      assert is_map(decoded)
-      [step_entry] = decoded["stack"]
-      [effect_entry] = step_entry["effects_stack"]
-
-      # Data field should be nil (function was not serializable)
-      assert effect_entry["data"] == nil
-      assert effect_entry["sig"] == "test_sig"
-
-      # Value is wrapped as SerializableResult
-      wrapped = SerializableResult.from_json(step_entry["value"])
-      assert SerializableResult.unwrap(wrapped) == 99
+      # Should raise with a helpful error message
+      assert_raise RuntimeError, ~r/Effect data is not JSON serializable/, fn ->
+        Jason.encode!(log)
+      end
     end
 
     test "round-trip encoding preserves structure for serializable data" do

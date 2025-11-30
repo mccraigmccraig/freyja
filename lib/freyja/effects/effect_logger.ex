@@ -90,8 +90,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         }
         | _
       ]
-      when completed in [:executed, :resumed] and sig == log_sig and
-             (data == log_data or log_data == nil) ->
+      when completed in [:executed, :resumed] and sig == log_sig and data == log_data ->
         true
 
       _ ->
@@ -188,17 +187,13 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         | _rest
       ]
       when completed in [:executed, :resumed] and sig == log_entry_sig and
-             (u == log_entry_data or log_entry_data == nil) ->
+             u == log_entry_data ->
         # Logger.error(
         #   "#{__MODULE__}.log_or_resume RESUME COMPLETE\n" <>
         #     "computation: #{inspect(computation, pretty: true)}\n" <>
         #     "current_log: #{inspect(current_log, pretty: true)}"
         # )
 
-        # NB: there may be unserializable things in the effect data - such as
-        # continuations - so we allow the log_entry_data to be nil
-        # TODO: maybe we should delegate matching deserialized effect
-        # values to the effect modules ?
         updated_log = Log.consume_log_entry(log)
         {Freyja.Freer.Impl.q_apply(q, value), updated_log}
 
@@ -216,7 +211,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         } = _log_entry
         | _rest
       ]
-      when sig == log_entry_sig and (u == log_entry_data or log_entry_data == nil) ->
+      when sig == log_entry_sig and u == log_entry_data ->
         # Logger.error(
         #   "#{__MODULE__}.log_or_resume RESUME INCOMPLETE\n" <>
         #     "computation: #{inspect(computation, pretty: true)}\n" <>

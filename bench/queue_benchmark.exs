@@ -3,12 +3,14 @@
 # Run with: mix run bench/queue_benchmark.exs
 #
 # This benchmark tests whether the O(n²) queue concatenation is a real
-# problem in practice. We compare four patterns:
+# problem in practice. We compare six patterns:
 #
 # 1. State/Nested  - Real effects at each step, nested binds (typical con/hefty usage)
 # 2. State/Chained - Real effects at each step, chained binds (pathological)
 # 3. Min/Nested    - Single effect then pure computation, nested binds
 # 4. Min/Chained   - Single effect then pure computation, chained binds (isolates queue overhead)
+# 5. Pure/Reduce   - Non-effectful baseline using Enum.reduce
+# 6. Pure/Recurse  - Non-effectful baseline using recursion with map state access/update
 #
 # All measurements include both build and run time.
 
@@ -99,6 +101,49 @@ defmodule QueueBenchmark do
   end
 
   # ============================================================
+  # Pure baselines - no effects, just computation
+  # These establish the baseline cost of iteration with state access/update
+  # ============================================================
+
+  # Pure/Reduce: Enum.reduce with map state access and update
+  # Mirrors the effectful pattern but without effect system overhead
+  def pure_reduce(target) do
+    initial_state = %{counter: 0}
+
+    final_state =
+      Enum.reduce(1..target, initial_state, fn _i, state ->
+        n = Map.get(state, :counter)
+
+        if n >= target do
+          state
+        else
+          Map.put(state, :counter, n + 1)
+        end
+      end)
+
+    Map.get(final_state, :counter)
+  end
+
+  # Pure/Recurse: recursive function with map state access and update
+  # Mirrors the nested effectful pattern but without effect system overhead
+  def pure_recurse(target) do
+    initial_state = %{counter: 0}
+    {result, _final_state} = pure_recurse_loop(target, initial_state)
+    result
+  end
+
+  defp pure_recurse_loop(target, state) do
+    n = Map.get(state, :counter)
+
+    if n >= target do
+      {n, state}
+    else
+      new_state = Map.put(state, :counter, n + 1)
+      pure_recurse_loop(target, new_state)
+    end
+  end
+
+  # ============================================================
   # Timing helpers
   # ============================================================
 
@@ -110,11 +155,16 @@ defmodule QueueBenchmark do
     end)
   end
 
+  def time_pure(fun) do
+    :timer.tc(fun)
+  end
+
   def run_benchmark(targets \\ [500, 1_000, 2_000, 5_000, 10_000]) do
     IO.puts("Queue Length Benchmark")
     IO.puts("======================")
     IO.puts("")
     IO.puts("Comparing nested vs chained binds, with and without real effect work.")
+    IO.puts("Pure baselines show the cost of equivalent computation without effects.")
     IO.puts("All times include both construction and execution.")
     IO.puts("")
 
@@ -126,6 +176,8 @@ defmodule QueueBenchmark do
       _ = time_run(state_chained(100))
       _ = time_run(minimal_nested(100))
       _ = time_run(minimal_chained(100))
+      _ = time_pure(fn -> pure_reduce(100) end)
+      _ = time_pure(fn -> pure_recurse(100) end)
     end
 
     IO.puts("")
@@ -134,13 +186,15 @@ defmodule QueueBenchmark do
 
     IO.puts(
       String.pad_trailing("Target", 8) <>
-        String.pad_trailing("State/Nested", 14) <>
-        String.pad_trailing("State/Chained", 14) <>
-        String.pad_trailing("Min/Nested", 14) <>
-        String.pad_trailing("Min/Chained", 14)
+        String.pad_trailing("State/Nest", 12) <>
+        String.pad_trailing("State/Chain", 12) <>
+        String.pad_trailing("Min/Nest", 12) <>
+        String.pad_trailing("Min/Chain", 12) <>
+        String.pad_trailing("Pure/Reduce", 12) <>
+        String.pad_trailing("Pure/Recur", 12)
     )
 
-    IO.puts(String.duplicate("-", 64))
+    IO.puts(String.duplicate("-", 80))
 
     for target <- targets do
       # State/Nested
@@ -167,12 +221,26 @@ defmodule QueueBenchmark do
           time_run(minimal_chained(target))
         end)
 
+      # Pure/Reduce
+      pure_reduce_time =
+        median_time(iterations, fn ->
+          time_pure(fn -> pure_reduce(target) end)
+        end)
+
+      # Pure/Recurse
+      pure_recurse_time =
+        median_time(iterations, fn ->
+          time_pure(fn -> pure_recurse(target) end)
+        end)
+
       IO.puts(
         String.pad_trailing("#{target}", 8) <>
-          String.pad_trailing(format_time(state_nested_time), 14) <>
-          String.pad_trailing(format_time(state_chained_time), 14) <>
-          String.pad_trailing(format_time(minimal_nested_time), 14) <>
-          String.pad_trailing(format_time(minimal_chained_time), 14)
+          String.pad_trailing(format_time(state_nested_time), 12) <>
+          String.pad_trailing(format_time(state_chained_time), 12) <>
+          String.pad_trailing(format_time(minimal_nested_time), 12) <>
+          String.pad_trailing(format_time(minimal_chained_time), 12) <>
+          String.pad_trailing(format_time(pure_reduce_time), 12) <>
+          String.pad_trailing(format_time(pure_recurse_time), 12)
       )
     end
 
@@ -181,8 +249,9 @@ defmodule QueueBenchmark do
     IO.puts("---------")
     IO.puts("- State columns: Real State.get/put effects at each iteration")
     IO.puts("- Min columns: Single State.get, then N pure identity binds")
-    IO.puts("- Min/Chained isolates queue construction overhead (O(n²) if present)")
-    IO.puts("- Compare Min/Chained growth rate to others to see queue impact")
+    IO.puts("- Pure columns: Non-effectful baselines with map state access/update")
+    IO.puts("- Min/Chain isolates queue construction overhead (O(n²) if present)")
+    IO.puts("- Compare State/Nest to Pure/Recur to see effect system overhead")
   end
 
   defp median_time(iterations, fun) do

@@ -11,16 +11,13 @@ defmodule Freyja.Freer.Impl do
   @doc """
   add a continuation `mf` to a queue of continuations `q`
 
-  horribly inefficienrt - need to change queue representation
-  to one that supports
-   - append
-   - prepend
-   - concat
-  with reasonable (log) amortized time - but a list is fine for now
-  while developing the API
+  Uses direct ++ to avoid Enum protocol dispatch overhead.
+  With nested bind patterns (typical usage), queues stay short (1-2 items),
+  so O(n) append is acceptable. Chained patterns would need a proper
+  functional queue for O(1) amortized append if performance becomes an issue.
   """
   @spec q_append([(any -> any)], (any -> any)) :: [(any -> any)]
-  def q_append(q, mf), do: Enum.concat(q, [mf])
+  def q_append(q, mf), do: q ++ [mf]
 
   @doc """
   prepend a continuation `mf` to a queue of continuations `q`
@@ -32,7 +29,7 @@ defmodule Freyja.Freer.Impl do
   concatenate two queues of continuations
   """
   @spec q_concat([(any -> any)], [(any -> any)]) :: [(any -> any)]
-  def q_concat(qa, qb), do: Enum.concat(qa, qb)
+  def q_concat(qa, qb), do: qa ++ qb
 
   @doc """
   Apply value `x` to a queue `q` of continuations, returning a Freer value.

@@ -274,6 +274,144 @@ defmodule Freyja.Effects.ElseTest do
     end
   end
 
+  describe "else clause catch-all pattern detection" do
+    # These tests verify that the macro correctly identifies catch-all patterns
+    # in else clauses and doesn't add a redundant default clause (which would
+    # cause unreachable code warnings)
+
+    test "else clause with underscore pattern (catch-all)" do
+      use Freyja.Syntax
+
+      get_value = fn -> Freyja.Hefty.pure(:any_value) end
+
+      comp =
+        hefty do
+          {:ok, a} <- get_value.()
+          return(a)
+        else
+          _ -> return(:caught_anything)
+        end
+
+      result =
+        comp
+        |> Else.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
+
+      assert result.result == {:ok, :caught_anything}
+    end
+
+    test "else clause with underscore-prefixed variable (catch-all)" do
+      use Freyja.Syntax
+
+      get_value = fn -> Freyja.Hefty.pure({:unexpected, :data}) end
+
+      comp =
+        hefty do
+          {:ok, a} <- get_value.()
+          return(a)
+        else
+          _ignored -> return(:caught_but_ignored)
+        end
+
+      result =
+        comp
+        |> Else.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
+
+      assert result.result == {:ok, :caught_but_ignored}
+    end
+
+    test "else clause with plain variable (catch-all)" do
+      use Freyja.Syntax
+
+      get_value = fn -> Freyja.Hefty.pure(:some_value) end
+
+      comp =
+        hefty do
+          {:ok, a} <- get_value.()
+          return(a)
+        else
+          other -> return({:caught, other})
+        end
+
+      result =
+        comp
+        |> Else.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
+
+      assert result.result == {:ok, {:caught, :some_value}}
+    end
+
+    test "else clause with multiple specific patterns followed by catch-all" do
+      use Freyja.Syntax
+
+      make_comp = fn value_to_return ->
+        get_value = fn -> Freyja.Hefty.pure(value_to_return) end
+
+        hefty do
+          {:ok, a} <- get_value.()
+          return(a)
+        else
+          {:error, reason} -> return({:error_handled, reason})
+          :special_atom -> return(:special_handled)
+          other -> return({:caught_other, other})
+        end
+      end
+
+      run_comp = fn comp ->
+        comp
+        |> Else.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
+      end
+
+      # Test specific tuple match
+      result1 = run_comp.(make_comp.({:error, :some_reason}))
+      assert result1.result == {:ok, {:error_handled, :some_reason}}
+
+      # Test specific atom match
+      result2 = run_comp.(make_comp.(:special_atom))
+      assert result2.result == {:ok, :special_handled}
+
+      # Test catch-all
+      result3 = run_comp.(make_comp.("unexpected string"))
+      assert result3.result == {:ok, {:caught_other, "unexpected string"}}
+    end
+
+    test "else clause with only specific patterns converts unmatched to throw" do
+      use Freyja.Syntax
+
+      # When there's no catch-all pattern, unmatched values become throws
+      get_value = fn -> Freyja.Hefty.pure(:unmatched_value) end
+
+      comp =
+        hefty do
+          {:ok, a} <- get_value.()
+          return(a)
+        else
+          {:error, _} -> return(:error_handled)
+          {:special, _} -> return(:special_handled)
+        end
+
+      result =
+        comp
+        |> Else.Algebra.run()
+        |> Lift.Algebra.run()
+        |> Throw.Handler.run()
+        |> Run.run()
+
+      # Should throw since :unmatched_value doesn't match any specific pattern
+      assert result.result == {:error, {:bind_match_failed, :unmatched_value}}
+    end
+  end
+
   describe "nested else blocks" do
     test "inner else handles its own failures" do
       use Freyja.Syntax

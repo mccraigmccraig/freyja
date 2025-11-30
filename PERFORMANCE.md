@@ -110,9 +110,124 @@ See [bootstarted/effects queue implementation](https://github.com/bootstarted/ef
 
 ---
 
+## Comparison with Other Effect Systems
+
+### Overhead Ratios
+
+Comparing effectful vs non-effectful performance across different systems:
+
+| System | Language | Overhead vs Pure | Notes |
+|--------|----------|------------------|-------|
+| **Freyja** | Elixir | ~17-21x | Initial encoding with higher-order effects |
+| **freer-simple** | Haskell | ~75x | Initial encoding, similar architecture to Freyja |
+| **too-fast-too-free** | Haskell | ~2x | Final encoding |
+| **polysemy** | Haskell | Variable | Removed "zero-cost" claims; GHC optimizations unreliable |
+| **mtl** | Haskell | ~1x (baseline) | Monad transformers, not extensible |
+
+Sources:
+- Freyja: `bench/queue_benchmark.exs` (State/Nested vs Pure/Recurse)
+- Haskell systems: Sandy Maguire's ["Freer Monads: Too Fast, Too Free"](https://reasonablypolymorphic.com/blog/too-fast-too-free/)
+
+### Context
+
+From the polysemy README:
+> "Previous versions of this README mentioned the library being *zero-cost*... it turned out that optimizations we depend on... **don't work in bigger, multi-module programs**... this **isn't a polysemy-specific problem** - basically **all popular effects libraries** ended up being bitten by variation of this problem"
+
+From Sandy Maguire:
+> "Yes, freer monads are today somewhere around 30x slower than the equivalent mtl code. That's roughly on par with Python, but be honest, you've deployed Python services in the past and they were fast enough. And besides, the network speed already dominates your performance—you're IO-bound anyway."
+
+**Freyja's ~17-21x overhead is competitive** with other initial-encoding effect systems and is likely acceptable for most real-world applications where I/O dominates.
+
+---
+
+## Trade-offs for Performance Improvement
+
+### Initial vs Final Encoding
+
+Freyja uses an **initial encoding** where computations are represented as data structures:
+
+```elixir
+# Initial: computation as data
+%Impure{sig: State, data: %Get{}, q: [&Freer.pure/1]}
+```
+
+The alternative **final encoding** represents computations as functions awaiting an interpreter:
+
+```haskell
+-- Final: computation as function
+newtype Freer f a = Freer
+  { runFreer :: forall m. Monad m => (forall t. f t -> m t) -> m a }
+```
+
+### Why Final Encoding is Faster
+
+With initial encoding, every `bind` allocates a node in a data structure. With final encoding, `bind` just composes functions - no allocation, and everything fuses at runtime.
+
+This is how `too-fast-too-free` achieves ~2x overhead vs freer-simple's ~75x.
+
+### What Final Encoding Cannot Do
+
+Final encoding makes computations **opaque functions** rather than **inspectable data**. This breaks several Freyja features:
+
+| Feature | Initial Encoding | Final Encoding |
+|---------|------------------|----------------|
+| Higher-order effects (Bracket, Catch, Local) | ✅ Full support | ❌ Very difficult |
+| Effect logging | ✅ Can inspect/record effects | ❌ Computation is opaque |
+| Serializable continuations | ✅ Data can be serialized | ❌ Can't serialize functions |
+| Replay/resume from logs | ✅ Core feature | ❌ Not possible |
+| Coroutine suspension | ✅ Capture continuation as data | ❌ No data to capture |
+
+### Higher-Order Effects Problem
+
+Higher-order effects take **effectful computations as arguments**:
+
+```elixir
+# Higher-order: sub-computations as arguments
+%Bracket{acquire: computation, use: fn resource -> comp end, release: fn resource -> comp end}
+%Catch{computation: comp, handler: fn error -> recovery_comp end}
+```
+
+With initial encoding, these sub-computations are data that can be:
+- Inspected and transformed
+- Run multiple times
+- Run in different contexts
+- Intercepted for logging
+
+With final encoding, sub-computations are opaque functions. You can only call them - you can't control how they interact with effect handlers.
+
+### Hefty Algebras and Final Encoding
+
+Freyja uses **hefty algebras** (from "Hefty Algebras: Modular Elaboration of Higher-Order Algebraic Effects") to handle higher-order effects through elaboration into first-order effects.
+
+There is no established "final encoding of hefty algebras" in the research literature. The Haskell ecosystem is still actively researching this problem:
+
+- **fused-effects**: Uses weaving for higher-order effects, complex boilerplate
+- **effectful**: Sidesteps by using `IO` + `ReaderT` as base (not purely functional)
+- **polysemy**: Hybrid approach, still has performance issues in practice
+
+### Recommendation
+
+Given Freyja's design goals:
+
+1. **Effect logging and replay** - requires inspectable computation data
+2. **Resumable computations** - requires serializable continuations
+3. **Higher-order effects** - requires hefty algebra support
+
+The initial encoding is the correct choice. The ~17-21x overhead is the cost of these capabilities, and it's competitive with other systems providing similar features.
+
+If pure interpretation performance becomes critical for a specific use case, consider:
+- Optimizing the hot path (we already replaced `Enum.concat` with `++` for ~6% improvement)
+- Reducing protocol dispatch overhead (inline signatures)
+- Using direct function calls for simple effects that don't need logging
+
+---
+
 ## Running Benchmarks
 
 ```bash
 # Queue benchmark
 mix run bench/queue_benchmark.exs
+
+# Flamegraph profiling
+mix run bench/flamegraph_benchmark.exs
 ```

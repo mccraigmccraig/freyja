@@ -78,8 +78,8 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
         |> State.Handler.run(0)
 
       # Enable divergence since we're resuming with different code
-      cold_outcome = serialize_outcome_with_divergence(base_outcome)
-      resumed_outcome = Run.resume(builder, cold_outcome, 42)
+      cold_outcome = serialize_outcome(base_outcome)
+      resumed_outcome = Run.resume(builder, cold_outcome, 42, allow_divergence: true)
       resumed_log = Log.prepare_for_retrace(resumed_outcome.outputs[EffectLogger.Handler])
       resumed_entries = resumed_log.queue
 
@@ -140,13 +140,5 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
 
   defp clone(term), do: term |> :erlang.term_to_binary() |> :erlang.binary_to_term()
 
-  defp serialize_outcome_with_divergence(outcome) do
-    outcome
-    |> Jason.encode!()
-    |> Jason.decode!()
-    |> update_in(
-      ["outputs", "Elixir.Freyja.Effects.EffectLogger.Handler", "allow_divergence?"],
-      fn _ -> true end
-    )
-  end
+  defp serialize_outcome(outcome), do: outcome |> Jason.encode!() |> Jason.decode!()
 end

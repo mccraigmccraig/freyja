@@ -182,21 +182,39 @@ defmodule Freyja.Run do
   Hot resumes reuse the captured continuation and `run_state`. Cold resumes rebuild
   the builder from the recorded outputs, inject the resume value for `Coroutine.Handler`,
   and then run once to continue from the suspension point.
+
+  ## Options
+
+  * `:allow_divergence` - When `true`, allows the resumed computation to diverge
+    from the logged effects. This is useful when resuming with modified code.
+    Defaults to `false`, which catches serialization bugs and unexpected divergence.
+
+  ## Examples
+
+      # Normal resume - divergence will raise an error
+      Run.resume(builder, outcome, 42)
+
+      # Resume with modified code - allow divergence
+      Run.resume(builder, outcome, 42, allow_divergence: true)
   """
-  def resume(%RunBuilder{} = builder, %RunOutcome{} = outcome, input) do
-    resume_with_builder(builder, outcome, input)
+  def resume(builder, outcome, input, opts \\ [])
+
+  def resume(%RunBuilder{} = builder, %RunOutcome{} = outcome, input, opts) do
+    resume_with_builder(builder, outcome, input, opts)
   end
 
-  def resume(%RunBuilder{} = builder, outcome_map, input) when is_map(outcome_map) do
+  def resume(%RunBuilder{} = builder, outcome_map, input, opts) when is_map(outcome_map) do
     outcome = RunOutcome.from_json(outcome_map)
-    resume_with_builder(builder, outcome, input)
+    resume_with_builder(builder, outcome, input, opts)
   end
 
   # "hot" resume - we still have a continuation
+  # Note: options are ignored for hot resume since we're using the captured continuation
   defp resume_with_builder(
          _builder,
          %RunOutcome{result: {:suspend, _value, k}, run_state: %RunState{} = run_state},
-         input
+         input,
+         _opts
        )
        when is_function(k, 1) do
     Impl.do_run(k.(input), run_state)
@@ -205,22 +223,31 @@ defmodule Freyja.Run do
   # "cold" resume - probably from a deserialized RunOutcome, with the
   # unserializable continuation erased
   #
-  # Note: we do NOT enable log divergence for resume. After replaying the logged
-  # effects up to and including the incomplete yield, the queue will be empty and
-  # new effects will be logged normally. Keeping allow_divergence?: false ensures
-  # that any unexpected divergence during replay is caught as an error.
+  # Note: we do NOT enable log divergence for resume by default. After replaying
+  # the logged effects up to and including the incomplete yield, the queue will be
+  # empty and new effects will be logged normally. Keeping allow_divergence?: false
+  # ensures that any unexpected divergence during replay is caught as an error.
+  # Pass `allow_divergence: true` to override this for modified code scenarios.
   defp resume_with_builder(
          %RunBuilder{} = builder,
          %RunOutcome{result: {:suspend, _value, _k}, run_state: nil} = outcome,
-         input
+         input,
+         opts
        ) do
+    outcome =
+      if Keyword.get(opts, :allow_divergence, false) do
+        enable_log_divergence(outcome)
+      else
+        outcome
+      end
+
     builder
     |> builder_with_outputs(outcome.outputs)
     |> inject_coroutine_resume_value(input)
     |> run()
   end
 
-  defp resume_with_builder(_builder, %RunOutcome{result: other}, _input) do
+  defp resume_with_builder(_builder, %RunOutcome{result: other}, _input, _opts) do
     raise ArgumentError,
           "Run.resume expected a suspended outcome, got: #{inspect(other)}"
   end

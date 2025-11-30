@@ -141,4 +141,134 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
   defp clone(term), do: term |> :erlang.term_to_binary() |> :erlang.binary_to_term()
 
   defp serialize_outcome(outcome), do: outcome |> Jason.encode!() |> Jason.decode!()
+
+  describe "divergent intermediate effects" do
+    alias Freyja.Effects.EffectLogger.Handler
+    alias Freyja.Effects.EffectLogger.StepLogEntry
+    alias Freyja.Effects.EffectLogger.EffectLogEntry
+    alias Freyja.Freer.Impure
+
+    test "divergent effect within incomplete step is pushed as intermediate effect, not new step" do
+      # Construct a log with an incomplete step that has multiple logged effects
+      # This simulates a step that was in progress with intermediate effects [A, B, C]
+      incomplete_step = %StepLogEntry{
+        effects_stack: [],
+        effects_queue: [
+          %EffectLogEntry{sig: State, data: %State.Put{val: 100}},
+          %EffectLogEntry{sig: State, data: %State.Get{}},
+          %EffectLogEntry{sig: State, data: %State.Put{val: 200}}
+        ],
+        completed?: nil,
+        value: nil
+      }
+
+      log = %Log{
+        stack: [],
+        queue: [incomplete_step],
+        allow_divergence?: true
+      }
+
+      # Create a divergent effect - State.Put{val: 999} doesn't match head (Put{val: 100})
+      # or next (Get{})
+      divergent_computation = %Impure{
+        sig: State,
+        data: %State.Put{val: 999},
+        q: [&Freyja.Freer.pure/1]
+      }
+
+      # Call log_or_resume directly
+      {result_computation, result_log} = Handler.log_or_resume(divergent_computation, log)
+
+      # The result should still be an Impure (effect passed through)
+      assert %Impure{sig: State, data: %State.Put{val: 999}} = result_computation
+
+      # The log should still have one step (not a new step created)
+      assert length(result_log.queue) == 1
+
+      # The step should have the divergent effect pushed as intermediate
+      [updated_step] = result_log.queue
+
+      # The original head effect should now be on the stack
+      assert [%EffectLogEntry{sig: State, data: %State.Put{val: 100}}] =
+               updated_step.effects_stack
+
+      # The divergent effect should now be at the head of the queue
+      assert [%EffectLogEntry{sig: State, data: %State.Put{val: 999}}] =
+               updated_step.effects_queue
+
+      # Step should still be incomplete
+      assert updated_step.completed? == nil
+    end
+
+    test "divergent effect on completed step starts new step" do
+      # Construct a log with a completed step
+      completed_step = %StepLogEntry{
+        effects_stack: [],
+        effects_queue: [
+          %EffectLogEntry{sig: State, data: %State.Put{val: 100}}
+        ],
+        completed?: :executed,
+        value: 0
+      }
+
+      log = %Log{
+        stack: [],
+        queue: [completed_step],
+        allow_divergence?: true
+      }
+
+      # Create a divergent effect that doesn't match the completed step
+      divergent_computation = %Impure{
+        sig: State,
+        data: %State.Put{val: 999},
+        q: [&Freyja.Freer.pure/1]
+      }
+
+      # Call log_or_resume directly
+      {result_computation, result_log} = Handler.log_or_resume(divergent_computation, log)
+
+      # The result should be an Impure with capture continuation prepended
+      assert %Impure{sig: State, data: %State.Put{val: 999}} = result_computation
+
+      # The log queue should be empty (pending entries dropped) and a new step started
+      # Actually, log_new_effect adds to queue, so we should have one new step
+      assert length(result_log.queue) == 1
+
+      [new_step] = result_log.queue
+
+      # The new step should have the divergent effect
+      assert [%EffectLogEntry{sig: State, data: %State.Put{val: 999}}] = new_step.effects_queue
+
+      # New step should be incomplete (just started)
+      assert new_step.completed? == nil
+    end
+
+    test "without allow_divergence, divergent effect raises error" do
+      incomplete_step = %StepLogEntry{
+        effects_stack: [],
+        effects_queue: [
+          %EffectLogEntry{sig: State, data: %State.Put{val: 100}},
+          %EffectLogEntry{sig: State, data: %State.Get{}}
+        ],
+        completed?: nil,
+        value: nil
+      }
+
+      log = %Log{
+        stack: [],
+        queue: [incomplete_step],
+        allow_divergence?: false
+      }
+
+      divergent_computation = %Impure{
+        sig: State,
+        data: %State.Put{val: 999},
+        q: [&Freyja.Freer.pure/1]
+      }
+
+      assert_raise ArgumentError, ~r/Effect diverged from log/, fn ->
+        Handler.log_or_resume(divergent_computation, log)
+      end
+    end
+  end
 end

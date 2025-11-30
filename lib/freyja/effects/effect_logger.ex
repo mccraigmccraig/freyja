@@ -108,8 +108,13 @@ defmodule Freyja.Effects.EffectLogger.Handler do
         %RunState{} = _run_state
       ) do
     case log do
+      %Log{stack: [_ | _]} = log ->
+        # Log has entries in stack (from a suspended computation that didn't finalize)
+        # Prepare for retrace to move stack entries to queue for replay
+        Log.prepare_for_retrace(log)
+
       %Log{} ->
-        # Return existing log as-is (replay mode or empty)
+        # Return existing log as-is (replay mode with empty stack, or empty log)
         log
 
       nil ->

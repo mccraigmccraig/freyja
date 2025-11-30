@@ -24,21 +24,21 @@ defmodule Freyja.Examples.EffectLoggerRerunTest do
              stack: [],
              queue: [
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :executed,
                  value: 0,
                  effects_queue: [
                    %EffectLogEntry{sig: State, data: %State.Put{val: 10}}
                  ]
                },
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :executed,
                  value: 10,
                  effects_queue: [
                    %EffectLogEntry{sig: State, data: %State.Get{}}
                  ]
                },
                %StepLogEntry{
-                 completed?: false,
+                 completed?: nil,
                  effects_queue: [
                    %EffectLogEntry{sig: Throw, data: %Throw.ThrowOp{error: :validation_failed}}
                  ]
@@ -61,18 +61,19 @@ defmodule Freyja.Examples.EffectLoggerRerunTest do
     # - This is because the patched code diverged and returned :ok instead of throwing
     rerun_log = rerun_outcome.outputs[EffectLoggerHandler]
 
+    # Note: :resumed indicates value was obtained from log during replay
     assert %Log{
              stack: [],
              queue: [
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :resumed,
                  value: 0,
                  effects_queue: [
                    %EffectLogEntry{sig: State, data: %State.Put{val: 10}}
                  ]
                },
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :resumed,
                  value: 10,
                  effects_queue: [
                    %EffectLogEntry{sig: State, data: %State.Get{}}

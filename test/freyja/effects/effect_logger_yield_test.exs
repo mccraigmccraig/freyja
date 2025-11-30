@@ -40,7 +40,8 @@ defmodule Freyja.EffectLoggerYieldTest do
 
       # Should have 1 incomplete Yield in the queue
       assert [incomplete_entry] = log.queue
-      assert incomplete_entry.completed? == false
+      # nil indicates not completed yet
+      assert incomplete_entry.completed? == nil
       assert [%EffectLogger.EffectLogEntry{sig: Coroutine}] = incomplete_entry.effects_queue
     end
 

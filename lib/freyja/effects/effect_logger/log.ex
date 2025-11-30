@@ -64,12 +64,14 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
   alias Freyja.Effects.EffectLogger.EffectLogEntry
   alias Freyja.Run.SerializableResult
 
-  defstruct effects_stack: [], effects_queue: [], completed?: false, value: nil
+  @type completed_status :: nil | :executed | :resumed
+
+  defstruct effects_stack: [], effects_queue: [], completed?: nil, value: nil
 
   @type t :: %__MODULE__{
           effects_stack: list(EffectLogEntry.t()),
           effects_queue: list(EffectLogEntry.t()),
-          completed?: boolean,
+          completed?: completed_status(),
           value: any
         }
 
@@ -77,7 +79,7 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
     %__MODULE__{
       effects_stack: [],
       effects_queue: [EffectLogEntry.new(sig, data)],
-      completed?: false,
+      completed?: nil,
       value: nil
     }
   end
@@ -113,14 +115,29 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
     end
   end
 
+  @doc """
+  Set the value for this step, marking it as completed via execution.
+  The `completed?` field is set to `:executed` indicating the value was
+  obtained by running effect handlers.
+  """
   def set_value(%__MODULE__{} = self, value) do
+    set_value(self, value, :executed)
+  end
+
+  @doc """
+  Set the value for this step with an explicit completion status.
+  - `:executed` - value was obtained by running effect handlers
+  - `:resumed` - value was obtained from the log during replay
+  """
+  def set_value(%__MODULE__{} = self, value, completed_status)
+      when completed_status in [:executed, :resumed] do
     case self.effects_queue do
       [%EffectLogEntry{} = fx_log_entry] ->
         %{
           self
           | effects_stack: [fx_log_entry | self.effects_stack],
             effects_queue: [],
-            completed?: true,
+            completed?: completed_status,
             value: value
         }
 
@@ -131,6 +148,11 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
               "#{inspect(self, pretty: true)}\n"
     end
   end
+
+  @doc """
+  Returns true if the step has been completed (either via execution or resume).
+  """
+  def completed?(%__MODULE__{completed?: status}), do: status in [:executed, :resumed]
 
   def prepare_for_retrace(%__MODULE__{} = log_entry) do
     %{
@@ -147,13 +169,18 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
     %__MODULE__{
       effects_stack: Enum.map(map["effects_stack"] || [], &EffectLogEntry.from_json/1),
       effects_queue: Enum.map(map["effects_queue"] || [], &EffectLogEntry.from_json/1),
-      completed?: map["completed?"],
+      completed?: deserialize_completed_status(map["completed?"]),
       value:
         map["value"]
         |> SerializableResult.from_json()
         |> SerializableResult.unwrap()
     }
   end
+
+  # Handle both new enum values and legacy boolean values
+  defp deserialize_completed_status(nil), do: nil
+  defp deserialize_completed_status("executed"), do: :executed
+  defp deserialize_completed_status("resumed"), do: :resumed
 end
 
 defimpl Jason.Encoder, for: Freyja.Effects.EffectLogger.StepLogEntry do
@@ -246,12 +273,19 @@ defmodule Freyja.Effects.EffectLogger.Log do
     end
   end
 
+  @doc """
+  Consume a completed log entry from the queue during replay.
+  Marks the entry as `:resumed` to indicate the value was obtained from the log.
+  """
   def consume_log_entry(%__MODULE__{} = log) do
     case log.queue do
       [%StepLogEntry{} = log_entry | rest] ->
+        # Mark as :resumed since we're replaying from the log
+        resumed_entry = %{log_entry | completed?: :resumed}
+
         %{
           log
-          | stack: [log_entry | log.stack],
+          | stack: [resumed_entry | log.stack],
             queue: rest
         }
     end
@@ -266,7 +300,7 @@ defmodule Freyja.Effects.EffectLogger.Log do
     # (only on finalize), so we won't accidentally drop entries we need to replay.
     filtered =
       if log.allow_divergence? do
-        Enum.filter(combined, & &1.completed?)
+        Enum.filter(combined, &StepLogEntry.completed?/1)
       else
         combined
       end

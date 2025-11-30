@@ -25,7 +25,7 @@ defmodule Freyja.Examples.EffectLoggerResumeTest do
     assert %Log{
              stack: [
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :executed,
                  value: 0,
                  effects_stack: [
                    %EffectLogEntry{sig: State, data: %State.Put{val: 5}}
@@ -35,7 +35,7 @@ defmodule Freyja.Examples.EffectLoggerResumeTest do
              ],
              queue: [
                %StepLogEntry{
-                 completed?: false,
+                 completed?: nil,
                  effects_stack: [],
                  effects_queue: [
                    %EffectLogEntry{sig: Coroutine, data: %Coroutine.Yield{value: "resume_me"}}
@@ -62,25 +62,27 @@ defmodule Freyja.Examples.EffectLoggerResumeTest do
     # - allow_divergence? is false (resume should not allow divergence - unlike rerun)
     resumed_log = resumed.outputs[EffectLoggerHandler]
 
+    # Note: :resumed indicates value was obtained from log during replay,
+    # :executed indicates value was obtained by running effect handlers
     assert %Log{
              stack: [],
              queue: [
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :resumed,
                  value: 0,
                  effects_queue: [
                    %EffectLogEntry{sig: State, data: %State.Put{val: 5}}
                  ]
                },
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :executed,
                  value: 42,
                  effects_queue: [
                    %EffectLogEntry{sig: Coroutine, data: %Coroutine.Yield{value: "resume_me"}}
                  ]
                },
                %StepLogEntry{
-                 completed?: true,
+                 completed?: :executed,
                  value: 5,
                  effects_queue: [
                    %EffectLogEntry{sig: State, data: %State.Put{val: 42}}

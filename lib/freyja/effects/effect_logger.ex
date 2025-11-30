@@ -86,11 +86,12 @@ defmodule Freyja.Effects.EffectLogger.Handler do
             %EffectLogEntry{sig: log_sig, data: log_data}
             | _
           ],
-          completed?: true
+          completed?: completed
         }
         | _
       ]
-      when sig == log_sig and (data == log_data or log_data == nil) ->
+      when completed in [:executed, :resumed] and sig == log_sig and
+             (data == log_data or log_data == nil) ->
         true
 
       _ ->
@@ -181,12 +182,13 @@ defmodule Freyja.Effects.EffectLogger.Handler do
             }
             | _
           ],
-          completed?: true,
+          completed?: completed,
           value: value
         } = _log_entry
         | _rest
       ]
-      when sig == log_entry_sig and (u == log_entry_data or log_entry_data == nil) ->
+      when completed in [:executed, :resumed] and sig == log_entry_sig and
+             (u == log_entry_data or log_entry_data == nil) ->
         # Logger.error(
         #   "#{__MODULE__}.log_or_resume RESUME COMPLETE\n" <>
         #     "computation: #{inspect(computation, pretty: true)}\n" <>
@@ -210,7 +212,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
             }
             | _
           ],
-          completed?: false
+          completed?: nil
         } = _log_entry
         | _rest
       ]
@@ -232,7 +234,7 @@ defmodule Freyja.Effects.EffectLogger.Handler do
       [
         %StepLogEntry{
           effects_queue: [%EffectLogEntry{} | _],
-          completed?: false
+          completed?: nil
         } = _log_entry
         | _rest
       ] ->

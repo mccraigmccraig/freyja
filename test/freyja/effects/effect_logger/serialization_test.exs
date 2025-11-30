@@ -61,7 +61,8 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
 
       # Verify we can reconstruct the important parts
       assert [step] = decoded["stack"]
-      assert step["completed?"] == true
+      # completed? is now an atom, serialized as string
+      assert step["completed?"] == "executed"
       wrapped_value = SerializableResult.from_json(step["value"])
       assert SerializableResult.unwrap(wrapped_value) == %{"id" => 123, "name" => "Alice"}
 
@@ -84,7 +85,8 @@ defmodule Freyja.Effects.EffectLogger.SerializationTest do
       assert %Log{} = reconstructed_log
       assert [step] = reconstructed_log.stack
       assert %Freyja.Effects.EffectLogger.StepLogEntry{} = step
-      assert step.completed? == true
+      # completed? is now an atom enum value
+      assert step.completed? == :executed
       assert step.value == 42
 
       # Verify nested structs

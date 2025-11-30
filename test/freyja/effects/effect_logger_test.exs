@@ -121,10 +121,11 @@ defmodule Freyja.EffectLoggerTest do
       # stack is empty after preparing for resume
       #
       # log entries are fully deterministic
+      # completed?: :executed indicates value was obtained by running effect handlers
       assert log_queue == [
                %Freyja.Effects.EffectLogger.StepLogEntry{
                  value: {:foo, 12},
-                 completed?: true,
+                 completed?: :executed,
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
@@ -135,7 +136,7 @@ defmodule Freyja.EffectLoggerTest do
                },
                %Freyja.Effects.EffectLogger.StepLogEntry{
                  value: 10,
-                 completed?: true,
+                 completed?: :executed,
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
@@ -146,7 +147,7 @@ defmodule Freyja.EffectLoggerTest do
                },
                %Freyja.Effects.EffectLogger.StepLogEntry{
                  value: {:foo, 12},
-                 completed?: true,
+                 completed?: :executed,
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
@@ -157,7 +158,7 @@ defmodule Freyja.EffectLoggerTest do
                },
                %Freyja.Effects.EffectLogger.StepLogEntry{
                  value: 120,
-                 completed?: true,
+                 completed?: :executed,
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
@@ -168,7 +169,7 @@ defmodule Freyja.EffectLoggerTest do
                },
                %Freyja.Effects.EffectLogger.StepLogEntry{
                  value: {:bar, 34},
-                 completed?: true,
+                 completed?: :executed,
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{
@@ -179,7 +180,7 @@ defmodule Freyja.EffectLoggerTest do
                },
                %Freyja.Effects.EffectLogger.StepLogEntry{
                  value: -86,
-                 completed?: true,
+                 completed?: :executed,
                  effects_stack: [],
                  effects_queue: [
                    %Freyja.Effects.EffectLogger.EffectLogEntry{

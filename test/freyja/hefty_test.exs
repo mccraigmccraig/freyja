@@ -86,6 +86,94 @@ defmodule Freyja.HeftyTest do
       assert lhs == rhs
       assert %Pure{val: 86} = lhs
     end
+
+    test "left identity with Impure f result: pure(x) >>= f ≡ f(x)" do
+      # Test with a function that returns an Impure (effectful) computation
+      x = 10
+      f = fn n -> Hefty.send_hefty(:TestEffect, %{val: n}, %{}) end
+
+      lhs = Hefty.bind(Hefty.pure(x), f)
+      rhs = f.(x)
+
+      # Structural equality holds for left identity even with Impure
+      assert lhs == rhs
+    end
+
+    test "right identity with Impure m: m >>= pure (verified structurally)" do
+      # For Impure m, bind appends pure to the continuation
+      m = Hefty.send_hefty(:TestEffect, %{val: 42}, %{})
+
+      lhs = Hefty.bind(m, &Hefty.pure/1)
+
+      # Verify structurally that bind created a new Impure with updated k
+      assert %Impure{sig: :TestEffect, data: %{val: 42}, k: k_lhs} = lhs
+      assert %Impure{sig: :TestEffect, data: %{val: 42}, k: k_rhs} = m
+
+      # The continuations are different (lhs has pure composed)
+      # but applying them to the same value should yield equivalent results
+      assert %Pure{val: 99} = k_lhs.(99)
+      assert %Pure{val: 99} = k_rhs.(99)
+    end
+
+    test "right identity with Impure m: verified by execution" do
+      use Freyja.Syntax
+      alias Freyja.Effects.Lift
+
+      # Verify right identity by running actual effects
+      m =
+        hefty do
+          State.get()
+        end
+
+      lhs_comp =
+        hefty do
+          x <- m
+          return(x)
+        end
+
+      # Both should produce the same result
+      outcome_m = m |> Lift.Algebra.run() |> State.Handler.run(42) |> Run.run()
+      outcome_lhs = lhs_comp |> Lift.Algebra.run() |> State.Handler.run(42) |> Run.run()
+
+      assert outcome_lhs.result == outcome_m.result
+      assert outcome_lhs.result == 42
+    end
+
+    test "associativity with Impure m: verified by execution" do
+      use Freyja.Syntax
+      alias Freyja.Effects.Lift
+
+      # Test associativity with Impure m
+      m =
+        hefty do
+          State.get()
+        end
+
+      f = fn n ->
+        hefty do
+          _ <- State.put(n * 2)
+          State.get()
+        end
+      end
+
+      g = fn n ->
+        hefty do
+          _ <- State.put(n + 10)
+          State.get()
+        end
+      end
+
+      lhs = Hefty.bind(Hefty.bind(m, f), g)
+      rhs = Hefty.bind(m, fn x -> Hefty.bind(f.(x), g) end)
+
+      # Both should produce the same result: start 5, *2 = 10, +10 = 20
+      outcome_lhs = lhs |> Lift.Algebra.run() |> State.Handler.run(5) |> Run.run()
+      outcome_rhs = rhs |> Lift.Algebra.run() |> State.Handler.run(5) |> Run.run()
+
+      assert outcome_lhs.result == outcome_rhs.result
+      assert outcome_lhs.result == 20
+      assert outcome_lhs.outputs[State.Handler] == outcome_rhs.outputs[State.Handler]
+    end
   end
 
   describe "bind/2 with Pure" do

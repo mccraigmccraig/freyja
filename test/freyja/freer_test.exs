@@ -29,6 +29,121 @@ defmodule Freyja.FreerTest do
     end
   end
 
+  describe "bind/2 - monad laws" do
+    test "left identity: pure(x) >>= f ≡ f(x)" do
+      x = 42
+      f = fn n -> Freer.pure(n + 1) end
+
+      lhs = Freer.bind(Freer.pure(x), f)
+      rhs = f.(x)
+
+      assert lhs == rhs
+    end
+
+    test "right identity: m >>= pure ≡ m" do
+      m = Freer.pure(42)
+
+      lhs = Freer.bind(m, &Freer.pure/1)
+      rhs = m
+
+      assert lhs == rhs
+    end
+
+    test "associativity: (m >>= f) >>= g ≡ m >>= (λx -> f(x) >>= g)" do
+      m = Freer.pure(42)
+      f = fn n -> Freer.pure(n + 1) end
+      g = fn n -> Freer.pure(n * 2) end
+
+      lhs = Freer.bind(Freer.bind(m, f), g)
+      rhs = Freer.bind(m, fn x -> Freer.bind(f.(x), g) end)
+
+      # Both should produce Pure{val: 86}
+      assert lhs == rhs
+      assert %Pure{val: 86} = lhs
+    end
+
+    test "left identity with Impure f result: pure(x) >>= f ≡ f(x)" do
+      # Test with a function that returns an Impure computation
+      x = 10
+      f = fn n -> State.put(n) end
+
+      lhs = Freer.bind(Freer.pure(x), f)
+      rhs = f.(x)
+
+      # Structural equality holds for left identity even with Impure
+      assert lhs == rhs
+    end
+
+    test "right identity with Impure m: m >>= pure ≡ m (verified by execution)" do
+      # For Impure m, we verify by running since structural equality
+      # won't hold (bind appends to the queue)
+      m = State.get()
+
+      lhs = Freer.bind(m, &Freer.pure/1)
+      rhs = m
+
+      # Verify structurally that bind appended pure to the queue
+      assert %Impure{sig: State, data: %State.Get{}, q: q_lhs} = lhs
+      assert %Impure{sig: State, data: %State.Get{}, q: q_rhs} = rhs
+      assert length(q_lhs) == length(q_rhs) + 1
+
+      # Verify by execution - both should produce the same result
+      outcome_lhs = lhs |> State.Handler.run(42) |> Run.run()
+      outcome_rhs = rhs |> State.Handler.run(42) |> Run.run()
+
+      assert outcome_lhs.result == outcome_rhs.result
+      assert outcome_lhs.result == 42
+    end
+
+    test "associativity with Impure m: (m >>= f) >>= g ≡ m >>= (λx -> f(x) >>= g)" do
+      # Test associativity with Impure m, verified by execution
+      m = State.get()
+      f = fn n -> State.put(n * 2) end
+      g = fn _ -> State.get() end
+
+      lhs = Freer.bind(Freer.bind(m, f), g)
+      rhs = Freer.bind(m, fn x -> Freer.bind(f.(x), g) end)
+
+      # Both should produce the same result when run
+      outcome_lhs = lhs |> State.Handler.run(5) |> Run.run()
+      outcome_rhs = rhs |> State.Handler.run(5) |> Run.run()
+
+      assert outcome_lhs.result == outcome_rhs.result
+      assert outcome_lhs.result == 10
+      assert outcome_lhs.outputs[State.Handler] == outcome_rhs.outputs[State.Handler]
+    end
+
+    test "associativity with chained Impure: multiple effects" do
+      # More complex test with multiple effects chained
+      m = State.get()
+
+      f = fn n ->
+        con do
+          _ <- State.put(n + 10)
+          State.get()
+        end
+      end
+
+      g = fn n ->
+        con do
+          _ <- State.put(n * 2)
+          State.get()
+        end
+      end
+
+      lhs = Freer.bind(Freer.bind(m, f), g)
+      rhs = Freer.bind(m, fn x -> Freer.bind(f.(x), g) end)
+
+      # Both should produce the same result: start 5, +10 = 15, *2 = 30
+      outcome_lhs = lhs |> State.Handler.run(5) |> Run.run()
+      outcome_rhs = rhs |> State.Handler.run(5) |> Run.run()
+
+      assert outcome_lhs.result == outcome_rhs.result
+      assert outcome_lhs.result == 30
+      assert outcome_lhs.outputs[State.Handler] == 30
+    end
+  end
+
   describe "bind" do
     test "it binds a value" do
       assert %Impure{sig: EffectMod, data: 10, q: [pure_f, step_f]} =

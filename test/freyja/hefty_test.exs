@@ -4,6 +4,8 @@ defmodule Freyja.HeftyTest do
   alias Freyja.Hefty
   alias Freyja.Hefty.Pure
   alias Freyja.Hefty.Impure
+  alias Freyja.Effects.State
+  alias Freyja.Run
 
   doctest Freyja.Hefty
 
@@ -340,6 +342,67 @@ defmodule Freyja.HeftyTest do
       assert %Pure{val: 1} = psi[0]
       assert %Pure{val: 2} = psi[1]
       assert %Pure{val: 3} = psi[2]
+    end
+  end
+
+  describe "hefty macro with single expression" do
+    # These tests verify that the hefty macro works correctly with single expressions
+    # (no bindings), which is a valid but edge-case usage pattern.
+
+    test "hefty with single return" do
+      use Freyja.Syntax
+
+      computation =
+        hefty do
+          return(:foo)
+        end
+
+      assert %Pure{val: :foo} = computation
+
+      outcome = computation |> Run.run()
+      assert outcome.result == :foo
+    end
+
+    test "hefty with single effect" do
+      use Freyja.Syntax
+
+      computation =
+        hefty do
+          State.get()
+        end
+
+      # hefty elaborates to Freer, so result is Freer.Impure
+      assert %Freyja.Freer.Impure{sig: State, data: %State.Get{}} = computation
+
+      outcome = computation |> State.Handler.run(42) |> Run.run()
+      assert outcome.result == 42
+    end
+
+    test "hefty with single pure expression (not return)" do
+      use Freyja.Syntax
+
+      computation =
+        hefty do
+          Hefty.pure(:bar)
+        end
+
+      assert %Pure{val: :bar} = computation
+
+      outcome = computation |> Run.run()
+      assert outcome.result == :bar
+    end
+
+    test "hefty with single assignment and return" do
+      use Freyja.Syntax
+
+      computation =
+        hefty do
+          x = 42
+          return(x)
+        end
+
+      outcome = computation |> Run.run()
+      assert outcome.result == 42
     end
   end
 end

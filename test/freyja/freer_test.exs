@@ -152,4 +152,56 @@ defmodule Freyja.FreerTest do
       assert %Freer.Pure{val: 14} = computation
     end
   end
+
+  describe "con macro with single expression" do
+    # These tests verify that the con macro works correctly with single expressions
+    # (no bindings), which is a valid but edge-case usage pattern.
+
+    test "con with single return" do
+      computation =
+        con do
+          return(:foo)
+        end
+
+      assert %Pure{val: :foo} = computation
+
+      outcome = computation |> Run.run()
+      assert outcome.result == :foo
+    end
+
+    test "con with single effect" do
+      computation =
+        con do
+          State.get()
+        end
+
+      assert %Impure{sig: State, data: %State.Get{}} = computation
+
+      outcome = computation |> State.Handler.run(42) |> Run.run()
+      assert outcome.result == 42
+    end
+
+    test "con with single pure expression (not return)" do
+      computation =
+        con do
+          Freer.pure(:bar)
+        end
+
+      assert %Pure{val: :bar} = computation
+
+      outcome = computation |> Run.run()
+      assert outcome.result == :bar
+    end
+
+    test "con with single assignment and return" do
+      computation =
+        con do
+          x = 42
+          return(x)
+        end
+
+      outcome = computation |> Run.run()
+      assert outcome.result == 42
+    end
+  end
 end

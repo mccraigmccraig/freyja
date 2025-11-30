@@ -158,106 +158,110 @@ defmodule Freyja.Effects.EffectLogger.Handler do
     {computation, finalized_log}
   end
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def log_or_resume(%Impure{sig: sig, data: u, q: q} = computation, %Log{} = log) do
-    # Logger.error(
-    #   "#{__MODULE__}.log_or_resume\n" <>
-    #     "computation: #{inspect(computation, pretty: true)}\n" <>
-    #     "log: #{inspect(log, pretty: true)}"
-    # )
+  @doc """
+  Core logic for logging effects or resuming from a log.
 
+  Handles the following cases:
+  1. Empty queue - new computation, start logging a new step
+  2. Completed step, effect matches - replay from log
+  3. Incomplete step, effect matches head - continue execution (first run or resume)
+  4. Incomplete step, effect matches next in queue - within-step replay
+  5. Incomplete step, single effect, no match - within-step first run (new intermediate effect)
+  6. Divergence - effect doesn't match log, handle based on allow_divergence?
+  """
+  def log_or_resume(%Impure{sig: sig, data: data} = computation, %Log{} = log) do
     case log.queue do
       [] ->
-        # unseen computation - log and carry on
-        log_new_effect(computation, log)
+        # Case 1: Empty queue - new computation, start new step
+        log_new_step(computation, log)
 
-      # resumed fully interpreted computation - we have a value
-      [
-        %StepLogEntry{
-          effects_queue: [
-            %EffectLogEntry{
-              sig: log_entry_sig,
-              data: log_entry_data
-            }
-            | _
-          ],
-          completed?: completed,
-          value: value
-        } = _log_entry
-        | _rest
-      ]
-      when completed in [:executed, :resumed] and sig == log_entry_sig and
-             u == log_entry_data ->
-        # Logger.error(
-        #   "#{__MODULE__}.log_or_resume RESUME COMPLETE\n" <>
-        #     "computation: #{inspect(computation, pretty: true)}\n" <>
-        #     "current_log: #{inspect(current_log, pretty: true)}"
-        # )
+      [%StepLogEntry{} = step | _rest] ->
+        cond do
+          # Case 2: Completed step, effect matches head - replay from log
+          StepLogEntry.completed?(step) and StepLogEntry.effect_matches_head?(step, sig, data) ->
+            replay_from_log(computation, log)
 
-        updated_log = Log.consume_log_entry(log)
-        {Freyja.Freer.Impl.q_apply(q, value), updated_log}
+          # Case 3: Incomplete step, effect matches head - continue execution
+          # This happens when resuming from suspension (e.g., after Coroutine.Yield)
+          not StepLogEntry.completed?(step) and StepLogEntry.effect_matches_head?(step, sig, data) ->
+            continue_execution(computation, log)
 
-      # incomplete entry that matches current effect - for resuming from suspension
-      [
-        %StepLogEntry{
-          effects_queue: [
-            %EffectLogEntry{
-              sig: log_entry_sig,
-              data: log_entry_data
-            }
-            | _
-          ],
-          completed?: nil
-        } = _log_entry
-        | _rest
-      ]
-      when sig == log_entry_sig and u == log_entry_data ->
-        # Logger.error(
-        #   "#{__MODULE__}.log_or_resume RESUME INCOMPLETE\n" <>
-        #     "computation: #{inspect(computation, pretty: true)}\n" <>
-        #     "current_log: #{inspect(current_log, pretty: true)}"
-        # )
+          # Case 4: Incomplete step, effect matches next in queue - within-step replay
+          # We're replaying within a step and need to advance to the next logged effect
+          not StepLogEntry.completed?(step) and StepLogEntry.effect_matches_next?(step, sig, data) ->
+            advance_within_step(computation, log)
 
-        # This is a suspension point (e.g., Coroutine.Yield)
-        # Pass through to handler - it will either suspend (first run) or resume (if state has resume_value)
-        # DON'T consume the entry yet - let LogInterpretedEffectValue complete it with the actual value
-        capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
-        updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
-        {%Freer.Impure{sig: sig, data: u, q: updated_q}, log}
+          # Case 5: Incomplete step, single effect in queue, no match - within-step first run
+          # A handler is sending a new intermediate effect before returning a value
+          not StepLogEntry.completed?(step) and StepLogEntry.single_effect_in_queue?(step) ->
+            push_within_step(computation, log)
 
-      # partially interpreted computation - effect doesn't match
-      [
-        %StepLogEntry{
-          effects_queue: [%EffectLogEntry{} | _],
-          completed?: nil
-        } = _log_entry
-        | _rest
-      ] ->
-        # Logger.error(
-        #   "#{__MODULE__}.log_or_resume RESUME PARTIAL\n" <>
-        #     "computation: #{inspect(computation, pretty: true)}\n" <>
-        #     "current_log: #{inspect(current_log, pretty: true)}"
-        # )
+          # Case 6: Divergence - effect doesn't match the log
+          true ->
+            handle_divergence(computation, log)
+        end
+    end
+  end
 
-        if log.allow_divergence? do
-          log_new_effect(computation, drop_pending_entries(log))
+  # Case 1: Start logging a new step (empty queue)
+  defp log_new_step(%Impure{} = computation, %Log{} = log) do
+    log_new_effect(computation, log)
+  end
+
+  # Case 2: Replay a completed step from the log
+  defp replay_from_log(%Impure{q: q} = _computation, %Log{} = log) do
+    [%StepLogEntry{value: value} | _] = log.queue
+    updated_log = Log.consume_log_entry(log)
+    {Freyja.Freer.Impl.q_apply(q, value), updated_log}
+  end
+
+  # Case 3: Continue execution of an incomplete step
+  # The effect matches what we logged, so add capture continuation and let it execute
+  defp continue_execution(%Impure{sig: sig, data: data, q: q} = _computation, %Log{} = log) do
+    capture_k = fn v -> EffectLogger.log_interpreted_effect_value(v) end
+    updated_q = q |> Freyja.Freer.Impl.q_prepend(capture_k)
+    {%Freer.Impure{sig: sig, data: data, q: updated_q}, log}
+  end
+
+  # Case 4: Advance within a step during replay
+  # Push current effect to stack, advance to next in queue
+  defp advance_within_step(%Impure{sig: sig, data: data, q: q} = computation, %Log{} = log) do
+    updated_log = Log.push_effect(log, computation)
+    # Continue with the effect - it will be handled by other handlers
+    {%Freer.Impure{sig: sig, data: data, q: q}, updated_log}
+  end
+
+  # Case 5: Push a new intermediate effect within a step (first run)
+  defp push_within_step(%Impure{sig: sig, data: data, q: q} = computation, %Log{} = log) do
+    updated_log = Log.push_effect(log, computation)
+    # Continue with the effect - it will be handled by other handlers
+    {%Freer.Impure{sig: sig, data: data, q: q}, updated_log}
+  end
+
+  # Case 6: Handle divergence from the log
+  defp handle_divergence(%Impure{sig: sig, data: data} = computation, %Log{} = log) do
+    if log.allow_divergence? do
+      # Drop pending entries and start fresh
+      log_new_effect(computation, drop_pending_entries(log))
+    else
+      [%StepLogEntry{} = step | _] = log.queue
+
+      error_context =
+        if StepLogEntry.completed?(step) do
+          "Completed step exists but effect doesn't match.\n" <>
+            "This usually means the computation took a different path than the logged run."
         else
-          # push the new effect to the current log entry and carry on
-          updated_log = Log.push_effect(log, computation)
-          {computation, updated_log}
+          "Incomplete step exists but effect doesn't match head or next.\n" <>
+            "This usually means a handler is producing different intermediate effects."
         end
 
-      _ ->
-        # Effect diverged from log
-        if log.allow_divergence? do
-          log_new_effect(computation, drop_pending_entries(log))
-        else
-          raise ArgumentError,
-            message:
-              "Effect diverged from log:\n" <>
-                "computation: #{inspect(computation, pretty: true)}\n" <>
-                "log: #{inspect(log, pretty: true)}"
-        end
+      raise ArgumentError,
+        message:
+          "Effect diverged from log:\n\n" <>
+            "#{error_context}\n\n" <>
+            "Effect: sig=#{inspect(sig)}, data=#{inspect(data, pretty: true)}\n\n" <>
+            "Log step: #{inspect(step, pretty: true)}\n\n" <>
+            "To allow divergence (e.g., for rerun with patched code), use Log.allow_divergence/1"
     end
   end
 

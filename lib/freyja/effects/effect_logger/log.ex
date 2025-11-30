@@ -163,6 +163,39 @@ defmodule Freyja.Effects.EffectLogger.StepLogEntry do
   """
   def completed?(%__MODULE__{completed?: status}), do: status in [:executed, :resumed]
 
+  @doc """
+  Check if the given effect matches the head of the effects_queue.
+  """
+  def effect_matches_head?(
+        %__MODULE__{effects_queue: [%EffectLogEntry{sig: head_sig, data: head_data} | _]},
+        sig,
+        data
+      ) do
+    sig == head_sig and data == head_data
+  end
+
+  def effect_matches_head?(%__MODULE__{effects_queue: []}, _sig, _data), do: false
+
+  @doc """
+  Check if the given effect matches the second element of the effects_queue.
+  Used for within-step replay where we're advancing through logged effects.
+  """
+  def effect_matches_next?(
+        %__MODULE__{effects_queue: [_, %EffectLogEntry{sig: next_sig, data: next_data} | _]},
+        sig,
+        data
+      ) do
+    sig == next_sig and data == next_data
+  end
+
+  def effect_matches_next?(%__MODULE__{}, _sig, _data), do: false
+
+  @doc """
+  Check if there's only one effect in the queue (first-run within-step scenario).
+  """
+  def single_effect_in_queue?(%__MODULE__{effects_queue: [_]}), do: true
+  def single_effect_in_queue?(%__MODULE__{}), do: false
+
   def prepare_for_retrace(%__MODULE__{} = log_entry) do
     %{
       log_entry

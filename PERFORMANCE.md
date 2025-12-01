@@ -222,6 +222,101 @@ If pure interpretation performance becomes critical for a specific use case, con
 
 ---
 
+## Comparison with a Hypothetical Dynamic Evidence-Passing Approach
+
+### Background
+
+Koka and other modern effect systems use **evidence-passing** for effect dispatch. In this approach:
+
+1. An "evidence vector" maps effect types to their handlers (like a vtable in OO systems)
+2. Effect operations look up the handler via O(1) indexed access
+3. The handler is called directly with a continuation parameter
+4. No intermediate data structures (like `Impure` nodes) are allocated
+
+This is fundamentally different from Freer's approach where every effect operation:
+1. Allocates a `Sig` struct for the effect signature
+2. Allocates an `Impure` node wrapping the signature
+3. Returns up the call stack
+4. The handler pattern matches on the signature type
+5. If resuming, builds a new `Impure` with an updated continuation queue
+
+The question: **how much of Freer's overhead comes from node allocation and handler matching vs continuation capture?**
+
+### Benchmark Design
+
+We extended the queue benchmark with several additional approaches:
+
+1. **Monad/Nested** - Simple state monad `fn state -> {val, state}` with nested binds (no effect system)
+2. **Ev/Nested** - Evidence-passing with nested map lookup `%{effect => %{op => handler}}`
+3. **Evf/Nested** - Flat evidence-passing with single map lookup `%{state_get => handler}`
+
+These isolate different costs:
+- **Monad/Nested** shows the baseline cost of a state monad abstraction
+- **Ev/Nested** adds dynamic handler dispatch via nested maps
+- **Evf/Nested** adds dynamic handler dispatch via flat maps (single lookup)
+
+### Results
+
+All times include both construction and execution (median of 5 runs):
+
+| Target | State/Nest | State/Chain | Min/Nest | Min/Chain | Pure/Reduce | Pure/Recur | Monad/Nest | Ev/Nest | Evf/Nest |
+|--------|------------|-------------|----------|-----------|-------------|------------|------------|---------|----------|
+| 500    | 123 µs     | 136 µs      | 4 µs     | 5 µs      | 5 µs        | 4 µs       | 7 µs       | 24 µs   | 15 µs    |
+| 1,000  | 255 µs     | 249 µs      | 8 µs     | 15 µs     | 17 µs       | 16 µs      | 16 µs      | 59 µs   | 33 µs    |
+| 2,000  | 503 µs     | 498 µs      | 16 µs    | 37 µs     | 18 µs       | 32 µs      | 30 µs      | 97 µs   | 57 µs    |
+| 5,000  | 1.24 ms    | 1.24 ms     | 44 µs    | 102 µs    | 45 µs       | 81 µs      | 73 µs      | 243 µs  | 161 µs   |
+| 10,000 | 2.44 ms    | 2.54 ms     | 76 µs    | 186 µs    | 160 µs      | 132 µs     | 151 µs     | 496 µs  | 299 µs   |
+
+### Analysis
+
+Comparing approaches at 10,000 iterations:
+
+| Approach | Time | vs State/Nest | vs Monad/Nest | What it measures |
+|----------|------|---------------|---------------|------------------|
+| **State/Nest** (Freyja) | 2.44ms | 1x | 16x slower | Full Freer monad with effects |
+| **Evf/Nest** (flat evidence) | 299µs | **8x faster** | 2x slower | Evidence map + state monad |
+| **Ev/Nest** (nested evidence) | 496µs | 5x faster | 3x slower | Nested evidence map + state monad |
+| **Monad/Nest** (simple state) | 151µs | 16x faster | 1x | Simple state monad, no dispatch |
+| **Pure/Recur** (no abstraction) | 132µs | 18x faster | 0.9x | Direct recursion with map state |
+
+### Key Insights
+
+1. **Impure node allocation and handler matching account for ~8x of Freyja's overhead**
+
+   The flat evidence-passing approach (`Evf/Nest`) achieves 8x speedup over Freyja while still supporting dynamic handler dispatch. This avoids:
+   - `Sig` struct allocation for each effect operation
+   - `Impure` node allocation wrapping the signature
+   - Pattern matching through handler clauses
+   - Continuation queue manipulation
+
+2. **Dynamic dispatch adds ~2x overhead vs hardcoded handlers**
+
+   The remaining gap between `Evf/Nest` (299µs) and `Monad/Nest` (151µs) is the cost of:
+   - Map lookup for handler function (`env.state_get`)
+   - Extra function call indirection (handler is a closure in the map)
+
+3. **Nested vs flat evidence maps matters**
+
+   Two-level map lookup (`Ev/Nest`) is ~1.7x slower than single-level (`Evf/Nest`). For a real implementation, using atoms like `:state_get` as flat keys would be preferable to nested `%{:state => %{:get => handler}}` structures.
+
+4. **The state monad abstraction itself is nearly free**
+
+   `Monad/Nest` (151µs) performs almost identically to `Pure/Recur` (132µs), showing that the `fn state -> {val, state}` pattern with nested binds adds minimal overhead.
+
+### Implications
+
+An evidence-passing implementation could provide **~8x speedup** over the current Freer approach while retaining dynamic handler composition. However, this would require:
+
+1. **Different computation representation** - state monad style `fn env -> {val, env}` instead of `Pure`/`Impure` data structures
+2. **Evidence threading** - passing the handler map through all computations
+3. **Loss of inspectability** - computations become opaque functions, breaking effect logging and serialization
+
+This represents a fundamental trade-off: evidence-passing sacrifices the data-structure representation that enables Freyja's effect logging, replay, and serialization features in exchange for performance.
+
+For performance-critical code paths that don't need logging/replay, a hybrid approach could potentially offer the best of both worlds - but this would add significant complexity to the implementation.
+
+---
+
 ## Running Benchmarks
 
 ```bash

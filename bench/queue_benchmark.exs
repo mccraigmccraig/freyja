@@ -11,6 +11,9 @@
 # 4. Min/Chained   - Single effect then pure computation, chained binds (isolates queue overhead)
 # 5. Pure/Reduce   - Non-effectful baseline using Enum.reduce
 # 6. Pure/Recurse  - Non-effectful baseline using recursion with map state access/update
+# 7. Monad/Nested  - Simple state monad (no transformer), nested binds
+# 8. Ev/Nested     - Evidence-passing style: state monad + evidence map for handler dispatch
+# 9. Evf/Nested    - Flat evidence-passing: handlers as direct env keys (single map lookup)
 #
 # All measurements include both build and run time.
 
@@ -144,6 +147,221 @@ defmodule QueueBenchmark do
   end
 
   # ============================================================
+  # Simple State Monad - no transformers, just state -> {a, state}
+  # This represents the simplest possible state monad implementation
+  # ============================================================
+
+  # A state monad is just a function: state -> {value, new_state}
+  # We represent it as a 0-arity function that takes state when called
+
+  def monad_pure(value) do
+    fn state -> {value, state} end
+  end
+
+  def monad_get() do
+    fn state -> {state, state} end
+  end
+
+  def monad_put(new_state) do
+    fn _state -> {:ok, new_state} end
+  end
+
+  def monad_bind(ma, f) do
+    fn state ->
+      {a, state2} = ma.(state)
+      mb = f.(a)
+      mb.(state2)
+    end
+  end
+
+  def monad_run(ma, initial_state) do
+    ma.(initial_state)
+  end
+
+  # Monad/Nested: simple state monad with nested binds
+  # Mirrors state_nested but using simple state monad instead of Freyja effects
+  def monad_nested(target) do
+    monad_nested_loop(target)
+  end
+
+  defp monad_nested_loop(target) do
+    monad_get()
+    |> monad_bind(fn n ->
+      if n >= target do
+        monad_pure(n)
+      else
+        monad_put(n + 1)
+        |> monad_bind(fn _ ->
+          monad_nested_loop(target)
+        end)
+      end
+    end)
+  end
+
+  # ============================================================
+  # Evidence-passing style - dynamic evidence map + state monad
+  # Models Koka-style evidence passing as a library
+  # ============================================================
+
+  # Evidence-passing computation: fn env -> {value, env}
+  # where env = %{evidence: %{effect_key => handler}, ...other_state...}
+  #
+  # This avoids:
+  # - Impure node allocation (direct handler call instead)
+  # - Queue concatenation (state monad style continuation)
+  # - Pattern matching on signatures (map lookup instead)
+
+  def ev_pure(value) do
+    fn env -> {value, env} end
+  end
+
+  def ev_bind(ma, f) do
+    fn env ->
+      {a, env2} = ma.(env)
+      mb = f.(a)
+      mb.(env2)
+    end
+  end
+
+  def ev_run(ma, initial_env) do
+    ma.(initial_env)
+  end
+
+  # Perform an effect operation - looks up handler in evidence map and calls it
+  # The handler receives: (args, resume_fn, env) where resume_fn is the continuation
+  def ev_perform(effect_key, op_key, args) do
+    fn env ->
+      handler = env.evidence[effect_key][op_key]
+      # Handler is called with args and a "resume" function
+      # Resume function takes a value and returns a computation
+      handler.(args, env)
+    end
+  end
+
+  # State effect operations using evidence-passing
+  def ev_state_get() do
+    ev_perform(:state, :get, [])
+  end
+
+  def ev_state_put(value) do
+    ev_perform(:state, :put, value)
+  end
+
+  # State handler - installs handlers into evidence map
+  def ev_with_state(initial_state, computation) do
+    fn env ->
+      state_handlers = %{
+        get: fn _args, inner_env ->
+          state = inner_env.state
+          {state, inner_env}
+        end,
+        put: fn new_state, inner_env ->
+          {:ok, %{inner_env | state: new_state}}
+        end
+      }
+
+      # Install evidence and initial state
+      evidence = Map.get(env, :evidence, %{})
+      inner_env = %{env | evidence: Map.put(evidence, :state, state_handlers)}
+      inner_env = Map.put(inner_env, :state, initial_state)
+
+      # Run computation with evidence installed
+      {result, final_env} = computation.(inner_env)
+
+      # Return result, restore outer env (remove our state)
+      {result, Map.delete(final_env, :state)}
+    end
+  end
+
+  # Ev/Nested: evidence-passing style with nested binds
+  def ev_nested(target) do
+    ev_with_state(0, ev_nested_loop(target))
+  end
+
+  defp ev_nested_loop(target) do
+    ev_state_get()
+    |> ev_bind(fn n ->
+      if n >= target do
+        ev_pure(n)
+      else
+        ev_state_put(n + 1)
+        |> ev_bind(fn _ ->
+          ev_nested_loop(target)
+        end)
+      end
+    end)
+  end
+
+  # ============================================================
+  # Evidence-passing "flat" - handlers as direct env keys
+  # Avoids nested map lookups entirely
+  # ============================================================
+
+  def evf_pure(value) do
+    fn env -> {value, env} end
+  end
+
+  def evf_bind(ma, f) do
+    fn env ->
+      {a, env2} = ma.(env)
+      mb = f.(a)
+      mb.(env2)
+    end
+  end
+
+  def evf_run(ma, initial_env) do
+    ma.(initial_env)
+  end
+
+  # Direct handler lookup - single map access
+  def evf_state_get() do
+    fn env ->
+      env.state_get.(env)
+    end
+  end
+
+  def evf_state_put(value) do
+    fn env ->
+      env.state_put.(value, env)
+    end
+  end
+
+  # Flat state handler - puts handlers directly in env
+  def evf_with_state(initial_state, computation) do
+    fn env ->
+      inner_env =
+        env
+        |> Map.put(:state, initial_state)
+        |> Map.put(:state_get, fn inner_env -> {inner_env.state, inner_env} end)
+        |> Map.put(:state_put, fn new_state, inner_env ->
+          {:ok, %{inner_env | state: new_state}}
+        end)
+
+      {result, final_env} = computation.(inner_env)
+      {result, Map.drop(final_env, [:state, :state_get, :state_put])}
+    end
+  end
+
+  # Evf/Nested: flat evidence-passing style with nested binds
+  def evf_nested(target) do
+    evf_with_state(0, evf_nested_loop(target))
+  end
+
+  defp evf_nested_loop(target) do
+    evf_state_get()
+    |> evf_bind(fn n ->
+      if n >= target do
+        evf_pure(n)
+      else
+        evf_state_put(n + 1)
+        |> evf_bind(fn _ ->
+          evf_nested_loop(target)
+        end)
+      end
+    end)
+  end
+
+  # ============================================================
   # Timing helpers
   # ============================================================
 
@@ -157,6 +375,24 @@ defmodule QueueBenchmark do
 
   def time_pure(fun) do
     :timer.tc(fun)
+  end
+
+  def time_monad(computation) do
+    :timer.tc(fn ->
+      monad_run(computation, 0)
+    end)
+  end
+
+  def time_ev(computation) do
+    :timer.tc(fn ->
+      ev_run(computation, %{evidence: %{}})
+    end)
+  end
+
+  def time_evf(computation) do
+    :timer.tc(fn ->
+      evf_run(computation, %{})
+    end)
   end
 
   def run_benchmark(targets \\ [500, 1_000, 2_000, 5_000, 10_000]) do
@@ -178,6 +414,9 @@ defmodule QueueBenchmark do
       _ = time_run(minimal_chained(100))
       _ = time_pure(fn -> pure_reduce(100) end)
       _ = time_pure(fn -> pure_recurse(100) end)
+      _ = time_monad(monad_nested(100))
+      _ = time_ev(ev_nested(100))
+      _ = time_evf(evf_nested(100))
     end
 
     IO.puts("")
@@ -191,10 +430,13 @@ defmodule QueueBenchmark do
         String.pad_trailing("Min/Nest", 12) <>
         String.pad_trailing("Min/Chain", 12) <>
         String.pad_trailing("Pure/Reduce", 12) <>
-        String.pad_trailing("Pure/Recur", 12)
+        String.pad_trailing("Pure/Recur", 12) <>
+        String.pad_trailing("Monad/Nest", 12) <>
+        String.pad_trailing("Ev/Nest", 12) <>
+        String.pad_trailing("Evf/Nest", 12)
     )
 
-    IO.puts(String.duplicate("-", 80))
+    IO.puts(String.duplicate("-", 116))
 
     for target <- targets do
       # State/Nested
@@ -233,6 +475,24 @@ defmodule QueueBenchmark do
           time_pure(fn -> pure_recurse(target) end)
         end)
 
+      # Monad/Nested
+      monad_nested_time =
+        median_time(iterations, fn ->
+          time_monad(monad_nested(target))
+        end)
+
+      # Ev/Nested
+      ev_nested_time =
+        median_time(iterations, fn ->
+          time_ev(ev_nested(target))
+        end)
+
+      # Evf/Nested
+      evf_nested_time =
+        median_time(iterations, fn ->
+          time_evf(evf_nested(target))
+        end)
+
       IO.puts(
         String.pad_trailing("#{target}", 8) <>
           String.pad_trailing(format_time(state_nested_time), 12) <>
@@ -240,18 +500,27 @@ defmodule QueueBenchmark do
           String.pad_trailing(format_time(minimal_nested_time), 12) <>
           String.pad_trailing(format_time(minimal_chained_time), 12) <>
           String.pad_trailing(format_time(pure_reduce_time), 12) <>
-          String.pad_trailing(format_time(pure_recurse_time), 12)
+          String.pad_trailing(format_time(pure_recurse_time), 12) <>
+          String.pad_trailing(format_time(monad_nested_time), 12) <>
+          String.pad_trailing(format_time(ev_nested_time), 12) <>
+          String.pad_trailing(format_time(evf_nested_time), 12)
       )
     end
 
     IO.puts("")
     IO.puts("Analysis:")
     IO.puts("---------")
-    IO.puts("- State columns: Real State.get/put effects at each iteration")
+    IO.puts("- State columns: Real State.get/put effects at each iteration (Freyja freer monad)")
     IO.puts("- Min columns: Single State.get, then N pure identity binds")
     IO.puts("- Pure columns: Non-effectful baselines with map state access/update")
+    IO.puts("- Monad/Nest: Simple state monad (fn state -> {val, state} end) with nested binds")
+    IO.puts("- Ev/Nest: Evidence-passing - nested map lookup %{effect => %{op => handler}}")
+    IO.puts("- Evf/Nest: Flat evidence - single map lookup %{state_get => handler}")
+    IO.puts("")
     IO.puts("- Min/Chain isolates queue construction overhead (O(n²) if present)")
-    IO.puts("- Compare State/Nest to Pure/Recur to see effect system overhead")
+    IO.puts("- Compare State/Nest to Evf/Nest to see cost of Impure nodes + queue vs evidence")
+    IO.puts("- Compare Evf/Nest to Monad/Nest to see cost of dynamic handler dispatch")
+    IO.puts("- Compare Monad/Nest to Pure/Recur to see state monad abstraction overhead")
   end
 
   defp median_time(iterations, fun) do

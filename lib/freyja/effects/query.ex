@@ -2,7 +2,8 @@ defmodule Freyja.Effects.Query do
   @moduledoc """
   Backend-agnostic data query effect.
 
-  This effect lets domain code express "run this query" without binding to a
+  This effect lets domain code express
+  "run this query" without binding to a
   particular storage layer. Each request specifies:
 
     * `mod` – module implementing the query

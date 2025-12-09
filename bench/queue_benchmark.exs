@@ -3,7 +3,7 @@
 # Run with: mix run bench/queue_benchmark.exs
 #
 # This benchmark tests whether the O(n²) queue concatenation is a real
-# problem in practice. We compare six patterns:
+# problem in practice. We compare patterns:
 #
 # 1. State/Nested  - Real effects at each step, nested binds (typical con/hefty usage)
 # 2. State/Chained - Real effects at each step, chained binds (pathological)
@@ -14,12 +14,14 @@
 # 7. Monad/Nested  - Simple state monad (no transformer), nested binds
 # 8. Ev/Nested     - Evidence-passing style: state monad + evidence map for handler dispatch
 # 9. Evf/Nested    - Flat evidence-passing: handlers as direct env keys (single map lookup)
+# 10. Skuld/Nested - Skuld library: evidence-passing with CPS for control effects
 #
 # All measurements include both build and run time.
 
 alias Freyja.Effects.State
 alias Freyja.Freer
 alias Freyja.Run
+alias Skuld.Effects.State, as: SkuldState
 
 defmodule QueueBenchmark do
   # ============================================================
@@ -362,6 +364,30 @@ defmodule QueueBenchmark do
   end
 
   # ============================================================
+  # Skuld - evidence-passing library with CPS for control effects
+  # ============================================================
+
+  # Skuld/Nested: Skuld library with nested binds
+  # Uses the actual Skuld library implementation
+  def skuld_nested(target) do
+    skuld_nested_loop(target)
+  end
+
+  defp skuld_nested_loop(target) do
+    SkuldState.get()
+    |> Skuld.bind(fn n ->
+      if n >= target do
+        Skuld.pure(n)
+      else
+        SkuldState.put(n + 1)
+        |> Skuld.bind(fn _ ->
+          skuld_nested_loop(target)
+        end)
+      end
+    end)
+  end
+
+  # ============================================================
   # Timing helpers
   # ============================================================
 
@@ -395,6 +421,13 @@ defmodule QueueBenchmark do
     end)
   end
 
+  def time_skuld(computation) do
+    :timer.tc(fn ->
+      env = Skuld.Env.new() |> SkuldState.handler(0)
+      Skuld.run(computation, env)
+    end)
+  end
+
   def run_benchmark(targets \\ [500, 1_000, 2_000, 5_000, 10_000]) do
     IO.puts("Queue Length Benchmark")
     IO.puts("======================")
@@ -417,6 +450,7 @@ defmodule QueueBenchmark do
       _ = time_monad(monad_nested(100))
       _ = time_ev(ev_nested(100))
       _ = time_evf(evf_nested(100))
+      _ = time_skuld(skuld_nested(100))
     end
 
     IO.puts("")
@@ -433,10 +467,11 @@ defmodule QueueBenchmark do
         String.pad_trailing("Pure/Recur", 12) <>
         String.pad_trailing("Monad/Nest", 12) <>
         String.pad_trailing("Ev/Nest", 12) <>
-        String.pad_trailing("Evf/Nest", 12)
+        String.pad_trailing("Evf/Nest", 12) <>
+        String.pad_trailing("Skuld/Nest", 12)
     )
 
-    IO.puts(String.duplicate("-", 116))
+    IO.puts(String.duplicate("-", 128))
 
     for target <- targets do
       # State/Nested
@@ -493,6 +528,12 @@ defmodule QueueBenchmark do
           time_evf(evf_nested(target))
         end)
 
+      # Skuld/Nested
+      skuld_nested_time =
+        median_time(iterations, fn ->
+          time_skuld(skuld_nested(target))
+        end)
+
       IO.puts(
         String.pad_trailing("#{target}", 8) <>
           String.pad_trailing(format_time(state_nested_time), 12) <>
@@ -503,7 +544,8 @@ defmodule QueueBenchmark do
           String.pad_trailing(format_time(pure_recurse_time), 12) <>
           String.pad_trailing(format_time(monad_nested_time), 12) <>
           String.pad_trailing(format_time(ev_nested_time), 12) <>
-          String.pad_trailing(format_time(evf_nested_time), 12)
+          String.pad_trailing(format_time(evf_nested_time), 12) <>
+          String.pad_trailing(format_time(skuld_nested_time), 12)
       )
     end
 
@@ -516,9 +558,11 @@ defmodule QueueBenchmark do
     IO.puts("- Monad/Nest: Simple state monad (fn state -> {val, state} end) with nested binds")
     IO.puts("- Ev/Nest: Evidence-passing - nested map lookup %{effect => %{op => handler}}")
     IO.puts("- Evf/Nest: Flat evidence - single map lookup %{state_get => handler}")
+    IO.puts("- Skuld/Nest: Skuld library - evidence-passing with CPS for control effects")
     IO.puts("")
     IO.puts("- Min/Chain isolates queue construction overhead (O(n²) if present)")
-    IO.puts("- Compare State/Nest to Evf/Nest to see cost of Impure nodes + queue vs evidence")
+    IO.puts("- Compare State/Nest to Skuld/Nest to see Freyja vs Skuld performance")
+    IO.puts("- Compare Skuld/Nest to Evf/Nest to see overhead of CPS + outcome handling")
     IO.puts("- Compare Evf/Nest to Monad/Nest to see cost of dynamic handler dispatch")
     IO.puts("- Compare Monad/Nest to Pure/Recur to see state monad abstraction overhead")
   end

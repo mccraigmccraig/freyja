@@ -317,10 +317,117 @@ For performance-critical code paths that don't need logging/replay, a hybrid app
 
 ---
 
+## Skuld: A Real Evidence-Passing Implementation
+
+### Background
+
+Building on the hypothetical analysis above, we implemented **Skuld** - a complete evidence-passing algebraic effects library with CPS (continuation-passing style) to support control effects like Throw/Catch and Yield/Resume.
+
+Skuld validates that evidence-passing can achieve significant performance improvements over Freyja while still supporting:
+- Composable effect handlers
+- Scoped handler installation
+- Control effects (exceptions, coroutines)
+- Higher-order effects (Catch, Local)
+
+### Architecture
+
+Skuld uses a simple, uniform CPS approach:
+
+```elixir
+# Computation type: fn env, resume -> outcome
+@type computation :: (env(), resume() -> outcome())
+
+# Handler type: fn args, env, resume -> outcome  
+@type handler :: (term(), env(), resume() -> outcome())
+
+# Outcome type: tagged union for control flow
+@type outcome :: {:done, value, env} 
+               | {:suspended, yielded, resume, env}
+               | {:thrown, error, env}
+```
+
+Key differences from Freyja:
+- **No Impure nodes** - effects invoke handlers directly via evidence map lookup
+- **No continuation queues** - CPS chains continuations via closure nesting
+- **Direct dispatch** - O(1) map lookup instead of protocol dispatch and pattern matching
+
+### Benchmark Results
+
+All times include both construction and execution (median of 5 runs):
+
+| Target | Freyja (State/Nest) | Skuld/Nest | Speedup | Evf/Nest |
+|--------|---------------------|------------|---------|----------|
+| 500    | 143 µs              | 42 µs      | 3.4x    | 15 µs    |
+| 1,000  | 258 µs              | 89 µs      | 2.9x    | 33 µs    |
+| 2,000  | 512 µs              | 164 µs     | 3.1x    | 66 µs    |
+| 5,000  | 1.25 ms             | 421 µs     | 3.0x    | 155 µs   |
+| 10,000 | 2.61 ms             | 777 µs     | **3.4x**| 316 µs   |
+
+### Analysis
+
+1. **Skuld achieves ~3.4x speedup over Freyja** for State-heavy workloads, validating the evidence-passing approach.
+
+2. **CPS overhead is ~2.5x vs bare evidence-passing** (`Evf/Nest`). This is the cost of supporting control effects - the `resume` continuation must be passed through every bind and handler call, even for simple effects that always resume immediately.
+
+3. **Performance hierarchy at 10k iterations:**
+
+   ```
+   Pure/Recur    ~170 µs   (baseline - no abstraction)
+   Monad/Nest    ~167 µs   (simple state monad)
+   Evf/Nest      ~316 µs   (flat evidence, no control effects)
+   Skuld/Nest    ~777 µs   (evidence + CPS for control effects)
+   Freyja        ~2.61 ms  (Freer monad - full inspectability)
+   ```
+
+### Hybrid Plain/CPS Approach: Rejected
+
+We explored a hybrid approach to reduce CPS overhead for simple effects:
+
+- **Direct style** (arity-1): `fn env -> {value, env}` for State, Reader, Writer
+- **CPS style** (arity-2): `fn env, resume -> outcome` for Throw, Yield
+
+The hybrid would auto-detect computation arity via `is_function(comp, 1)` and lift direct computations to CPS when mixed with control effects.
+
+**Results of hybrid approach:**
+
+| Target | Full CPS | Hybrid | Improvement |
+|--------|----------|--------|-------------|
+| 500    | 57 µs    | 56 µs  | ~2%         |
+| 1,000  | 118 µs   | 109 µs | ~8%         |
+| 5,000  | 678 µs   | 540 µs | ~20%        |
+| 10,000 | 1.13 ms  | 1.07 ms| ~5%         |
+
+**The hybrid was rejected because:**
+
+1. **Modest gains (5-20%)** don't justify the added complexity
+2. **The real win is the 3.4x improvement** of evidence-passing over Freer - this dwarfs the hybrid's incremental gains
+3. **Implementation simplicity** is valuable - the full CPS approach is ~200 lines of clean, uniform code
+4. **Without static types**, we can't match Koka's optimizations - `is_function` checks at every bind add overhead that partially negates the direct-style savings
+
+**Conclusion:** Control effects (Throw, Yield) are essential for practical effect systems. The CPS overhead to support them is acceptable. A 5-20% improvement is not worth the complexity of maintaining two execution modes in a dynamically-typed language.
+
+### Trade-offs vs Freyja
+
+| Feature | Freyja | Skuld |
+|---------|--------|-------|
+| Performance | 1x (baseline) | ~3.4x faster |
+| Effect logging | ✅ Yes | ✅ Via handler interposition |
+| Serializable effect logs | ✅ Yes | ✅ Yes |
+| Cold replay from logs | ✅ Yes | ✅ Yes |
+| Hot resume (in-memory) | ✅ Via continuation closures | ✅ Via continuation closures |
+| Higher-order effects | ✅ Via hefty algebras | ✅ Via CPS scoping |
+| Control effects | ✅ Via Freer | ✅ Via CPS outcomes |
+
+Both approaches support effect logging and replay using the same fundamental technique: effect requests and responses are logged as serializable data, and cold replay re-runs the computation using logged responses to short-circuit effect execution. Hot resume (continuing a suspended computation in-memory) works via continuation closures in both systems - neither can serialize mid-execution state to disk.
+
+Freyja's `Impure` nodes expose the current effect as inspectable data, but the continuation queue is opaque (a list of closures). Once effect logging is in place, both systems provide equivalent visibility into computation flow. **For practical purposes, Skuld offers ~3.4x better performance with equivalent functionality.**
+
+---
+
 ## Running Benchmarks
 
 ```bash
-# Queue benchmark
+# Queue benchmark (includes Skuld)
 mix run bench/queue_benchmark.exs
 
 # Flamegraph profiling

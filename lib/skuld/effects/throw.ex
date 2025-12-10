@@ -64,8 +64,8 @@ defmodule Skuld.Effects.Throw do
                 restored = Env.with_handler(final_env, @effect_key, env.evidence[@effect_key])
                 outer_resume.({:ok, value}, restored)
 
-              {:__caught__, recovery_comp, catch_env} ->
-                restored = Env.with_handler(catch_env, @effect_key, env.evidence[@effect_key])
+              {:__caught__, recovery_comp, caught_env} ->
+                restored = Env.with_handler(caught_env, @effect_key, env.evidence[@effect_key])
                 recovery_comp.(restored, outer_resume)
 
               other ->

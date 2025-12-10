@@ -2,7 +2,8 @@ defmodule Skuld.Effects.Yield do
   @moduledoc """
   Yield effect - coroutine-style suspension and resumption.
 
-  Demonstrates multi-shot continuations via the :suspended outcome.
+  Uses CPS style (arity-2 computations) because yield captures the continuation.
+  This is a control effect that requires continuation capture.
   """
 
   alias Skuld
@@ -11,17 +12,17 @@ defmodule Skuld.Effects.Yield do
   @effect_key :yield
 
   #############################################################################
-  ## Operations
+  ## Operations (CPS style - arity-2)
   #############################################################################
 
   @doc "Yield a value and suspend, waiting for input to resume"
-  @spec yield(term()) :: Skuld.computation()
+  @spec yield(term()) :: Skuld.cps_computation()
   def yield(value) do
     Skuld.effect(@effect_key, {:yield, value})
   end
 
   @doc "Yield without a value"
-  @spec yield() :: Skuld.computation()
+  @spec yield() :: Skuld.cps_computation()
   def yield do
     yield(nil)
   end
@@ -40,7 +41,7 @@ defmodule Skuld.Effects.Yield do
     Env.with_handler(env, @effect_key, &handle/3)
   end
 
-  # Default handler - suspend and return continuation
+  # Control handler (arity-3): fn args, env, resume -> outcome
   defp handle({:yield, value}, env, resume) do
     {:suspended, value, resume, env}
   end
@@ -53,9 +54,13 @@ defmodule Skuld.Effects.Yield do
   Run a computation with a driver function that handles yields.
 
   The driver receives yielded values and returns `{:continue, input}` or `{:stop, reason}`.
+  The computation must be CPS (arity-2). Use Skuld.to_cps if needed.
   """
-  @spec run_with_driver(Skuld.computation(), Skuld.env(), (term() ->
-                                                             {:continue, term()} | {:stop, term()})) ::
+  @spec run_with_driver(
+          Skuld.computation(),
+          Skuld.env(),
+          (term() -> {:continue, term()} | {:stop, term()})
+        ) ::
           {:done, term(), Skuld.env()}
           | {:stopped, term(), Skuld.env()}
           | {:thrown, term(), Skuld.env()}
@@ -67,7 +72,6 @@ defmodule Skuld.Effects.Yield do
       {:suspended, yielded, resume, suspended_env} ->
         case driver.(yielded) do
           {:continue, input} ->
-            # Resume and continue driving
             run_with_driver(
               fn e, _r -> resume.(input, e) end,
               suspended_env,
@@ -100,7 +104,6 @@ defmodule Skuld.Effects.Yield do
   end
 
   defp do_collect({:suspended, yielded, resume, env}, acc, input) do
-    # Resume with input and continue collecting
     next_outcome = resume.(input, env)
     do_collect(next_outcome, [yielded | acc], input)
   end
@@ -127,12 +130,10 @@ defmodule Skuld.Effects.Yield do
   end
 
   defp do_feed({:suspended, yielded, resume, env}, yielded_acc, []) do
-    # No more inputs - return suspended
     {:suspended, yielded, resume, Enum.reverse(yielded_acc), env}
   end
 
   defp do_feed({:suspended, yielded, resume, env}, yielded_acc, [input | rest]) do
-    # Feed next input
     next_outcome = resume.(input, env)
     do_feed(next_outcome, [yielded | yielded_acc], rest)
   end

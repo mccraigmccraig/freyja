@@ -2,8 +2,6 @@ defmodule Skuld do
   @moduledoc """
   Skuld: Evidence-passing algebraic effects with final encoding.
 
-  A minimal API sketch for validation.
-
   ## Core Concepts
 
   - **Computation**: `fn env, resume -> outcome` - a suspended computation
@@ -23,10 +21,14 @@ defmodule Skuld do
       end)
 
       # Run with handlers
-      env = Env.new()
-            |> State.handler(initial: 0)
-
+      env = Env.new() |> State.handler(0)
       {:done, result, final_env} = run(comp, env)
+
+  ## Performance
+
+  Skuld uses evidence-passing (like Koka) rather than a Freer monad.
+  This gives ~3.4x speedup over Freyja for State-heavy workloads
+  by avoiding Impure node allocation and queue concatenation.
   """
 
   #############################################################################

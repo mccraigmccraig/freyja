@@ -20,7 +20,7 @@ defmodule Skuld.Effects.State do
     Skuld.effect(@effect_key, :get)
   end
 
-  @doc "Replace the state, returning the old value"
+  @doc "Replace the state, returning :ok"
   @spec put(term()) :: Skuld.computation()
   def put(value) do
     Skuld.effect(@effect_key, {:put, value})

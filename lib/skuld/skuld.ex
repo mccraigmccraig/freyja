@@ -1,60 +1,65 @@
 defmodule Skuld do
   @moduledoc """
-  Skuld: Evidence-passing algebraic effects with final encoding.
+  Skuld: Evidence-passing algebraic effects with scoped handlers.
 
   ## Core Concepts
 
-  - **Computation**: `fn env, resume -> outcome` - a suspended computation
-  - **Evidence**: Map of effect handlers in the environment
-  - **Handler**: `fn args, env, resume -> outcome` - interprets an effect
-  - **Outcome**: Tagged result - `:done`, `:suspended`, or `:thrown`
+  - **Computation**: `(env, resume -> {result, env})` - a suspended computation
+  - **Result**: Opaque value - framework doesn't impose shape
+  - **Leave-scope**: Continuation chain for scope cleanup/control
+  - **Suspend**: Sentinel struct that bypasses leave-scope
 
-  ## Example
+  ## Architecture
 
-      import Skuld
+  Unlike Freyja's centralised interpreter, Skuld uses decentralised
+  evidence-passing. Run acts as a **control authority** - it recognizes
+  the Suspend sentinel and invokes the leave-scope chain - but treats
+  results as opaque.
 
-      # Build a computation
-      comp = bind(State.get(), fn x ->
-        bind(State.put(x + 1), fn _ ->
-          pure(x)
-        end)
-      end)
-
-      # Run with handlers
-      env = Env.new() |> State.handler(0)
-      {:done, result, final_env} = run(comp, env)
-
-  ## Performance
-
-  Skuld uses evidence-passing (like Koka) rather than a Freer monad.
-  This gives ~3.4x speedup over Freyja for State-heavy workloads
-  by avoiding Impure node allocation and queue concatenation.
+  Scoped effects (Reader.local, Catch) install leave-scope handlers
+  that can clean up env or redirect control flow.
   """
+
+  #############################################################################
+  ## Structs
+  #############################################################################
+
+  defmodule Suspend do
+    @moduledoc "Sentinel that bypasses leave-scope chain"
+    defstruct [:value, :resume]
+    # resume :: (input -> {result, env})
+  end
+
+  defmodule Throw do
+    @moduledoc "Error result that Catch recognizes"
+    defstruct [:error]
+  end
 
   #############################################################################
   ## Types
   #############################################################################
 
-  @typedoc "The environment carrying evidence (handlers) and state"
+  @typedoc "Any result value - opaque to the framework"
+  @type result :: term()
+
+  @typedoc "The environment carrying evidence, state, and leave-scope"
   @type env :: %{
           evidence: %{atom() => handler()},
-          state: %{atom() => term()}
+          state: %{atom() => term()},
+          leave_scope: leave_scope()
         }
 
   @typedoc "A handler interprets effect operations"
-  @type handler :: (args :: term(), env(), resume() -> outcome())
+  @type handler :: (args :: term(), env(), resume() -> {result(), env()})
 
   @typedoc "Continuation to resume after an effect"
-  @type resume :: (term(), env() -> outcome())
+  @type resume :: (term(), env() -> {result(), env()})
 
   @typedoc "A computation awaiting execution"
-  @type computation :: (env(), resume() -> outcome())
+  @type computation :: (env(), resume() -> {result(), env()})
 
-  @typedoc "The result of running a computation"
-  @type outcome ::
-          {:done, term(), env()}
-          | {:suspended, yielded :: term(), resume(), env()}
-          | {:thrown, error :: term(), env()}
+  @typedoc "Leave-scope handler - cleans up or redirects"
+  @type leave_scope :: (result(), env() -> {result(), env()})
 
   #############################################################################
   ## Environment
@@ -63,10 +68,14 @@ defmodule Skuld do
   defmodule Env do
     @moduledoc "Environment construction and manipulation"
 
-    @doc "Create a fresh environment"
+    @doc "Create a fresh environment with identity leave-scope"
     @spec new() :: Skuld.env()
     def new do
-      %{evidence: %{}, state: %{}}
+      %{
+        evidence: %{},
+        state: %{},
+        leave_scope: fn result, env -> {result, env} end
+      }
     end
 
     @doc "Install a handler for an effect"
@@ -84,6 +93,12 @@ defmodule Skuld do
       end
     end
 
+    @doc "Get handler for an effect (returns nil if missing)"
+    @spec get_handler(Skuld.env(), atom()) :: Skuld.handler() | nil
+    def get_handler(env, effect_key) do
+      env.evidence[effect_key]
+    end
+
     @doc "Update state for an effect"
     @spec put_state(Skuld.env(), atom(), term()) :: Skuld.env()
     def put_state(env, key, value) do
@@ -94,6 +109,18 @@ defmodule Skuld do
     @spec get_state(Skuld.env(), atom(), term()) :: term()
     def get_state(env, key, default \\ nil) do
       Map.get(env.state, key, default)
+    end
+
+    @doc "Install a new leave-scope handler"
+    @spec with_leave_scope(Skuld.env(), Skuld.leave_scope()) :: Skuld.env()
+    def with_leave_scope(env, new_leave_scope) do
+      %{env | leave_scope: new_leave_scope}
+    end
+
+    @doc "Get the current leave-scope handler"
+    @spec get_leave_scope(Skuld.env()) :: Skuld.leave_scope()
+    def get_leave_scope(env) do
+      env.leave_scope
     end
   end
 
@@ -115,19 +142,34 @@ defmodule Skuld do
     end
   end
 
-  @doc "Run a computation to completion or control effect"
-  @spec run(computation(), env()) :: outcome()
+  @doc """
+  Run a computation to completion.
+
+  Checks for Suspend sentinel (bypasses leave-scope) and invokes
+  the leave-scope chain for all other results.
+  """
+  @spec run(computation(), env()) :: {result(), env()}
   def run(comp, env) do
-    comp.(env, fn value, final_env -> {:done, value, final_env} end)
+    env_with_leave_scope = Map.put_new(env, :leave_scope, fn r, e -> {r, e} end)
+
+    {result, final_env} =
+      comp.(env_with_leave_scope, fn value, e ->
+        {value, e}
+      end)
+
+    case result do
+      %Suspend{} = s -> {s, final_env}
+      _ -> final_env.leave_scope.(result, final_env)
+    end
   end
 
-  @doc "Run a computation, extracting just the value (raises on non-done)"
+  @doc "Run a computation, extracting just the value (raises on Suspend/Throw)"
   @spec run!(computation(), env()) :: term()
   def run!(comp, env) do
     case run(comp, env) do
-      {:done, value, _env} -> value
-      {:suspended, _, _, _} -> raise "Computation suspended unexpectedly"
-      {:thrown, error, _} -> raise "Computation threw: #{inspect(error)}"
+      {%Suspend{}, _} -> raise "Computation suspended unexpectedly"
+      {%Throw{error: error}, _} -> raise "Computation threw: #{inspect(error)}"
+      {value, _env} -> value
     end
   end
 
@@ -185,13 +227,37 @@ defmodule Skuld do
   end
 
   #############################################################################
-  ## Handler Scoping (for higher-order effects)
+  ## Scoping Primitives
   #############################################################################
+
+  @doc """
+  Create a scoped computation with leave-scope cleanup.
+
+  The `setup` function receives the current env and must return
+  `{modified_env, cleanup}` where cleanup is `(result, env) -> {result, env}`.
+
+  The cleanup function is automatically chained with the previous leave-scope.
+  """
+  @spec scoped((env() -> {env(), leave_scope()}), computation()) :: computation()
+  def scoped(setup, comp) do
+    fn env, resume ->
+      previous_leave_scope = Env.get_leave_scope(env)
+      {modified_env, cleanup} = setup.(env)
+
+      my_leave_scope = fn result, inner_env ->
+        {cleaned_result, cleaned_env} = cleanup.(result, inner_env)
+        previous_leave_scope.(cleaned_result, cleaned_env)
+      end
+
+      final_env = Env.with_leave_scope(modified_env, my_leave_scope)
+      comp.(final_env, resume)
+    end
+  end
 
   @doc """
   Run a sub-computation with modified evidence.
 
-  This is the key primitive for higher-order effects like Catch and Local.
+  Note: For scoped modifications that need cleanup, use `scoped/2` instead.
   """
   @spec with_evidence(computation(), (env() -> env())) :: computation()
   def with_evidence(comp, modify_env) do
@@ -203,8 +269,6 @@ defmodule Skuld do
 
   @doc """
   Interpose on an existing handler - wrap it with additional behavior.
-
-  Useful for Listen, EffectLogger, etc.
   """
   @spec interpose(computation(), atom(), (handler() -> handler())) :: computation()
   def interpose(comp, effect_key, wrapper) do

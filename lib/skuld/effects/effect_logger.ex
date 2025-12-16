@@ -342,7 +342,7 @@ defmodule Skuld.Effects.EffectLogger do
         env_updated = Env.put_state(env, :replay_log, rest_queue)
         resume.(result, env_updated)
 
-      {:suspended, yielded, input, rest_queue} ->
+      {:suspended, _yielded, input, rest_queue} ->
         # The effect suspended and was resumed with input
         env_updated = Env.put_state(env, :replay_log, rest_queue)
         # Continue as if we got that input

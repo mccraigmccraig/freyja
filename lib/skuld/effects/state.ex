@@ -8,7 +8,7 @@ defmodule Skuld.Effects.State do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key :state
+  @effect_key __MODULE__
 
   #############################################################################
   ## Operations

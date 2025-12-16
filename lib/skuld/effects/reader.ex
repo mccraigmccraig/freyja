@@ -8,7 +8,7 @@ defmodule Skuld.Effects.Reader do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key :reader
+  @effect_key __MODULE__
 
   #############################################################################
   ## Operations

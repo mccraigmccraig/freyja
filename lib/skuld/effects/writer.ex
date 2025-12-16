@@ -36,7 +36,7 @@ defmodule Skuld.Effects.Writer do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key :writer
+  @effect_key __MODULE__
   @state_key :writer_log
 
   #############################################################################

@@ -16,7 +16,7 @@ defmodule Skuld.Effects.Yield do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key :yield
+  @effect_key __MODULE__
 
   #############################################################################
   ## Operations

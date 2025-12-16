@@ -16,7 +16,7 @@ defmodule Skuld.Effects.Throw do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key :throw
+  @effect_key __MODULE__
 
   #############################################################################
   ## Operations

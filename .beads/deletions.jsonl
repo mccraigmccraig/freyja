@@ -13,6 +13,8 @@
 {"id":"freyja-0e5b","ts":"2025-11-30T06:49:13.231004Z","by":"mccraigmccraig","reason":"cleanup"}
 {"id":"freyja-1688","ts":"2025-11-30T06:49:13.234931Z","by":"mccraigmccraig","reason":"cleanup"}
 {"id":"freyja-4471f644","ts":"2025-11-30T06:49:13.238949Z","by":"mccraigmccraig","reason":"cleanup"}
-{"id":"freyja-5ca","ts":"2025-12-18T00:09:28.164626Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
-{"id":"freyja-wmt","ts":"2025-12-18T00:09:28.172195Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
-{"id":"freyja-r69","ts":"2025-12-18T00:09:28.177607Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
+{"id":"freyja-bvm","ts":"2025-12-16T08:38:55.336442Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-6nl","ts":"2025-12-16T08:38:55.342967Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-ci8","ts":"2025-12-16T08:38:55.346813Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-h7d","ts":"2025-12-16T08:38:55.35788Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-a9b4fc42","ts":"2025-12-16T08:38:55.362747Z","by":"mccraigmccraig","reason":"cleanup"}

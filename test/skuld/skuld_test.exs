@@ -8,7 +8,7 @@ defmodule SkuldTest do
   describe "pure and bind" do
     test "pure returns value" do
       comp = Skuld.pure(42)
-      assert {:done, 42, _env} = Skuld.run(comp, Env.new())
+      assert {42, _env} = Skuld.run(comp, Env.new())
     end
 
     test "bind sequences computations" do
@@ -19,18 +19,18 @@ defmodule SkuldTest do
           end)
         end)
 
-      assert {:done, 3, _env} = Skuld.run(comp, Env.new())
+      assert {3, _env} = Skuld.run(comp, Env.new())
     end
 
     test "map transforms result" do
       comp = Skuld.map(Skuld.pure(5), &(&1 * 2))
-      assert {:done, 10, _env} = Skuld.run(comp, Env.new())
+      assert {10, _env} = Skuld.run(comp, Env.new())
     end
 
     test "sequence collects results" do
       comps = [Skuld.pure(1), Skuld.pure(2), Skuld.pure(3)]
       comp = Skuld.sequence(comps)
-      assert {:done, [1, 2, 3], _env} = Skuld.run(comp, Env.new())
+      assert {[1, 2, 3], _env} = Skuld.run(comp, Env.new())
     end
   end
 
@@ -39,14 +39,14 @@ defmodule SkuldTest do
       env = Env.new() |> Reader.handler(:config_value)
 
       comp = Reader.ask()
-      assert {:done, :config_value, _} = Skuld.run(comp, env)
+      assert {:config_value, _} = Skuld.run(comp, env)
     end
 
     test "asks applies function" do
       env = Env.new() |> Reader.handler(%{name: "test", count: 42})
 
       comp = Reader.asks(& &1.count)
-      assert {:done, 42, _} = Skuld.run(comp, env)
+      assert {42, _} = Skuld.run(comp, env)
     end
 
     test "local modifies environment for sub-computation" do
@@ -66,7 +66,7 @@ defmodule SkuldTest do
         end)
 
       # Note: after_local is INSIDE the local, so it sees modified value
-      assert {:done, {10, 20, 20}, _} = Skuld.run(comp, env)
+      assert {{10, 20, 20}, _} = Skuld.run(comp, env)
     end
 
     test "local restores environment after" do
@@ -80,7 +80,7 @@ defmodule SkuldTest do
           Reader.ask()
         end)
 
-      assert {:done, 10, _} = Skuld.run(comp, env)
+      assert {10, _} = Skuld.run(comp, env)
     end
   end
 
@@ -89,7 +89,7 @@ defmodule SkuldTest do
       env = Env.new() |> State.handler(42)
 
       comp = State.get()
-      assert {:done, 42, _} = Skuld.run(comp, env)
+      assert {42, _} = Skuld.run(comp, env)
     end
 
     test "put updates state" do
@@ -100,7 +100,7 @@ defmodule SkuldTest do
           State.get()
         end)
 
-      assert {:done, 100, final_env} = Skuld.run(comp, env)
+      assert {100, final_env} = Skuld.run(comp, env)
       assert State.get_state(final_env) == 100
     end
 
@@ -114,7 +114,7 @@ defmodule SkuldTest do
           end)
         end)
 
-      assert {:done, {10, 15}, _} = Skuld.run(comp, env)
+      assert {{10, 15}, _} = Skuld.run(comp, env)
     end
 
     test "state threads through computation" do
@@ -129,16 +129,16 @@ defmodule SkuldTest do
           end)
         end)
 
-      assert {:done, 3, _} = Skuld.run(comp, env)
+      assert {3, _} = Skuld.run(comp, env)
     end
   end
 
   describe "Throw effect" do
-    test "throw produces thrown outcome" do
+    test "throw produces Throw result" do
       env = Env.new() |> Throw.handler()
 
       comp = Throw.throw(:boom)
-      assert {:thrown, :boom, _} = Skuld.run(comp, env)
+      assert {%Skuld.Throw{error: :boom}, _} = Skuld.run(comp, env)
     end
 
     test "throw short-circuits computation" do
@@ -152,7 +152,7 @@ defmodule SkuldTest do
           end)
         end)
 
-      assert {:thrown, :error, final_env} = Skuld.run(comp, env)
+      assert {%Skuld.Throw{error: :error}, final_env} = Skuld.run(comp, env)
       assert State.get_state(final_env) == 1
     end
 
@@ -165,7 +165,7 @@ defmodule SkuldTest do
           fn error -> Skuld.pure({:caught, error}) end
         )
 
-      assert {:done, {:caught, :my_error}, _} = Skuld.run(comp, env)
+      assert {{:caught, :my_error}, _} = Skuld.run(comp, env)
     end
 
     test "catch_error passes through normal completion" do
@@ -177,17 +177,17 @@ defmodule SkuldTest do
           fn error -> Skuld.pure({:caught, error}) end
         )
 
-      assert {:done, {:ok, 42}, _} = Skuld.run(comp, env)
+      assert {{:ok, 42}, _} = Skuld.run(comp, env)
     end
 
     test "try_catch returns Either-style result" do
       env = Env.new() |> Throw.handler()
 
       success_comp = Throw.try_catch(Skuld.pure(42))
-      assert {:done, {:ok, 42}, _} = Skuld.run(success_comp, env)
+      assert {{:ok, 42}, _} = Skuld.run(success_comp, env)
 
       fail_comp = Throw.try_catch(Throw.throw(:failed))
-      assert {:done, {:error, :failed}, _} = Skuld.run(fail_comp, env)
+      assert {{:error, :failed}, _} = Skuld.run(fail_comp, env)
     end
 
     test "nested catch - inner catches first" do
@@ -202,7 +202,7 @@ defmodule SkuldTest do
           fn e -> Skuld.pure({:outer_caught, e}) end
         )
 
-      assert {:done, {:ok, {:inner_caught, :inner_error}}, _} = Skuld.run(comp, env)
+      assert {{:ok, {:inner_caught, :inner_error}}, _} = Skuld.run(comp, env)
     end
   end
 
@@ -211,8 +211,8 @@ defmodule SkuldTest do
       env = Env.new() |> Yield.handler()
 
       comp = Yield.yield(:hello)
-      assert {:suspended, :hello, resume, _env} = Skuld.run(comp, env)
-      assert is_function(resume, 2)
+      assert {%Skuld.Suspend{value: :hello, resume: resume}, _env} = Skuld.run(comp, env)
+      assert is_function(resume, 1)
     end
 
     test "resume continues computation" do
@@ -223,8 +223,9 @@ defmodule SkuldTest do
           Skuld.pure({:got, x})
         end)
 
-      {:suspended, :first, resume, suspended_env} = Skuld.run(comp, env)
-      assert {:done, {:got, :input_value}, _} = resume.(:input_value, suspended_env)
+      {%Skuld.Suspend{value: :first, resume: resume}, _suspended_env} = Skuld.run(comp, env)
+      # Resume is now arity-1, captures env
+      assert {{:got, :input_value}, _} = resume.(:input_value)
     end
 
     test "multiple yields" do
@@ -239,11 +240,11 @@ defmodule SkuldTest do
           end)
         end)
 
-      {:suspended, 1, r1, e1} = Skuld.run(comp, env)
-      {:suspended, 2, r2, e2} = r1.(10, e1)
-      {:suspended, 3, r3, e3} = r2.(20, e2)
+      {%Skuld.Suspend{value: 1, resume: r1}, _e1} = Skuld.run(comp, env)
+      {%Skuld.Suspend{value: 2, resume: r2}, _e2} = r1.(10)
+      {%Skuld.Suspend{value: 3, resume: r3}, _e3} = r2.(20)
       # 10 + 20 + 30
-      {:done, 60, _} = r3.(30, e3)
+      {60, _} = r3.(30)
     end
 
     test "collect gathers all yields" do
@@ -306,7 +307,7 @@ defmodule SkuldTest do
           end)
         end)
 
-      assert {:done, 10, _} = Skuld.run(comp, env)
+      assert {10, _} = Skuld.run(comp, env)
     end
 
     test "State + Throw" do
@@ -328,7 +329,7 @@ defmodule SkuldTest do
           )
         end)
 
-      assert {:done, 2, final_env} = Skuld.run(comp, env)
+      assert {2, final_env} = Skuld.run(comp, env)
       assert State.get_state(final_env) == 2
     end
 
@@ -347,10 +348,10 @@ defmodule SkuldTest do
           end)
         end)
 
-      {:suspended, :suspended, resume, suspended_env} = Skuld.run(comp, env)
+      {%Skuld.Suspend{value: :suspended, resume: resume}, suspended_env} = Skuld.run(comp, env)
       assert State.get_state(suspended_env) == 10
 
-      {:done, 15, final_env} = resume.(5, suspended_env)
+      {15, final_env} = resume.(5)
       assert State.get_state(final_env) == 15
     end
 
@@ -372,13 +373,13 @@ defmodule SkuldTest do
           fn error -> Skuld.pure({:caught, error}) end
         )
 
-      {:suspended, :waiting, resume, suspended_env} = Skuld.run(comp, env)
+      {%Skuld.Suspend{value: :waiting, resume: resume}, _suspended_env} = Skuld.run(comp, env)
 
       # Resume with false - no error
-      assert {:done, {:ok, :no_error}, _} = resume.(false, suspended_env)
+      assert {{:ok, :no_error}, _} = resume.(false)
 
       # Resume again with true - error caught
-      assert {:done, {:caught, :post_resume_error}, _} = resume.(true, suspended_env)
+      assert {{:caught, :post_resume_error}, _} = resume.(true)
     end
   end
 end

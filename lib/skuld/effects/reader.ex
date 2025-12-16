@@ -29,24 +29,27 @@ defmodule Skuld.Effects.Reader do
   @doc "Run a computation with a modified environment value"
   @spec local((term() -> term()), Skuld.computation()) :: Skuld.computation()
   def local(modify, comp) do
-    fn env, resume ->
-      # Get current value, compute modified value
+    fn env, outer_resume ->
       current = Env.get_state(env, @effect_key)
-      modified = modify.(current)
+      modified_env = Env.put_state(env, @effect_key, modify.(current))
 
-      # Run sub-computation with modified state
-      modified_env = Env.put_state(env, @effect_key, modified)
-
-      case comp.(modified_env, fn v, e -> {:done, v, e} end) do
-        {:done, value, inner_env} ->
-          # Restore original value after sub-computation
-          restored_env = Env.put_state(inner_env, @effect_key, current)
-          resume.(value, restored_env)
-
-        # Pass through control effects (they carry their own env)
-        other ->
-          other
+      # Wrap resume to restore env on normal completion
+      restoring_resume = fn value, inner_env ->
+        restored_env = Env.put_state(inner_env, @effect_key, current)
+        outer_resume.(value, restored_env)
       end
+
+      # Also install leave_scope for cleanup on abnormal exit (throw)
+      previous_leave_scope = Env.get_leave_scope(modified_env)
+
+      my_leave_scope = fn result, leave_env ->
+        # Restore reader value and continue chain
+        restored_env = Env.put_state(leave_env, @effect_key, current)
+        previous_leave_scope.(result, restored_env)
+      end
+
+      final_env = Env.with_leave_scope(modified_env, my_leave_scope)
+      comp.(final_env, restoring_resume)
     end
   end
 
@@ -62,7 +65,7 @@ defmodule Skuld.Effects.Reader do
     |> Env.with_handler(@effect_key, &handle/3)
   end
 
-  # The handler implementation
+  # The handler implementation - returns {result, env} via resume
   defp handle(:ask, env, resume) do
     value = Env.get_state(env, @effect_key)
     resume.(value, env)

@@ -72,8 +72,8 @@ defmodule Freyja.Syntax do
 
   defmacro __using__(_opts) do
     quote do
-      import Freyja.Freer.FreerBlock
-      import Freyja.Hefty.HeftyBlock
+      import Freyja.Freer.FreerBlock, except: [return: 1]
+      import Freyja.Hefty.HeftyBlock, except: [return: 1]
     end
   end
 end

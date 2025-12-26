@@ -25,8 +25,12 @@ defmodule Skuld do
   #############################################################################
 
   defprotocol ISentinel do
-    @moduledoc "Protocol for handling sentinel values in run!"
+    @moduledoc "Protocol for handling sentinel values in run/run!"
     @fallback_to_any true
+
+    @doc "Complete a computation result - invoke leave_scope or bypass for sentinels"
+    @spec run(t, Skuld.env()) :: {Skuld.result(), Skuld.env()}
+    def run(result, env)
 
     @doc "Extract value or raise for sentinel types"
     @spec run!(t) :: term()
@@ -34,6 +38,7 @@ defmodule Skuld do
   end
 
   defimpl ISentinel, for: Any do
+    def run(result, env), do: env.leave_scope.(result, env)
     def run!(value), do: value
   end
 
@@ -47,6 +52,8 @@ defmodule Skuld do
     # resume :: (input -> {result, env})
 
     defimpl Skuld.ISentinel do
+      def run(suspend, env), do: {suspend, env}
+
       def run!(%Skuld.Suspend{}) do
         raise "Computation suspended unexpectedly"
       end
@@ -58,6 +65,9 @@ defmodule Skuld do
     defstruct [:error]
 
     defimpl Skuld.ISentinel do
+      # Throw goes through leave_scope so Catch can intercept it
+      def run(result, env), do: env.leave_scope.(result, env)
+
       def run!(%Skuld.Throw{error: error}) do
         raise "Computation threw: #{inspect(error)}"
       end
@@ -114,8 +124,9 @@ defmodule Skuld do
   @doc """
   Run a computation to completion.
 
-  Checks for Suspend sentinel (bypasses leave-scope) and invokes
-  the leave-scope chain for all other results.
+  Uses ISentinel protocol to determine completion behavior:
+  - Suspend: bypasses leave-scope chain
+  - Other values: invoke leave-scope chain
   """
   @spec run(computation(), env()) :: {result(), env()}
   def run(comp, env) do
@@ -126,10 +137,7 @@ defmodule Skuld do
         {value, e}
       end)
 
-    case result do
-      %Suspend{} = s -> {s, final_env}
-      _ -> final_env.leave_scope.(result, final_env)
-    end
+    ISentinel.run(result, final_env)
   end
 
   @doc "Run a computation, extracting just the value (raises on Suspend/Throw)"

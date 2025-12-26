@@ -20,59 +20,11 @@ defmodule Skuld do
   that can clean up env or redirect control flow.
   """
 
-  #############################################################################
-  ## Sentinel Protocol
-  #############################################################################
-
-  defprotocol ISentinel do
-    @moduledoc "Protocol for handling sentinel values in run/run!"
-    @fallback_to_any true
-
-    @doc "Complete a computation result - invoke leave_scope or bypass for sentinels"
-    @spec run(t, Skuld.env()) :: {Skuld.result(), Skuld.env()}
-    def run(result, env)
-
-    @doc "Extract value or raise for sentinel types"
-    @spec run!(t) :: term()
-    def run!(value)
-  end
-
-  defimpl ISentinel, for: Any do
-    def run(result, env), do: env.leave_scope.(result, env)
-    def run!(value), do: value
-  end
-
-  #############################################################################
-  ## Structs
-  #############################################################################
-
-  defmodule Suspend do
-    @moduledoc "Sentinel that bypasses leave-scope chain"
-    defstruct [:value, :resume]
-    # resume :: (input -> {result, env})
-
-    defimpl Skuld.ISentinel do
-      def run(suspend, env), do: {suspend, env}
-
-      def run!(%Skuld.Suspend{}) do
-        raise "Computation suspended unexpectedly"
-      end
-    end
-  end
-
-  defmodule Throw do
-    @moduledoc "Error result that Catch recognizes"
-    defstruct [:error]
-
-    defimpl Skuld.ISentinel do
-      # Throw goes through leave_scope so Catch can intercept it
-      def run(result, env), do: env.leave_scope.(result, env)
-
-      def run!(%Skuld.Throw{error: error}) do
-        raise "Computation threw: #{inspect(error)}"
-      end
-    end
-  end
+  # Sentinel protocol and types are in their own files:
+  # - Skuld.ISentinel (protocol)
+  # - Skuld.Suspend (bypasses leave-scope)
+  # - Skuld.Throw (error sentinel)
+  alias Skuld.ISentinel
 
   #############################################################################
   ## Types

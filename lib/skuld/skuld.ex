@@ -171,51 +171,57 @@ defmodule Skuld do
   #############################################################################
 
   @doc """
-  Create a scoped computation with leave-scope cleanup.
+  Create a scoped computation with dual-path cleanup.
 
   The `setup` function receives the current env and must return
-  `{modified_env, cleanup}` where cleanup is `(result, env) -> {result, env}`.
+  `{modified_env, restore}` where `restore :: (env -> env)` restores
+  the env to its pre-scope state.
 
-  The cleanup function is automatically chained with the previous leave-scope.
+  The restore function is called on both:
+  - **Normal exit**: before continuing to outer computation
+  - **Abnormal exit**: during leave-scope unwinding (e.g., throw)
+
+  The previous leave-scope is automatically restored in both paths.
+
+  ## Example
+
+      def local(modify, comp) do
+        Skuld.scoped(fn env ->
+          current = Env.get_state(env, @effect_key)
+          modified_env = Env.put_state(env, @effect_key, modify.(current))
+          restore = fn e -> Env.put_state(e, @effect_key, current) end
+          {modified_env, restore}
+        end, comp)
+      end
   """
-  @spec scoped((env() -> {env(), leave_scope()}), computation()) :: computation()
+  @spec scoped((env() -> {env(), (env() -> env())}), computation()) :: computation()
   def scoped(setup, comp) do
-    fn env, resume ->
+    fn env, outer_resume ->
       previous_leave_scope = Env.get_leave_scope(env)
-      {modified_env, cleanup} = setup.(env)
+      {modified_env, restore} = setup.(env)
 
+      # Normal exit: restore env and leave_scope before continuing
+      restoring_resume = fn value, inner_env ->
+        restored_env =
+          inner_env
+          |> restore.()
+          |> Env.with_leave_scope(previous_leave_scope)
+
+        outer_resume.(value, restored_env)
+      end
+
+      # Abnormal exit: restore env and leave_scope during unwinding
       my_leave_scope = fn result, inner_env ->
-        {cleaned_result, cleaned_env} = cleanup.(result, inner_env)
-        previous_leave_scope.(cleaned_result, cleaned_env)
+        cleaned_env =
+          inner_env
+          |> restore.()
+          |> Env.with_leave_scope(previous_leave_scope)
+
+        previous_leave_scope.(result, cleaned_env)
       end
 
       final_env = Env.with_leave_scope(modified_env, my_leave_scope)
-      comp.(final_env, resume)
+      comp.(final_env, restoring_resume)
     end
-  end
-
-  @doc """
-  Run a sub-computation with modified evidence.
-
-  Note: For scoped modifications that need cleanup, use `scoped/2` instead.
-  """
-  @spec with_evidence(computation(), (env() -> env())) :: computation()
-  def with_evidence(comp, modify_env) do
-    fn env, resume ->
-      modified_env = modify_env.(env)
-      comp.(modified_env, resume)
-    end
-  end
-
-  @doc """
-  Interpose on an existing handler - wrap it with additional behavior.
-  """
-  @spec interpose(computation(), atom(), (handler() -> handler())) :: computation()
-  def interpose(comp, effect_key, wrapper) do
-    with_evidence(comp, fn env ->
-      original = Env.get_handler!(env, effect_key)
-      wrapped = wrapper.(original)
-      Env.with_handler(env, effect_key, wrapped)
-    end)
   end
 end

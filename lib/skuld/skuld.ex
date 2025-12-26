@@ -21,6 +21,23 @@ defmodule Skuld do
   """
 
   #############################################################################
+  ## Sentinel Protocol
+  #############################################################################
+
+  defprotocol ISentinel do
+    @moduledoc "Protocol for handling sentinel values in run!"
+    @fallback_to_any true
+
+    @doc "Extract value or raise for sentinel types"
+    @spec run!(t) :: term()
+    def run!(value)
+  end
+
+  defimpl ISentinel, for: Any do
+    def run!(value), do: value
+  end
+
+  #############################################################################
   ## Structs
   #############################################################################
 
@@ -28,11 +45,23 @@ defmodule Skuld do
     @moduledoc "Sentinel that bypasses leave-scope chain"
     defstruct [:value, :resume]
     # resume :: (input -> {result, env})
+
+    defimpl Skuld.ISentinel do
+      def run!(%Skuld.Suspend{}) do
+        raise "Computation suspended unexpectedly"
+      end
+    end
   end
 
   defmodule Throw do
     @moduledoc "Error result that Catch recognizes"
     defstruct [:error]
+
+    defimpl Skuld.ISentinel do
+      def run!(%Skuld.Throw{error: error}) do
+        raise "Computation threw: #{inspect(error)}"
+      end
+    end
   end
 
   #############################################################################
@@ -106,11 +135,8 @@ defmodule Skuld do
   @doc "Run a computation, extracting just the value (raises on Suspend/Throw)"
   @spec run!(computation(), env()) :: term()
   def run!(comp, env) do
-    case run(comp, env) do
-      {%Suspend{}, _} -> raise "Computation suspended unexpectedly"
-      {%Throw{error: error}, _} -> raise "Computation threw: #{inspect(error)}"
-      {value, _env} -> value
-    end
+    {result, _env} = run(comp, env)
+    ISentinel.run!(result)
   end
 
   #############################################################################

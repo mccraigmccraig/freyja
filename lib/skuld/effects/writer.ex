@@ -156,23 +156,23 @@ defmodule Skuld.Effects.Writer do
     Env.get_state(env, @state_key, [])
   end
 
-  # Handler implementation - returns {result, env} via resume
-  defp handle(args, env, resume) do
+  # Handler implementation - returns {result, env} via k
+  defp handle(args, env, k) do
     case args do
       {:tell, msg} ->
         current = Env.get_state(env, @state_key, [])
         updated = [msg | current]
         new_env = Env.put_state(env, @state_key, updated)
         # Return the updated log as the result (like Freyja's tell)
-        resume.(updated, new_env)
+        k.(updated, new_env)
 
       :peek ->
         current = Env.get_state(env, @state_key, [])
-        resume.(current, env)
+        k.(current, env)
 
       {:set_log, new_log} ->
         new_env = Env.put_state(env, @state_key, new_log)
-        resume.(:ok, new_env)
+        k.(:ok, new_env)
     end
   end
 

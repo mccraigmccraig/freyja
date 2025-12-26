@@ -60,14 +60,14 @@ defmodule Skuld.Effects.State do
     Env.get_state(env, @effect_key)
   end
 
-  # Handler implementation - returns {result, env} via resume
-  defp handle(:get, env, resume) do
+  # Handler implementation - returns {result, env} via k
+  defp handle(:get, env, k) do
     value = Env.get_state(env, @effect_key)
-    resume.(value, env)
+    k.(value, env)
   end
 
-  defp handle({:put, value}, env, resume) do
+  defp handle({:put, value}, env, k) do
     new_env = Env.put_state(env, @effect_key, value)
-    resume.(:ok, new_env)
+    k.(:ok, new_env)
   end
 end

@@ -4,7 +4,7 @@ defmodule Skuld do
 
   ## Core Concepts
 
-  - **Computation**: `(env, resume -> {result, env})` - a suspended computation
+  - **Computation**: `(env, k -> {result, env})` - a suspended computation
   - **Result**: Opaque value - framework doesn't impose shape
   - **Leave-scope**: Continuation chain for scope cleanup/control
   - **Suspend**: Sentinel struct that bypasses leave-scope
@@ -50,13 +50,13 @@ defmodule Skuld do
         }
 
   @typedoc "A handler interprets effect operations"
-  @type handler :: (args :: term(), env(), resume() -> {result(), env()})
+  @type handler :: (args :: term(), env(), k() -> {result(), env()})
 
-  @typedoc "Continuation to resume after an effect"
-  @type resume :: (term(), env() -> {result(), env()})
+  @typedoc "Continuation after an effect"
+  @type k :: (term(), env() -> {result(), env()})
 
   @typedoc "A computation awaiting execution"
-  @type computation :: (env(), resume() -> {result(), env()})
+  @type computation :: (env(), k() -> {result(), env()})
 
   @typedoc "Leave-scope handler - cleans up or redirects"
   @type leave_scope :: (result(), env() -> {result(), env()})
@@ -71,14 +71,14 @@ defmodule Skuld do
   @doc "Lift a pure value into a computation"
   @spec pure(term()) :: computation()
   def pure(value) do
-    fn env, resume -> resume.(value, env) end
+    fn env, k -> k.(value, env) end
   end
 
   @doc "Sequence computations"
   @spec bind(computation(), (term() -> computation())) :: computation()
   def bind(comp, f) do
-    fn env, resume ->
-      comp.(env, fn a, env2 -> f.(a).(env2, resume) end)
+    fn env, k ->
+      comp.(env, fn a, env2 -> f.(a).(env2, k) end)
     end
   end
 
@@ -120,9 +120,9 @@ defmodule Skuld do
   @doc "Invoke an effect operation"
   @spec effect(atom(), term()) :: computation()
   def effect(effect_key, args \\ nil) do
-    fn env, resume ->
+    fn env, k ->
       handler = Env.get_handler!(env, effect_key)
-      handler.(args, env, resume)
+      handler.(args, env, k)
     end
   end
 
@@ -196,18 +196,18 @@ defmodule Skuld do
   """
   @spec scoped((env() -> {env(), (env() -> env())}), computation()) :: computation()
   def scoped(setup, comp) do
-    fn env, outer_resume ->
+    fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
       {modified_env, restore} = setup.(env)
 
       # Normal exit: restore env and leave_scope before continuing
-      restoring_resume = fn value, inner_env ->
+      restoring_k = fn value, inner_env ->
         restored_env =
           inner_env
           |> restore.()
           |> Env.with_leave_scope(previous_leave_scope)
 
-        outer_resume.(value, restored_env)
+        outer_k.(value, restored_env)
       end
 
       # Abnormal exit: restore env and leave_scope during unwinding
@@ -221,7 +221,7 @@ defmodule Skuld do
       end
 
       final_env = Env.with_leave_scope(modified_env, my_leave_scope)
-      comp.(final_env, restoring_resume)
+      comp.(final_env, restoring_k)
     end
   end
 end

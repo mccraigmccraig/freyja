@@ -52,9 +52,9 @@ defmodule Skuld.Effects.Reader do
     |> Env.with_handler(@effect_key, &handle/3)
   end
 
-  # The handler implementation - returns {result, env} via resume
-  defp handle(:ask, env, resume) do
+  # The handler implementation - returns {result, env} via k
+  defp handle(:ask, env, k) do
     value = Env.get_state(env, @effect_key)
-    resume.(value, env)
+    k.(value, env)
   end
 end

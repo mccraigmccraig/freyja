@@ -51,9 +51,9 @@ defmodule Skuld.Effects.Yield do
 
   # Handler: returns Suspend struct with resume that captures env
   # and invokes leave_scope when the resumed computation completes
-  defp handle({:yield, value}, env, resume) do
+  defp handle({:yield, value}, env, k) do
     captured_resume = fn input ->
-      {result, final_env} = resume.(input, env)
+      {result, final_env} = k.(input, env)
 
       # If the result is another Suspend, don't invoke leave_scope yet
       # (it will be invoked when that suspend is eventually resolved)

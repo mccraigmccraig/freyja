@@ -36,7 +36,7 @@ defmodule Skuld.Effects.Throw do
   """
   @spec catch_error(Skuld.computation(), (term() -> Skuld.computation())) :: Skuld.computation()
   def catch_error(comp, error_handler) do
-    fn env, outer_resume ->
+    fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
 
       catch_leave_scope = fn result, inner_env ->
@@ -59,7 +59,7 @@ defmodule Skuld.Effects.Throw do
       end
 
       modified_env = Env.with_leave_scope(env, catch_leave_scope)
-      comp.(modified_env, outer_resume)
+      comp.(modified_env, outer_k)
     end
   end
 
@@ -83,8 +83,8 @@ defmodule Skuld.Effects.Throw do
     Env.with_handler(env, @effect_key, &handle/3)
   end
 
-  # Default handler - return Throw struct as result (does not call resume)
-  defp handle({:throw, error}, env, _resume) do
+  # Default handler - return Throw struct as result (does not call k)
+  defp handle({:throw, error}, env, _k) do
     {%Skuld.Throw{error: error}, env}
   end
 end

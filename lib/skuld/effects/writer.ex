@@ -31,6 +31,19 @@ defmodule Skuld.Effects.Writer do
       )
 
       # Returns: {42, ["inner"]}
+
+  ## Scoped Operations and Throw
+
+  The scoped operations (`listen`, `pass`, `censor`) use a peek-before/peek-after
+  pattern to calculate captured logs. This means on abnormal exit (throw):
+
+  - Logs written before the throw **persist** in state (not rolled back)
+  - `listen` does not capture partial logs - the throw propagates out
+  - `censor` does not apply its transform - logs leak out untransformed
+
+  This "fire-and-forget" semantic is intentional for logging (you typically want
+  to see logs leading up to an error). If you need transactional log semantics
+  (rollback on error), you would need to implement leave_scope cleanup.
   """
 
   alias Skuld

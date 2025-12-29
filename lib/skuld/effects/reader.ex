@@ -5,6 +5,8 @@ defmodule Skuld.Effects.Reader do
   Demonstrates basic evidence-passing with `local` for scoped modification.
   """
 
+  @behaviour Skuld.IHandler
+
   alias Skuld
   alias Skuld.Env
 
@@ -49,11 +51,15 @@ defmodule Skuld.Effects.Reader do
   def handler(env, value) do
     env
     |> Env.put_state(@sig, value)
-    |> Env.with_handler(@sig, &handle/3)
+    |> Env.with_handler(@sig, &__MODULE__.handle/3)
   end
 
-  # The handler implementation - returns {result, env} via k
-  defp handle(:ask, env, k) do
+  #############################################################################
+  ## IHandler Implementation
+  #############################################################################
+
+  @impl Skuld.IHandler
+  def handle(:ask, env, k) do
     value = Env.get_state(env, @sig)
     k.(value, env)
   end

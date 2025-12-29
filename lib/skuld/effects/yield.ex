@@ -13,6 +13,8 @@ defmodule Skuld.Effects.Yield do
   - When resumed, the result goes through the leave_scope chain
   """
 
+  @behaviour Skuld.IHandler
+
   alias Skuld
   alias Skuld.Env
 
@@ -46,12 +48,19 @@ defmodule Skuld.Effects.Yield do
   """
   @spec handler(Skuld.env()) :: Skuld.env()
   def handler(env) do
-    Env.with_handler(env, @sig, &handle/3)
+    Env.with_handler(env, @sig, &__MODULE__.handle/3)
   end
 
-  # Handler: returns Suspend struct with resume that captures env
-  # and invokes leave_scope when the resumed computation completes
-  defp handle({:yield, value}, env, k) do
+  #############################################################################
+  ## IHandler Implementation
+  #############################################################################
+
+  @doc """
+  Handler: returns Suspend struct with resume that captures env
+  and invokes leave_scope when the resumed computation completes.
+  """
+  @impl Skuld.IHandler
+  def handle({:yield, value}, env, k) do
     captured_resume = fn input ->
       {result, final_env} = k.(input, env)
 

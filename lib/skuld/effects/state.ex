@@ -5,6 +5,8 @@ defmodule Skuld.Effects.State do
   Demonstrates state management in evidence-passing.
   """
 
+  @behaviour Skuld.IHandler
+
   alias Skuld
   alias Skuld.Env
 
@@ -51,7 +53,7 @@ defmodule Skuld.Effects.State do
   def handler(env, initial) do
     env
     |> Env.put_state(@sig, initial)
-    |> Env.with_handler(@sig, &handle/3)
+    |> Env.with_handler(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Extract the final state from an env"
@@ -60,13 +62,18 @@ defmodule Skuld.Effects.State do
     Env.get_state(env, @sig)
   end
 
-  # Handler implementation - returns {result, env} via k
-  defp handle(:get, env, k) do
+  #############################################################################
+  ## IHandler Implementation
+  #############################################################################
+
+  @impl Skuld.IHandler
+  def handle(:get, env, k) do
     value = Env.get_state(env, @sig)
     k.(value, env)
   end
 
-  defp handle({:put, value}, env, k) do
+  @impl Skuld.IHandler
+  def handle({:put, value}, env, k) do
     new_env = Env.put_state(env, @sig, value)
     k.(:ok, new_env)
   end

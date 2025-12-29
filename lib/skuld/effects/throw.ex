@@ -13,6 +13,8 @@ defmodule Skuld.Effects.Throw do
   - Normal completion is wrapped in `{:ok, value}`
   """
 
+  @behaviour Skuld.IHandler
+
   alias Skuld
   alias Skuld.Env
 
@@ -80,11 +82,16 @@ defmodule Skuld.Effects.Throw do
   """
   @spec handler(Skuld.env()) :: Skuld.env()
   def handler(env) do
-    Env.with_handler(env, @sig, &handle/3)
+    Env.with_handler(env, @sig, &__MODULE__.handle/3)
   end
 
-  # Default handler - return Throw struct as result (does not call k)
-  defp handle({:throw, error}, env, _k) do
+  #############################################################################
+  ## IHandler Implementation
+  #############################################################################
+
+  @doc "Default handler - return Throw struct as result (does not call k)"
+  @impl Skuld.IHandler
+  def handle({:throw, error}, env, _k) do
     {%Skuld.Throw{error: error}, env}
   end
 end

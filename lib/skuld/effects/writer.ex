@@ -46,6 +46,8 @@ defmodule Skuld.Effects.Writer do
   (rollback on error), you would need to implement leave_scope cleanup.
   """
 
+  @behaviour Skuld.IHandler
+
   alias Skuld
   alias Skuld.Env
 
@@ -147,7 +149,7 @@ defmodule Skuld.Effects.Writer do
 
     env
     |> Env.put_state(@state_key, initial)
-    |> Env.with_handler(@sig, &handle/3)
+    |> Env.with_handler(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Get the accumulated log from the environment"
@@ -156,8 +158,12 @@ defmodule Skuld.Effects.Writer do
     Env.get_state(env, @state_key, [])
   end
 
-  # Handler implementation - returns {result, env} via k
-  defp handle(args, env, k) do
+  #############################################################################
+  ## IHandler Implementation
+  #############################################################################
+
+  @impl Skuld.IHandler
+  def handle(args, env, k) do
     case args do
       {:tell, msg} ->
         current = Env.get_state(env, @state_key, [])

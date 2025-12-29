@@ -216,7 +216,7 @@ defmodule Skuld.Effects.EffectLogger do
   end
 
   defp append_log(env, entry) do
-    update_in(env, [:state, @log_key], fn log -> [entry | log] end)
+    %{env | state: Map.update!(env.state, @log_key, fn log -> [entry | log] end)}
   end
 
   defp extract_log(outcome) do
@@ -239,7 +239,7 @@ defmodule Skuld.Effects.EffectLogger do
   end
 
   defp clean_log_state(env) do
-    update_in(env, [:state], &Map.delete(&1, @log_key))
+    %{env | state: Map.delete(env.state, @log_key)}
   end
 
   #############################################################################
@@ -414,13 +414,13 @@ defmodule Skuld.Effects.EffectLogger do
   defp clean_replay_state(outcome) do
     case outcome do
       {:done, value, env} ->
-        {:done, value, update_in(env, [:state], &Map.delete(&1, :replay_log))}
+        {:done, value, %{env | state: Map.delete(env.state, :replay_log)}}
 
       {:suspended, yielded, resume, env} ->
-        {:suspended, yielded, resume, update_in(env, [:state], &Map.delete(&1, :replay_log))}
+        {:suspended, yielded, resume, %{env | state: Map.delete(env.state, :replay_log)}}
 
       {:thrown, error, env} ->
-        {:thrown, error, update_in(env, [:state], &Map.delete(&1, :replay_log))}
+        {:thrown, error, %{env | state: Map.delete(env.state, :replay_log)}}
     end
   end
 end

@@ -25,6 +25,7 @@ defmodule Skuld do
   # - Skuld.Suspend (bypasses leave-scope)
   # - Skuld.Throw (error sentinel)
   alias Skuld.ISentinel
+  alias Skuld.Env
 
   #############################################################################
   ## Types
@@ -37,11 +38,7 @@ defmodule Skuld do
   @type sig :: atom()
 
   @typedoc "The environment carrying evidence, state, and leave-scope"
-  @type env :: %{
-          evidence: %{sig() => handler()},
-          state: %{sig() => term()},
-          leave_scope: leave_scope()
-        }
+  @type env :: Env.t()
 
   @typedoc "A handler interprets effect operations"
   @type handler :: (args :: term(), env(), k() -> {result(), env()})
@@ -54,9 +51,6 @@ defmodule Skuld do
 
   @typedoc "Leave-scope handler - cleans up or redirects"
   @type leave_scope :: (result(), env() -> {result(), env()})
-
-  # Env module is in lib/skuld/env.ex
-  alias Skuld.Env
 
   #############################################################################
   ## Core Operations

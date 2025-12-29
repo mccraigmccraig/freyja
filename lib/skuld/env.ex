@@ -1,12 +1,29 @@
 defmodule Skuld.Env do
-  @moduledoc "Environment construction and manipulation"
+  @moduledoc """
+  Environment construction and manipulation.
+
+  The Env struct carries evidence (handlers), state, and the leave-scope chain.
+  It supports extension fields - arbitrary atom keys can be added via `Map.put/3`.
+  """
+
+  @typedoc """
+  The environment struct. Supports extension fields beyond the core struct keys
+  (structs are maps, so `Map.put(env, :custom_key, value)` works).
+  """
+  @type t :: %__MODULE__{
+          evidence: %{Skuld.sig() => Skuld.handler()},
+          state: %{atom() => term()},
+          leave_scope: Skuld.leave_scope() | nil
+        }
+
+  defstruct evidence: %{},
+            state: %{},
+            leave_scope: nil
 
   @doc "Create a fresh environment with identity leave-scope"
   @spec new() :: Skuld.env()
   def new do
-    %{
-      evidence: %{},
-      state: %{},
+    %__MODULE__{
       leave_scope: fn result, env -> {result, env} end
     }
   end
@@ -14,7 +31,7 @@ defmodule Skuld.Env do
   @doc "Install a handler for an effect signature"
   @spec with_handler(Skuld.env(), Skuld.sig(), Skuld.handler()) :: Skuld.env()
   def with_handler(env, sig, handler) do
-    put_in(env, [:evidence, sig], handler)
+    %{env | evidence: Map.put(env.evidence, sig, handler)}
   end
 
   @doc "Get handler for an effect signature (raises if missing)"
@@ -35,7 +52,7 @@ defmodule Skuld.Env do
   @doc "Update state for an effect"
   @spec put_state(Skuld.env(), atom(), term()) :: Skuld.env()
   def put_state(env, key, value) do
-    put_in(env, [:state, key], value)
+    %{env | state: Map.put(env.state, key, value)}
   end
 
   @doc "Get state for an effect"

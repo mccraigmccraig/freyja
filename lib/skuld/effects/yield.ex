@@ -16,7 +16,7 @@ defmodule Skuld.Effects.Yield do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key __MODULE__
+  @sig __MODULE__
 
   #############################################################################
   ## Operations
@@ -25,7 +25,7 @@ defmodule Skuld.Effects.Yield do
   @doc "Yield a value and suspend, waiting for input to resume"
   @spec yield(term()) :: Skuld.computation()
   def yield(value) do
-    Skuld.effect(@effect_key, {:yield, value})
+    Skuld.effect(@sig, {:yield, value})
   end
 
   @doc "Yield without a value"
@@ -46,7 +46,7 @@ defmodule Skuld.Effects.Yield do
   """
   @spec handler(Skuld.env()) :: Skuld.env()
   def handler(env) do
-    Env.with_handler(env, @effect_key, &handle/3)
+    Env.with_handler(env, @sig, &handle/3)
   end
 
   # Handler: returns Suspend struct with resume that captures env

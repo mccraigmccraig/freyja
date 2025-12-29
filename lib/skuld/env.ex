@@ -11,25 +11,25 @@ defmodule Skuld.Env do
     }
   end
 
-  @doc "Install a handler for an effect"
-  @spec with_handler(Skuld.env(), atom(), Skuld.handler()) :: Skuld.env()
-  def with_handler(env, effect_key, handler) do
-    put_in(env, [:evidence, effect_key], handler)
+  @doc "Install a handler for an effect signature"
+  @spec with_handler(Skuld.env(), Skuld.sig(), Skuld.handler()) :: Skuld.env()
+  def with_handler(env, sig, handler) do
+    put_in(env, [:evidence, sig], handler)
   end
 
-  @doc "Get handler for an effect (raises if missing)"
-  @spec get_handler!(Skuld.env(), atom()) :: Skuld.handler()
-  def get_handler!(env, effect_key) do
-    case env.evidence[effect_key] do
-      nil -> raise "No handler for effect: #{inspect(effect_key)}"
+  @doc "Get handler for an effect signature (raises if missing)"
+  @spec get_handler!(Skuld.env(), Skuld.sig()) :: Skuld.handler()
+  def get_handler!(env, sig) do
+    case env.evidence[sig] do
+      nil -> raise "No handler for effect signature: #{inspect(sig)}"
       handler -> handler
     end
   end
 
-  @doc "Get handler for an effect (returns nil if missing)"
-  @spec get_handler(Skuld.env(), atom()) :: Skuld.handler() | nil
-  def get_handler(env, effect_key) do
-    env.evidence[effect_key]
+  @doc "Get handler for an effect signature (returns nil if missing)"
+  @spec get_handler(Skuld.env(), Skuld.sig()) :: Skuld.handler() | nil
+  def get_handler(env, sig) do
+    env.evidence[sig]
   end
 
   @doc "Update state for an effect"

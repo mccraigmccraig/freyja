@@ -8,7 +8,7 @@ defmodule Skuld.Effects.Reader do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key __MODULE__
+  @sig __MODULE__
 
   #############################################################################
   ## Operations
@@ -17,7 +17,7 @@ defmodule Skuld.Effects.Reader do
   @doc "Read the current environment value"
   @spec ask() :: Skuld.computation()
   def ask do
-    Skuld.effect(@effect_key, :ask)
+    Skuld.effect(@sig, :ask)
   end
 
   @doc "Read and apply a function to the environment value"
@@ -31,9 +31,9 @@ defmodule Skuld.Effects.Reader do
   def local(modify, comp) do
     Skuld.scoped(
       fn env ->
-        current = Env.get_state(env, @effect_key)
-        modified_env = Env.put_state(env, @effect_key, modify.(current))
-        restore = fn e -> Env.put_state(e, @effect_key, current) end
+        current = Env.get_state(env, @sig)
+        modified_env = Env.put_state(env, @sig, modify.(current))
+        restore = fn e -> Env.put_state(e, @sig, current) end
         {modified_env, restore}
       end,
       comp
@@ -48,13 +48,13 @@ defmodule Skuld.Effects.Reader do
   @spec handler(Skuld.env(), term()) :: Skuld.env()
   def handler(env, value) do
     env
-    |> Env.put_state(@effect_key, value)
-    |> Env.with_handler(@effect_key, &handle/3)
+    |> Env.put_state(@sig, value)
+    |> Env.with_handler(@sig, &handle/3)
   end
 
   # The handler implementation - returns {result, env} via k
   defp handle(:ask, env, k) do
-    value = Env.get_state(env, @effect_key)
+    value = Env.get_state(env, @sig)
     k.(value, env)
   end
 end

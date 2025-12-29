@@ -16,7 +16,7 @@ defmodule Skuld.Effects.Throw do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key __MODULE__
+  @sig __MODULE__
 
   #############################################################################
   ## Operations
@@ -25,7 +25,7 @@ defmodule Skuld.Effects.Throw do
   @doc "Throw an error - does not resume"
   @spec throw(term()) :: Skuld.computation()
   def throw(error) do
-    Skuld.effect(@effect_key, {:throw, error})
+    Skuld.effect(@sig, {:throw, error})
   end
 
   @doc """
@@ -80,7 +80,7 @@ defmodule Skuld.Effects.Throw do
   """
   @spec handler(Skuld.env()) :: Skuld.env()
   def handler(env) do
-    Env.with_handler(env, @effect_key, &handle/3)
+    Env.with_handler(env, @sig, &handle/3)
   end
 
   # Default handler - return Throw struct as result (does not call k)

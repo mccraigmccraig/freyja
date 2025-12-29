@@ -33,10 +33,13 @@ defmodule Skuld do
   @typedoc "Any result value - opaque to the framework"
   @type result :: term()
 
+  @typedoc "Effect signature - identifies which handler handles an operation"
+  @type sig :: atom()
+
   @typedoc "The environment carrying evidence, state, and leave-scope"
   @type env :: %{
-          evidence: %{atom() => handler()},
-          state: %{atom() => term()},
+          evidence: %{sig() => handler()},
+          state: %{sig() => term()},
           leave_scope: leave_scope()
         }
 
@@ -104,10 +107,10 @@ defmodule Skuld do
   #############################################################################
 
   @doc "Invoke an effect operation"
-  @spec effect(atom(), term()) :: computation()
-  def effect(effect_key, args \\ nil) do
+  @spec effect(sig(), term()) :: computation()
+  def effect(sig, args \\ nil) do
     fn env, k ->
-      handler = Env.get_handler!(env, effect_key)
+      handler = Env.get_handler!(env, sig)
       handler.(args, env, k)
     end
   end
@@ -173,9 +176,9 @@ defmodule Skuld do
 
       def local(modify, comp) do
         Skuld.scoped(fn env ->
-          current = Env.get_state(env, @effect_key)
-          modified_env = Env.put_state(env, @effect_key, modify.(current))
-          restore = fn e -> Env.put_state(e, @effect_key, current) end
+          current = Env.get_state(env, @sig)
+          modified_env = Env.put_state(env, @sig, modify.(current))
+          restore = fn e -> Env.put_state(e, @sig, current) end
           {modified_env, restore}
         end, comp)
       end

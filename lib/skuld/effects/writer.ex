@@ -49,7 +49,7 @@ defmodule Skuld.Effects.Writer do
   alias Skuld
   alias Skuld.Env
 
-  @effect_key __MODULE__
+  @sig __MODULE__
   @state_key :writer_log
 
   #############################################################################
@@ -59,13 +59,13 @@ defmodule Skuld.Effects.Writer do
   @doc "Append a message to the log"
   @spec tell(term()) :: Skuld.computation()
   def tell(msg) do
-    Skuld.effect(@effect_key, {:tell, msg})
+    Skuld.effect(@sig, {:tell, msg})
   end
 
   @doc "Read the current log (reverse chronological order)"
   @spec peek() :: Skuld.computation()
   def peek do
-    Skuld.effect(@effect_key, :peek)
+    Skuld.effect(@sig, :peek)
   end
 
   @doc """
@@ -127,7 +127,7 @@ defmodule Skuld.Effects.Writer do
 
   # Internal: set the log directly (used by pass)
   defp set_log(new_log) do
-    Skuld.effect(@effect_key, {:set_log, new_log})
+    Skuld.effect(@sig, {:set_log, new_log})
   end
 
   #############################################################################
@@ -147,7 +147,7 @@ defmodule Skuld.Effects.Writer do
 
     env
     |> Env.put_state(@state_key, initial)
-    |> Env.with_handler(@effect_key, &handle/3)
+    |> Env.with_handler(@sig, &handle/3)
   end
 
   @doc "Get the accumulated log from the environment"

@@ -51,7 +51,7 @@ defmodule Skuld.Effects.EffectLogger do
 
   ## Options
 
-  - `:effects` - list of effect keys to log (default: all handlers in evidence)
+  - `:effects` - list of effect signatures to log (default: all handlers in evidence)
   - `:timestamp_fn` - function to generate timestamps (default: `DateTime.utc_now/0`)
   - `:id_fn` - function to generate unique IDs (default: `make_ref/0`)
   """
@@ -67,15 +67,15 @@ defmodule Skuld.Effects.EffectLogger do
 
     # Interpose logging on specified effects
     logged_env =
-      Enum.reduce(effects_to_log, env_with_log, fn effect_key, acc_env ->
-        case acc_env.evidence[effect_key] do
+      Enum.reduce(effects_to_log, env_with_log, fn sig, acc_env ->
+        case acc_env.evidence[sig] do
           nil ->
             # No handler for this effect - skip
             acc_env
 
           handler ->
-            logged_handler = make_logging_handler(effect_key, handler, timestamp_fn, id_fn)
-            Env.with_handler(acc_env, effect_key, logged_handler)
+            logged_handler = make_logging_handler(sig, handler, timestamp_fn, id_fn)
+            Env.with_handler(acc_env, sig, logged_handler)
         end
       end)
 
@@ -88,25 +88,25 @@ defmodule Skuld.Effects.EffectLogger do
     {cleaned_outcome, Enum.reverse(log)}
   end
 
-  defp make_logging_handler(effect_key, original_handler, timestamp_fn, id_fn) do
-    fn args, env, resume ->
+  defp make_logging_handler(sig, original_handler, timestamp_fn, id_fn) do
+    fn args, env, k ->
       log_id = id_fn.()
       started_at = timestamp_fn.()
 
-      # Track whether this effect was logged via resume (normal completion)
+      # Track whether this effect was logged via k (normal completion)
       # Use a process dictionary flag as a simple mechanism
       flag_key = {:effect_logged, log_id}
       Process.put(flag_key, false)
 
-      # Wrap resume to capture the result when the handler calls it
-      logging_resume = fn value, env_after_effect ->
+      # Wrap k to capture the result when the handler calls it
+      logging_k = fn value, env_after_effect ->
         # Mark that we logged this effect
         Process.put(flag_key, true)
 
         # Log the effect completion BEFORE continuing
         entry = %{
           id: log_id,
-          effect: effect_key,
+          effect: sig,
           args: args,
           result: value,
           timestamp: started_at
@@ -114,23 +114,23 @@ defmodule Skuld.Effects.EffectLogger do
 
         logged_env = append_log(env_after_effect, entry)
         # Now continue with the rest of the computation
-        resume.(value, logged_env)
+        k.(value, logged_env)
       end
 
-      # Call original handler with logging resume
-      result = original_handler.(args, env, logging_resume)
+      # Call original handler with logging k
+      result = original_handler.(args, env, logging_k)
 
       # Clean up flag
       was_logged = Process.delete(flag_key)
 
-      # Handle outcomes that don't go through resume (throw, suspend)
+      # Handle outcomes that don't go through k (throw, suspend)
       case result do
         {:suspended, yielded, inner_resume, susp_env} ->
-          # Effect suspended before calling resume - log start and suspension
+          # Effect suspended before calling k - log start and suspension
           start_entry = %{
             id: log_id,
             event: :started,
-            effect: effect_key,
+            effect: sig,
             args: args,
             timestamp: started_at
           }
@@ -189,7 +189,7 @@ defmodule Skuld.Effects.EffectLogger do
           {:suspended, yielded, logged_inner_resume, logged_env}
 
         {:thrown, error, err_env} ->
-          # Only log if this handler actually threw (didn't call resume)
+          # Only log if this handler actually threw (didn't call k)
           # If was_logged is true, this is a nested throw bubbling up
           if was_logged do
             # Throw from nested effect - just pass through
@@ -198,7 +198,7 @@ defmodule Skuld.Effects.EffectLogger do
             # This handler threw - log it
             entry = %{
               id: log_id,
-              effect: effect_key,
+              effect: sig,
               args: args,
               error: error,
               timestamp: started_at
@@ -207,8 +207,8 @@ defmodule Skuld.Effects.EffectLogger do
             {:thrown, error, append_log(err_env, entry)}
           end
 
-        # Normal case: handler called resume, which returned an outcome
-        # The logging already happened in logging_resume
+        # Normal case: handler called k, which returned an outcome
+        # The logging already happened in logging_k
         other ->
           other
       end
@@ -276,34 +276,34 @@ defmodule Skuld.Effects.EffectLogger do
       |> Enum.uniq()
 
     replay_env =
-      Enum.reduce(logged_effects, env_with_replay, fn effect_key, acc_env ->
-        original_handler = acc_env.evidence[effect_key]
-        replay_handler = make_replay_handler(effect_key, original_handler, on_missing)
-        Env.with_handler(acc_env, effect_key, replay_handler)
+      Enum.reduce(logged_effects, env_with_replay, fn sig, acc_env ->
+        original_handler = acc_env.evidence[sig]
+        replay_handler = make_replay_handler(sig, original_handler, on_missing)
+        Env.with_handler(acc_env, sig, replay_handler)
       end)
 
     outcome = Skuld.run(comp, replay_env)
     clean_replay_state(outcome)
   end
 
-  defp make_replay_handler(effect_key, original_handler, on_missing) do
-    fn args, env, resume ->
+  defp make_replay_handler(sig, original_handler, on_missing) do
+    fn args, env, k ->
       log_queue = Env.get_state(env, :replay_log)
 
       case :queue.out(log_queue) do
         {{:value, entry}, rest_queue} ->
           # Check if this entry matches the current effect
-          if matches_effect?(entry, effect_key, args) do
+          if matches_effect?(entry, sig, args) do
             env_updated = Env.put_state(env, :replay_log, rest_queue)
 
             case entry do
               %{result: result} ->
                 # Simple effect - return logged result
-                resume.(result, env_updated)
+                k.(result, env_updated)
 
               %{event: :started} ->
                 # Suspending effect - need to handle the full lifecycle
-                replay_suspending_effect(entry, env_updated, resume)
+                replay_suspending_effect(entry, env_updated, k)
 
               %{error: error} ->
                 # Effect threw
@@ -311,28 +311,28 @@ defmodule Skuld.Effects.EffectLogger do
             end
           else
             # Log mismatch - divergence detected
-            handle_missing(on_missing, effect_key, args, env, resume, original_handler)
+            handle_missing(on_missing, sig, args, env, k, original_handler)
           end
 
         {:empty, _} ->
           # Log exhausted - new effect not in log
-          handle_missing(on_missing, effect_key, args, env, resume, original_handler)
+          handle_missing(on_missing, sig, args, env, k, original_handler)
       end
     end
   end
 
-  defp matches_effect?(%{effect: effect, args: logged_args}, effect_key, args) do
-    effect == effect_key && logged_args == args
+  defp matches_effect?(%{effect: effect, args: logged_args}, sig, args) do
+    effect == sig && logged_args == args
   end
 
-  defp matches_effect?(%{effect: effect}, effect_key, _args) do
-    # For lifecycle events, just check effect key
-    effect == effect_key
+  defp matches_effect?(%{effect: effect}, sig, _args) do
+    # For lifecycle events, just check effect signature
+    effect == sig
   end
 
   defp matches_effect?(_, _, _), do: false
 
-  defp replay_suspending_effect(%{id: log_id}, env, resume) do
+  defp replay_suspending_effect(%{id: log_id}, env, k) do
     # Find the corresponding suspended/resumed/completed entries
     log_queue = Env.get_state(env, :replay_log)
 
@@ -340,13 +340,13 @@ defmodule Skuld.Effects.EffectLogger do
     case consume_until_completion(log_queue, log_id) do
       {:completed, result, rest_queue} ->
         env_updated = Env.put_state(env, :replay_log, rest_queue)
-        resume.(result, env_updated)
+        k.(result, env_updated)
 
       {:suspended, _yielded, input, rest_queue} ->
         # The effect suspended and was resumed with input
         env_updated = Env.put_state(env, :replay_log, rest_queue)
         # Continue as if we got that input
-        resume.(input, env_updated)
+        k.(input, env_updated)
 
       {:thrown, error, rest_queue} ->
         env_updated = Env.put_state(env, :replay_log, rest_queue)
@@ -402,13 +402,13 @@ defmodule Skuld.Effects.EffectLogger do
     end
   end
 
-  defp handle_missing(:error, effect_key, args, _env, _resume, _handler) do
-    raise "Replay divergence: effect #{inspect(effect_key)} with args #{inspect(args)} not found in log"
+  defp handle_missing(:error, sig, args, _env, _k, _handler) do
+    raise "Replay divergence: effect #{inspect(sig)} with args #{inspect(args)} not found in log"
   end
 
-  defp handle_missing(:execute, _effect_key, args, env, resume, handler) do
+  defp handle_missing(:execute, _sig, args, env, k, handler) do
     # Fall through to real handler
-    handler.(args, env, resume)
+    handler.(args, env, k)
   end
 
   defp clean_replay_state(outcome) do

@@ -1,4 +1,4 @@
-defmodule Skuld.IHandler do
+defmodule Skuld.Comp.IHandler do
   @moduledoc """
   Behaviour for effect handlers in Skuld.
 
@@ -10,9 +10,9 @@ defmodule Skuld.IHandler do
   ## Example
 
       defmodule MyEffect do
-        @behaviour Skuld.IHandler
+        @behaviour Skuld.Comp.IHandler
 
-        @impl Skuld.IHandler
+        @impl Skuld.Comp.IHandler
         def handle(:op, env, k) do
           k.(:result, env)
         end
@@ -26,13 +26,13 @@ defmodule Skuld.IHandler do
   Handle an effect operation.
 
   Receives:
-  - `args` - the operation arguments (e.g., `:get`, `{:put, value}`)
+  - `args` - the operation arguments (e.g., `%Get{}`, `%Put{value: v}`)
   - `env` - the current environment
   - `k` - the continuation to invoke with the result
 
   Must return `{result, env}` - either by calling `k.(value, env)` or
-  by returning a sentinel like `{%Skuld.Throw{}, env}`.
+  by returning a sentinel like `{%Skuld.Comp.Throw{}, env}`.
   """
-  @callback handle(args :: term(), env :: Skuld.env(), k :: Skuld.k()) ::
-              {Skuld.result(), Skuld.env()}
+  @callback handle(args :: term(), env :: Skuld.Comp.env(), k :: Skuld.Comp.k()) ::
+              {Skuld.Comp.result(), Skuld.Comp.env()}
 end

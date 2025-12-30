@@ -1,6 +1,6 @@
-defmodule Skuld do
+defmodule Skuld.Comp do
   @moduledoc """
-  Skuld: Evidence-passing algebraic effects with scoped handlers.
+  Skuld.Comp: Evidence-passing algebraic effects with scoped handlers.
 
   ## Core Concepts
 
@@ -21,10 +21,10 @@ defmodule Skuld do
   """
 
   # Sentinel protocol and types are in their own files:
-  # - Skuld.ISentinel (protocol)
-  # - Skuld.Suspend (bypasses leave-scope)
-  # - Skuld.Throw (error sentinel)
-  alias Skuld.ISentinel
+  # - Skuld.Comp.ISentinel (protocol)
+  # - Skuld.Comp.Suspend (bypasses leave-scope)
+  # - Skuld.Comp.Throw (error sentinel)
+  alias Skuld.Comp.ISentinel
   alias Skuld.Env
 
   #############################################################################
@@ -169,7 +169,7 @@ defmodule Skuld do
   ## Example
 
       def local(modify, comp) do
-        Skuld.scoped(fn env ->
+        Skuld.Comp.scoped(fn env ->
           current = Env.get_state(env, @sig)
           modified_env = Env.put_state(env, @sig, modify.(current))
           restore = fn e -> Env.put_state(e, @sig, current) end

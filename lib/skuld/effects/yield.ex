@@ -2,7 +2,7 @@ defmodule Skuld.Effects.Yield do
   @moduledoc """
   Yield effect - coroutine-style suspension and resumption.
 
-  Uses `%Skuld.Suspend{}` struct as the suspension result, which
+  Uses `%Skuld.Comp.Suspend{}` struct as the suspension result, which
   bypasses leave_scope in Run.
 
   ## Architecture
@@ -13,11 +13,11 @@ defmodule Skuld.Effects.Yield do
   - When resumed, the result goes through the leave_scope chain
   """
 
-  @behaviour Skuld.IHandler
+  @behaviour Skuld.Comp.IHandler
 
-  import Skuld.DefOp
+  import Skuld.Comp.DefOp
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
 
   @sig __MODULE__
@@ -33,13 +33,13 @@ defmodule Skuld.Effects.Yield do
   #############################################################################
 
   @doc "Yield a value and suspend, waiting for input to resume"
-  @spec yield(term()) :: Skuld.computation()
+  @spec yield(term()) :: Comp.computation()
   def yield(value) do
-    Skuld.effect(@sig, %YieldOp{value: value})
+    Comp.effect(@sig, %YieldOp{value: value})
   end
 
   @doc "Yield without a value"
-  @spec yield() :: Skuld.computation()
+  @spec yield() :: Comp.computation()
   def yield do
     yield(nil)
   end
@@ -54,7 +54,7 @@ defmodule Skuld.Effects.Yield do
   The default handler suspends execution, returning `%Suspend{}` with
   a resume function that captures the env and invokes leave_scope on completion.
   """
-  @spec handler(Skuld.env()) :: Skuld.env()
+  @spec handler(Comp.env()) :: Comp.env()
   def handler(env) do
     Env.with_handler(env, @sig, &__MODULE__.handle/3)
   end
@@ -67,7 +67,7 @@ defmodule Skuld.Effects.Yield do
   Handler: returns Suspend struct with resume that captures env
   and invokes leave_scope when the resumed computation completes.
   """
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%YieldOp{value: value}, env, k) do
     captured_resume = fn input ->
       {result, final_env} = k.(input, env)
@@ -75,7 +75,7 @@ defmodule Skuld.Effects.Yield do
       # If the result is another Suspend, don't invoke leave_scope yet
       # (it will be invoked when that suspend is eventually resolved)
       case result do
-        %Skuld.Suspend{} ->
+        %Comp.Suspend{} ->
           {result, final_env}
 
         _ ->
@@ -84,7 +84,7 @@ defmodule Skuld.Effects.Yield do
       end
     end
 
-    {%Skuld.Suspend{value: value, resume: captured_resume}, env}
+    {%Comp.Suspend{value: value, resume: captured_resume}, env}
   end
 
   #############################################################################
@@ -97,16 +97,16 @@ defmodule Skuld.Effects.Yield do
   The driver receives yielded values and returns `{:continue, input}` or `{:stop, reason}`.
   """
   @spec run_with_driver(
-          Skuld.computation(),
-          Skuld.env(),
+          Comp.computation(),
+          Comp.env(),
           (term() -> {:continue, term()} | {:stop, term()})
         ) ::
-          {:done, term(), Skuld.env()}
-          | {:stopped, term(), Skuld.env()}
-          | {:thrown, term(), Skuld.env()}
+          {:done, term(), Comp.env()}
+          | {:stopped, term(), Comp.env()}
+          | {:thrown, term(), Comp.env()}
   def run_with_driver(comp, env, driver) do
-    case Skuld.run(comp, env) do
-      {%Skuld.Suspend{value: yielded, resume: resume}, suspended_env} ->
+    case Comp.run(comp, env) do
+      {%Comp.Suspend{value: yielded, resume: resume}, suspended_env} ->
         case driver.(yielded) do
           {:continue, input} ->
             # Resume returns {result, env} with leave_scope already applied
@@ -117,7 +117,7 @@ defmodule Skuld.Effects.Yield do
             {:stopped, reason, suspended_env}
         end
 
-      {%Skuld.Throw{error: error}, err_env} ->
+      {%Comp.Throw{error: error}, err_env} ->
         {:thrown, error, err_env}
 
       {value, final_env} ->
@@ -126,7 +126,7 @@ defmodule Skuld.Effects.Yield do
   end
 
   # Continue processing after a resume
-  defp continue_with_driver(%Skuld.Suspend{value: yielded, resume: resume}, env, driver) do
+  defp continue_with_driver(%Comp.Suspend{value: yielded, resume: resume}, env, driver) do
     case driver.(yielded) do
       {:continue, input} ->
         {result, new_env} = resume.(input)
@@ -137,7 +137,7 @@ defmodule Skuld.Effects.Yield do
     end
   end
 
-  defp continue_with_driver(%Skuld.Throw{error: error}, env, _driver) do
+  defp continue_with_driver(%Comp.Throw{error: error}, env, _driver) do
     {:thrown, error, env}
   end
 
@@ -150,15 +150,15 @@ defmodule Skuld.Effects.Yield do
 
   Resumes with the provided input value (default: nil) each time.
   """
-  @spec collect(Skuld.computation(), Skuld.env(), term()) ::
-          {:done, term(), [term()], Skuld.env()}
-          | {:thrown, term(), [term()], Skuld.env()}
+  @spec collect(Comp.computation(), Comp.env(), term()) ::
+          {:done, term(), [term()], Comp.env()}
+          | {:thrown, term(), [term()], Comp.env()}
   def collect(comp, env, resume_input \\ nil) do
-    case Skuld.run(comp, env) do
-      {%Skuld.Suspend{} = suspend, suspended_env} ->
+    case Comp.run(comp, env) do
+      {%Comp.Suspend{} = suspend, suspended_env} ->
         do_collect(suspend, suspended_env, [], resume_input)
 
-      {%Skuld.Throw{error: error}, err_env} ->
+      {%Comp.Throw{error: error}, err_env} ->
         {:thrown, error, [], err_env}
 
       {value, final_env} ->
@@ -166,14 +166,14 @@ defmodule Skuld.Effects.Yield do
     end
   end
 
-  defp do_collect(%Skuld.Suspend{value: yielded, resume: resume}, _env, acc, input) do
+  defp do_collect(%Comp.Suspend{value: yielded, resume: resume}, _env, acc, input) do
     {result, new_env} = resume.(input)
 
     case result do
-      %Skuld.Suspend{} = suspend ->
+      %Comp.Suspend{} = suspend ->
         do_collect(suspend, new_env, [yielded | acc], input)
 
-      %Skuld.Throw{error: error} ->
+      %Comp.Throw{error: error} ->
         {:thrown, error, Enum.reverse([yielded | acc]), new_env}
 
       value ->
@@ -186,16 +186,16 @@ defmodule Skuld.Effects.Yield do
 
   Each yield consumes one input. If inputs run out, stops with remaining computation.
   """
-  @spec feed(Skuld.computation(), Skuld.env(), [term()]) ::
-          {:done, term(), [term()], Skuld.env()}
-          | {:suspended, term(), (term() -> {Skuld.result(), Skuld.env()}), [term()], Skuld.env()}
-          | {:thrown, term(), [term()], Skuld.env()}
+  @spec feed(Comp.computation(), Comp.env(), [term()]) ::
+          {:done, term(), [term()], Comp.env()}
+          | {:suspended, term(), (term() -> {Comp.result(), Comp.env()}), [term()], Comp.env()}
+          | {:thrown, term(), [term()], Comp.env()}
   def feed(comp, env, inputs) do
-    case Skuld.run(comp, env) do
-      {%Skuld.Suspend{} = suspend, suspended_env} ->
+    case Comp.run(comp, env) do
+      {%Comp.Suspend{} = suspend, suspended_env} ->
         do_feed(suspend, suspended_env, [], inputs)
 
-      {%Skuld.Throw{error: error}, err_env} ->
+      {%Comp.Throw{error: error}, err_env} ->
         {:thrown, error, [], err_env}
 
       {value, final_env} ->
@@ -203,18 +203,18 @@ defmodule Skuld.Effects.Yield do
     end
   end
 
-  defp do_feed(%Skuld.Suspend{value: yielded, resume: resume}, env, yielded_acc, []) do
+  defp do_feed(%Comp.Suspend{value: yielded, resume: resume}, env, yielded_acc, []) do
     {:suspended, yielded, resume, Enum.reverse(yielded_acc), env}
   end
 
-  defp do_feed(%Skuld.Suspend{value: yielded, resume: resume}, _env, yielded_acc, [input | rest]) do
+  defp do_feed(%Comp.Suspend{value: yielded, resume: resume}, _env, yielded_acc, [input | rest]) do
     {result, new_env} = resume.(input)
 
     case result do
-      %Skuld.Suspend{} = suspend ->
+      %Comp.Suspend{} = suspend ->
         do_feed(suspend, new_env, [yielded | yielded_acc], rest)
 
-      %Skuld.Throw{error: error} ->
+      %Comp.Throw{error: error} ->
         {:thrown, error, Enum.reverse([yielded | yielded_acc]), new_env}
 
       value ->

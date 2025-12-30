@@ -11,9 +11,9 @@ defmodule Skuld.Env do
   (structs are maps, so `Map.put(env, :custom_key, value)` works).
   """
   @type t :: %__MODULE__{
-          evidence: %{Skuld.sig() => Skuld.handler()},
+          evidence: %{Skuld.Comp.sig() => Skuld.Comp.handler()},
           state: %{atom() => term()},
-          leave_scope: Skuld.leave_scope() | nil
+          leave_scope: Skuld.Comp.leave_scope() | nil
         }
 
   defstruct evidence: %{},
@@ -21,7 +21,7 @@ defmodule Skuld.Env do
             leave_scope: nil
 
   @doc "Create a fresh environment with identity leave-scope"
-  @spec new() :: Skuld.env()
+  @spec new() :: Skuld.Comp.env()
   def new do
     %__MODULE__{
       leave_scope: fn result, env -> {result, env} end
@@ -29,13 +29,13 @@ defmodule Skuld.Env do
   end
 
   @doc "Install a handler for an effect signature"
-  @spec with_handler(Skuld.env(), Skuld.sig(), Skuld.handler()) :: Skuld.env()
+  @spec with_handler(Skuld.Comp.env(), Skuld.Comp.sig(), Skuld.Comp.handler()) :: Skuld.Comp.env()
   def with_handler(env, sig, handler) do
     %{env | evidence: Map.put(env.evidence, sig, handler)}
   end
 
   @doc "Get handler for an effect signature (raises if missing)"
-  @spec get_handler!(Skuld.env(), Skuld.sig()) :: Skuld.handler()
+  @spec get_handler!(Skuld.Comp.env(), Skuld.Comp.sig()) :: Skuld.Comp.handler()
   def get_handler!(env, sig) do
     case env.evidence[sig] do
       nil -> raise "No handler for effect signature: #{inspect(sig)}"
@@ -44,31 +44,31 @@ defmodule Skuld.Env do
   end
 
   @doc "Get handler for an effect signature (returns nil if missing)"
-  @spec get_handler(Skuld.env(), Skuld.sig()) :: Skuld.handler() | nil
+  @spec get_handler(Skuld.Comp.env(), Skuld.Comp.sig()) :: Skuld.Comp.handler() | nil
   def get_handler(env, sig) do
     env.evidence[sig]
   end
 
   @doc "Update state for an effect"
-  @spec put_state(Skuld.env(), atom(), term()) :: Skuld.env()
+  @spec put_state(Skuld.Comp.env(), atom(), term()) :: Skuld.Comp.env()
   def put_state(env, key, value) do
     %{env | state: Map.put(env.state, key, value)}
   end
 
   @doc "Get state for an effect"
-  @spec get_state(Skuld.env(), atom(), term()) :: term()
+  @spec get_state(Skuld.Comp.env(), atom(), term()) :: term()
   def get_state(env, key, default \\ nil) do
     Map.get(env.state, key, default)
   end
 
   @doc "Install a new leave-scope handler"
-  @spec with_leave_scope(Skuld.env(), Skuld.leave_scope()) :: Skuld.env()
+  @spec with_leave_scope(Skuld.Comp.env(), Skuld.Comp.leave_scope()) :: Skuld.Comp.env()
   def with_leave_scope(env, new_leave_scope) do
     %{env | leave_scope: new_leave_scope}
   end
 
   @doc "Get the current leave-scope handler"
-  @spec get_leave_scope(Skuld.env()) :: Skuld.leave_scope()
+  @spec get_leave_scope(Skuld.Comp.env()) :: Skuld.Comp.leave_scope()
   def get_leave_scope(env) do
     env.leave_scope
   end

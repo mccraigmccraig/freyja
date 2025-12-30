@@ -1,4 +1,4 @@
-defmodule Skuld.DefOp do
+defmodule Skuld.Comp.DefOp do
   @moduledoc """
   Macro for defining serializable operation structs.
 
@@ -8,7 +8,7 @@ defmodule Skuld.DefOp do
   ## Example
 
       defmodule Skuld.Effects.State do
-        import Skuld.DefOp
+        import Skuld.Comp.DefOp
 
         def_op Get
         def_op Put, [:value]
@@ -21,8 +21,8 @@ defmodule Skuld.DefOp do
 
   The structs can then be used as effect arguments:
 
-      def get, do: Skuld.effect(@sig, %Get{})
-      def put(value), do: Skuld.effect(@sig, %Put{value: value})
+      def get, do: Skuld.Comp.effect(@sig, %Get{})
+      def put(value), do: Skuld.Comp.effect(@sig, %Put{value: value})
 
   And serialized to JSON:
 

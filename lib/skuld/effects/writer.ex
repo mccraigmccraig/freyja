@@ -46,11 +46,11 @@ defmodule Skuld.Effects.Writer do
   (rollback on error), you would need to implement leave_scope cleanup.
   """
 
-  @behaviour Skuld.IHandler
+  @behaviour Skuld.Comp.IHandler
 
-  import Skuld.DefOp
+  import Skuld.Comp.DefOp
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
 
   @sig __MODULE__
@@ -69,15 +69,15 @@ defmodule Skuld.Effects.Writer do
   #############################################################################
 
   @doc "Append a message to the log"
-  @spec tell(term()) :: Skuld.computation()
+  @spec tell(term()) :: Comp.computation()
   def tell(msg) do
-    Skuld.effect(@sig, %Tell{msg: msg})
+    Comp.effect(@sig, %Tell{msg: msg})
   end
 
   @doc "Read the current log (reverse chronological order)"
-  @spec peek() :: Skuld.computation()
+  @spec peek() :: Comp.computation()
   def peek do
-    Skuld.effect(@sig, %Peek{})
+    Comp.effect(@sig, %Peek{})
   end
 
   @doc """
@@ -88,14 +88,14 @@ defmodule Skuld.Effects.Writer do
 
   Uses peek before/after to calculate the captured logs.
   """
-  @spec listen(Skuld.computation()) :: Skuld.computation()
+  @spec listen(Comp.computation()) :: Comp.computation()
   def listen(comp) do
-    Skuld.bind(peek(), fn initial_log ->
-      Skuld.bind(comp, fn result ->
-        Skuld.bind(peek(), fn final_log ->
+    Comp.bind(peek(), fn initial_log ->
+      Comp.bind(comp, fn result ->
+        Comp.bind(peek(), fn final_log ->
           # Calculate what was added (new logs are at the front)
           captured = Enum.take(final_log, length(final_log) - length(initial_log))
-          Skuld.pure({result, captured})
+          Comp.pure({result, captured})
         end)
       end)
     end)
@@ -106,11 +106,11 @@ defmodule Skuld.Effects.Writer do
 
   The transform function is applied to the logs written during the computation.
   """
-  @spec pass(Skuld.computation()) :: Skuld.computation()
+  @spec pass(Comp.computation()) :: Comp.computation()
   def pass(comp) do
-    Skuld.bind(peek(), fn initial_log ->
-      Skuld.bind(comp, fn {value, transform_fn} ->
-        Skuld.bind(peek(), fn final_log ->
+    Comp.bind(peek(), fn initial_log ->
+      Comp.bind(comp, fn {value, transform_fn} ->
+        Comp.bind(peek(), fn final_log ->
           # Calculate captured logs
           captured = Enum.take(final_log, length(final_log) - length(initial_log))
           # Apply transform
@@ -119,8 +119,8 @@ defmodule Skuld.Effects.Writer do
           # We need to: keep initial_log, replace captured with transformed
           new_log = transformed ++ initial_log
 
-          Skuld.bind(set_log(new_log), fn _ ->
-            Skuld.pure(value)
+          Comp.bind(set_log(new_log), fn _ ->
+            Comp.pure(value)
           end)
         end)
       end)
@@ -128,18 +128,18 @@ defmodule Skuld.Effects.Writer do
   end
 
   @doc "Censor: transform all logs written during a computation"
-  @spec censor(Skuld.computation(), (list() -> list())) :: Skuld.computation()
+  @spec censor(Comp.computation(), (list() -> list())) :: Comp.computation()
   def censor(comp, transform_fn) do
     pass(
-      Skuld.bind(comp, fn result ->
-        Skuld.pure({result, transform_fn})
+      Comp.bind(comp, fn result ->
+        Comp.pure({result, transform_fn})
       end)
     )
   end
 
   # Internal: set the log directly (used by pass)
   defp set_log(new_log) do
-    Skuld.effect(@sig, %SetLog{log: new_log})
+    Comp.effect(@sig, %SetLog{log: new_log})
   end
 
   #############################################################################
@@ -153,7 +153,7 @@ defmodule Skuld.Effects.Writer do
 
   - `:initial` - initial log entries (default: [])
   """
-  @spec handler(Skuld.env(), keyword()) :: Skuld.env()
+  @spec handler(Comp.env(), keyword()) :: Comp.env()
   def handler(env, opts \\ []) do
     initial = Keyword.get(opts, :initial, [])
 
@@ -163,7 +163,7 @@ defmodule Skuld.Effects.Writer do
   end
 
   @doc "Get the accumulated log from the environment"
-  @spec get_log(Skuld.env()) :: [term()]
+  @spec get_log(Comp.env()) :: [term()]
   def get_log(env) do
     Env.get_state(env, @state_key, [])
   end
@@ -172,7 +172,7 @@ defmodule Skuld.Effects.Writer do
   ## IHandler Implementation
   #############################################################################
 
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%Tell{msg: msg}, env, k) do
     current = Env.get_state(env, @state_key, [])
     updated = [msg | current]
@@ -181,13 +181,13 @@ defmodule Skuld.Effects.Writer do
     k.(updated, new_env)
   end
 
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%Peek{}, env, k) do
     current = Env.get_state(env, @state_key, [])
     k.(current, env)
   end
 
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%SetLog{log: new_log}, env, k) do
     new_env = Env.put_state(env, @state_key, new_log)
     k.(:ok, new_env)
@@ -198,13 +198,13 @@ defmodule Skuld.Effects.Writer do
   #############################################################################
 
   @doc "Tell multiple messages"
-  @spec tell_many([term()]) :: Skuld.computation()
+  @spec tell_many([term()]) :: Comp.computation()
   def tell_many(messages) do
-    Skuld.traverse(messages, &tell/1)
+    Comp.traverse(messages, &tell/1)
   end
 
   @doc "Clear the log"
-  @spec clear() :: Skuld.computation()
+  @spec clear() :: Comp.computation()
   def clear do
     set_log([])
   end

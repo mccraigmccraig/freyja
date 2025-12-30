@@ -34,7 +34,7 @@ defmodule Skuld.Effects.EffectLogger do
       %{id: id, event: :completed, result: value, timestamp: ...}
   """
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
 
   @log_key :effect_log
@@ -55,8 +55,8 @@ defmodule Skuld.Effects.EffectLogger do
   - `:timestamp_fn` - function to generate timestamps (default: `DateTime.utc_now/0`)
   - `:id_fn` - function to generate unique IDs (default: `make_ref/0`)
   """
-  @spec with_logging(Skuld.computation(), Skuld.env(), keyword()) ::
-          {Skuld.outcome(), [map()]}
+  @spec with_logging(Comp.computation(), Comp.env(), keyword()) ::
+          {Comp.outcome(), [map()]}
   def with_logging(comp, env, opts \\ []) do
     effects_to_log = Keyword.get(opts, :effects, Map.keys(env.evidence))
     timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
@@ -80,7 +80,7 @@ defmodule Skuld.Effects.EffectLogger do
       end)
 
     # Run computation
-    outcome = Skuld.run(comp, logged_env)
+    outcome = Comp.run(comp, logged_env)
 
     # Extract log from final env
     {log, cleaned_outcome} = extract_log(outcome)
@@ -261,7 +261,7 @@ defmodule Skuld.Effects.EffectLogger do
     - `:error` (default) - raise an error
     - `:execute` - fall through to real handler
   """
-  @spec replay(Skuld.computation(), Skuld.env(), [map()], keyword()) :: Skuld.outcome()
+  @spec replay(Comp.computation(), Comp.env(), [map()], keyword()) :: Comp.outcome()
   def replay(comp, env, log, opts \\ []) do
     on_missing = Keyword.get(opts, :on_missing, :error)
 
@@ -282,7 +282,7 @@ defmodule Skuld.Effects.EffectLogger do
         Env.with_handler(acc_env, sig, replay_handler)
       end)
 
-    outcome = Skuld.run(comp, replay_env)
+    outcome = Comp.run(comp, replay_env)
     clean_replay_state(outcome)
   end
 

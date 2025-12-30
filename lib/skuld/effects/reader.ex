@@ -5,11 +5,11 @@ defmodule Skuld.Effects.Reader do
   Demonstrates basic evidence-passing with `local` for scoped modification.
   """
 
-  @behaviour Skuld.IHandler
+  @behaviour Skuld.Comp.IHandler
 
-  import Skuld.DefOp
+  import Skuld.Comp.DefOp
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
 
   @sig __MODULE__
@@ -25,21 +25,21 @@ defmodule Skuld.Effects.Reader do
   #############################################################################
 
   @doc "Read the current environment value"
-  @spec ask() :: Skuld.computation()
+  @spec ask() :: Comp.computation()
   def ask do
-    Skuld.effect(@sig, %Ask{})
+    Comp.effect(@sig, %Ask{})
   end
 
   @doc "Read and apply a function to the environment value"
-  @spec asks((term() -> term())) :: Skuld.computation()
+  @spec asks((term() -> term())) :: Comp.computation()
   def asks(f) do
-    Skuld.map(ask(), f)
+    Comp.map(ask(), f)
   end
 
   @doc "Run a computation with a modified environment value"
-  @spec local((term() -> term()), Skuld.computation()) :: Skuld.computation()
+  @spec local((term() -> term()), Comp.computation()) :: Comp.computation()
   def local(modify, comp) do
-    Skuld.scoped(
+    Comp.scoped(
       fn env ->
         current = Env.get_state(env, @sig)
         modified_env = Env.put_state(env, @sig, modify.(current))
@@ -55,7 +55,7 @@ defmodule Skuld.Effects.Reader do
   #############################################################################
 
   @doc "Install the Reader handler with an initial value"
-  @spec handler(Skuld.env(), term()) :: Skuld.env()
+  @spec handler(Comp.env(), term()) :: Comp.env()
   def handler(env, value) do
     env
     |> Env.put_state(@sig, value)
@@ -66,7 +66,7 @@ defmodule Skuld.Effects.Reader do
   ## IHandler Implementation
   #############################################################################
 
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%Ask{}, env, k) do
     value = Env.get_state(env, @sig)
     k.(value, env)

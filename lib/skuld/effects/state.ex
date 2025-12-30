@@ -5,11 +5,11 @@ defmodule Skuld.Effects.State do
   Demonstrates state management in evidence-passing.
   """
 
-  @behaviour Skuld.IHandler
+  @behaviour Skuld.Comp.IHandler
 
-  import Skuld.DefOp
+  import Skuld.Comp.DefOp
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
 
   @sig __MODULE__
@@ -26,31 +26,31 @@ defmodule Skuld.Effects.State do
   #############################################################################
 
   @doc "Get the current state"
-  @spec get() :: Skuld.computation()
+  @spec get() :: Comp.computation()
   def get do
-    Skuld.effect(@sig, %Get{})
+    Comp.effect(@sig, %Get{})
   end
 
   @doc "Replace the state, returning :ok"
-  @spec put(term()) :: Skuld.computation()
+  @spec put(term()) :: Comp.computation()
   def put(value) do
-    Skuld.effect(@sig, %Put{value: value})
+    Comp.effect(@sig, %Put{value: value})
   end
 
   @doc "Modify the state with a function, returning the old value"
-  @spec modify((term() -> term())) :: Skuld.computation()
+  @spec modify((term() -> term())) :: Comp.computation()
   def modify(f) do
-    Skuld.bind(get(), fn old ->
-      Skuld.bind(put(f.(old)), fn _ ->
-        Skuld.pure(old)
+    Comp.bind(get(), fn old ->
+      Comp.bind(put(f.(old)), fn _ ->
+        Comp.pure(old)
       end)
     end)
   end
 
   @doc "Get a value derived from the state"
-  @spec gets((term() -> term())) :: Skuld.computation()
+  @spec gets((term() -> term())) :: Comp.computation()
   def gets(f) do
-    Skuld.map(get(), f)
+    Comp.map(get(), f)
   end
 
   #############################################################################
@@ -58,7 +58,7 @@ defmodule Skuld.Effects.State do
   #############################################################################
 
   @doc "Install the State handler with an initial value"
-  @spec handler(Skuld.env(), term()) :: Skuld.env()
+  @spec handler(Comp.env(), term()) :: Comp.env()
   def handler(env, initial) do
     env
     |> Env.put_state(@sig, initial)
@@ -66,7 +66,7 @@ defmodule Skuld.Effects.State do
   end
 
   @doc "Extract the final state from an env"
-  @spec get_state(Skuld.env()) :: term()
+  @spec get_state(Comp.env()) :: term()
   def get_state(env) do
     Env.get_state(env, @sig)
   end
@@ -75,13 +75,13 @@ defmodule Skuld.Effects.State do
   ## IHandler Implementation
   #############################################################################
 
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%Get{}, env, k) do
     value = Env.get_state(env, @sig)
     k.(value, env)
   end
 
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%Put{value: value}, env, k) do
     new_env = Env.put_state(env, @sig, value)
     k.(:ok, new_env)

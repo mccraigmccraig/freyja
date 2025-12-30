@@ -4,7 +4,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
   # Skip until EffectLogger is updated to new {result, env} API
   @moduletag :skip
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
   alias Skuld.Effects.{State, Reader, Throw, EffectLogger}
 
@@ -13,10 +13,10 @@ defmodule Skuld.Effects.EffectLoggerTest do
       env = Env.new() |> State.handler(0)
 
       comp =
-        Skuld.bind(State.get(), fn x ->
-          Skuld.bind(State.put(x + 1), fn _ ->
-            Skuld.bind(State.get(), fn y ->
-              Skuld.pure(y)
+        Comp.bind(State.get(), fn x ->
+          Comp.bind(State.put(x + 1), fn _ ->
+            Comp.bind(State.get(), fn y ->
+              Comp.pure(y)
             end)
           end)
         end)
@@ -63,10 +63,10 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> Reader.handler(:config)
 
       comp =
-        Skuld.bind(Reader.ask(), fn cfg ->
-          Skuld.bind(State.get(), fn s ->
-            Skuld.bind(State.put(s + 1), fn _ ->
-              Skuld.pure({cfg, s})
+        Comp.bind(Reader.ask(), fn cfg ->
+          Comp.bind(State.get(), fn s ->
+            Comp.bind(State.put(s + 1), fn _ ->
+              Comp.pure({cfg, s})
             end)
           end)
         end)
@@ -87,9 +87,9 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> Reader.handler(:config)
 
       comp =
-        Skuld.bind(Reader.ask(), fn _ ->
-          Skuld.bind(State.get(), fn x ->
-            Skuld.pure(x)
+        Comp.bind(Reader.ask(), fn _ ->
+          Comp.bind(State.get(), fn x ->
+            Comp.pure(x)
           end)
         end)
 
@@ -126,9 +126,9 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> Throw.handler()
 
       comp =
-        Skuld.bind(State.put(42), fn _ ->
-          Skuld.bind(State.get(), fn x ->
-            Skuld.bind(Throw.throw({:error, x}), fn _ ->
+        Comp.bind(State.put(42), fn _ ->
+          Comp.bind(State.get(), fn x ->
+            Comp.bind(Throw.throw({:error, x}), fn _ ->
               # Never reached
               State.put(999)
             end)
@@ -150,10 +150,10 @@ defmodule Skuld.Effects.EffectLoggerTest do
       env = Env.new() |> State.handler(0)
 
       comp =
-        Skuld.bind(State.get(), fn x ->
-          Skuld.bind(State.put(x + 1), fn _ ->
-            Skuld.bind(State.get(), fn y ->
-              Skuld.pure({x, y})
+        Comp.bind(State.get(), fn x ->
+          Comp.bind(State.put(x + 1), fn _ ->
+            Comp.bind(State.get(), fn y ->
+              Comp.pure({x, y})
             end)
           end)
         end)
@@ -191,16 +191,16 @@ defmodule Skuld.Effects.EffectLoggerTest do
       env = Env.new() |> State.handler(0)
 
       comp1 =
-        Skuld.bind(State.get(), fn _ ->
-          Skuld.pure(:done)
+        Comp.bind(State.get(), fn _ ->
+          Comp.pure(:done)
         end)
 
       {_outcome, log} = EffectLogger.with_logging(comp1, env)
 
       # Different computation that does State.put instead of State.get
       comp2 =
-        Skuld.bind(State.put(42), fn _ ->
-          Skuld.pure(:done)
+        Comp.bind(State.put(42), fn _ ->
+          Comp.pure(:done)
         end)
 
       assert_raise RuntimeError, ~r/Replay divergence/, fn ->
@@ -216,8 +216,8 @@ defmodule Skuld.Effects.EffectLoggerTest do
 
       # Computation with extra effect not in log
       comp2 =
-        Skuld.bind(State.get(), fn x ->
-          Skuld.bind(State.put(x + 100), fn _ ->
+        Comp.bind(State.get(), fn x ->
+          Comp.bind(State.put(x + 100), fn _ ->
             State.get()
           end)
         end)
@@ -236,13 +236,13 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> Reader.handler(%{multiplier: 10})
 
       comp =
-        Skuld.bind(Reader.ask(), fn %{multiplier: mult} ->
-          Skuld.bind(State.get(), fn x ->
-            Skuld.bind(State.put(x + 1), fn _ ->
-              Skuld.bind(State.get(), fn y ->
-                Skuld.bind(State.put(y * mult), fn _ ->
-                  Skuld.bind(State.get(), fn final ->
-                    Skuld.pure({x, y, final})
+        Comp.bind(Reader.ask(), fn %{multiplier: mult} ->
+          Comp.bind(State.get(), fn x ->
+            Comp.bind(State.put(x + 1), fn _ ->
+              Comp.bind(State.get(), fn y ->
+                Comp.bind(State.put(y * mult), fn _ ->
+                  Comp.bind(State.get(), fn final ->
+                    Comp.pure({x, y, final})
                   end)
                 end)
               end)

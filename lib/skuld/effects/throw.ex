@@ -2,7 +2,7 @@ defmodule Skuld.Effects.Throw do
   @moduledoc """
   Throw/Catch effects - error handling with scoped catching.
 
-  Uses the `%Skuld.Throw{}` struct as the error result type, which
+  Uses the `%Skuld.Comp.Throw{}` struct as the error result type, which
   is intercepted by `catch_error` via leave_scope.
 
   ## Architecture
@@ -13,11 +13,11 @@ defmodule Skuld.Effects.Throw do
   - Normal completion is wrapped in `{:ok, value}`
   """
 
-  @behaviour Skuld.IHandler
+  @behaviour Skuld.Comp.IHandler
 
-  import Skuld.DefOp
+  import Skuld.Comp.DefOp
 
-  alias Skuld
+  alias Skuld.Comp
   alias Skuld.Env
 
   @sig __MODULE__
@@ -33,9 +33,9 @@ defmodule Skuld.Effects.Throw do
   #############################################################################
 
   @doc "Throw an error - does not resume"
-  @spec throw(term()) :: Skuld.computation()
+  @spec throw(term()) :: Comp.computation()
   def throw(error) do
-    Skuld.effect(@sig, %ThrowOp{error: error})
+    Comp.effect(@sig, %ThrowOp{error: error})
   end
 
   @doc """
@@ -44,14 +44,14 @@ defmodule Skuld.Effects.Throw do
   If the sub-computation throws, the error handler is invoked.
   If it completes normally, the result is wrapped in {:ok, value}.
   """
-  @spec catch_error(Skuld.computation(), (term() -> Skuld.computation())) :: Skuld.computation()
+  @spec catch_error(Comp.computation(), (term() -> Comp.computation())) :: Comp.computation()
   def catch_error(comp, error_handler) do
     fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
 
       catch_leave_scope = fn result, inner_env ->
         case result do
-          %Skuld.Throw{error: error} ->
+          %Comp.Throw{error: error} ->
             # CAUGHT! Restore previous leave_scope and run recovery
             restored_env = Env.with_leave_scope(inner_env, previous_leave_scope)
 
@@ -74,9 +74,9 @@ defmodule Skuld.Effects.Throw do
   end
 
   @doc "Catch and return Either-style result"
-  @spec try_catch(Skuld.computation()) :: Skuld.computation()
+  @spec try_catch(Comp.computation()) :: Comp.computation()
   def try_catch(comp) do
-    catch_error(comp, fn error -> Skuld.pure({:error, error}) end)
+    catch_error(comp, fn error -> Comp.pure({:error, error}) end)
   end
 
   #############################################################################
@@ -86,9 +86,9 @@ defmodule Skuld.Effects.Throw do
   @doc """
   Install the default Throw handler.
 
-  The default handler returns a `%Skuld.Throw{}` struct as the result.
+  The default handler returns a `%Skuld.Comp.Throw{}` struct as the result.
   """
-  @spec handler(Skuld.env()) :: Skuld.env()
+  @spec handler(Comp.env()) :: Comp.env()
   def handler(env) do
     Env.with_handler(env, @sig, &__MODULE__.handle/3)
   end
@@ -98,8 +98,8 @@ defmodule Skuld.Effects.Throw do
   #############################################################################
 
   @doc "Default handler - return Throw struct as result (does not call k)"
-  @impl Skuld.IHandler
+  @impl Skuld.Comp.IHandler
   def handle(%ThrowOp{error: error}, env, _k) do
-    {%Skuld.Throw{error: error}, env}
+    {%Comp.Throw{error: error}, env}
   end
 end

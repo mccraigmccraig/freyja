@@ -7,10 +7,19 @@ defmodule Skuld.Effects.State do
 
   @behaviour Skuld.IHandler
 
+  import Skuld.DefOp
+
   alias Skuld
   alias Skuld.Env
 
   @sig __MODULE__
+
+  #############################################################################
+  ## Operation Structs
+  #############################################################################
+
+  def_op(Get)
+  def_op(Put, [:value])
 
   #############################################################################
   ## Operations
@@ -19,13 +28,13 @@ defmodule Skuld.Effects.State do
   @doc "Get the current state"
   @spec get() :: Skuld.computation()
   def get do
-    Skuld.effect(@sig, :get)
+    Skuld.effect(@sig, %Get{})
   end
 
   @doc "Replace the state, returning :ok"
   @spec put(term()) :: Skuld.computation()
   def put(value) do
-    Skuld.effect(@sig, {:put, value})
+    Skuld.effect(@sig, %Put{value: value})
   end
 
   @doc "Modify the state with a function, returning the old value"
@@ -67,13 +76,13 @@ defmodule Skuld.Effects.State do
   #############################################################################
 
   @impl Skuld.IHandler
-  def handle(:get, env, k) do
+  def handle(%Get{}, env, k) do
     value = Env.get_state(env, @sig)
     k.(value, env)
   end
 
   @impl Skuld.IHandler
-  def handle({:put, value}, env, k) do
+  def handle(%Put{value: value}, env, k) do
     new_env = Env.put_state(env, @sig, value)
     k.(:ok, new_env)
   end

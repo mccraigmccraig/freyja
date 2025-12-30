@@ -15,10 +15,18 @@ defmodule Skuld.Effects.Yield do
 
   @behaviour Skuld.IHandler
 
+  import Skuld.DefOp
+
   alias Skuld
   alias Skuld.Env
 
   @sig __MODULE__
+
+  #############################################################################
+  ## Operation Structs
+  #############################################################################
+
+  def_op(YieldOp, [:value])
 
   #############################################################################
   ## Operations
@@ -27,7 +35,7 @@ defmodule Skuld.Effects.Yield do
   @doc "Yield a value and suspend, waiting for input to resume"
   @spec yield(term()) :: Skuld.computation()
   def yield(value) do
-    Skuld.effect(@sig, {:yield, value})
+    Skuld.effect(@sig, %YieldOp{value: value})
   end
 
   @doc "Yield without a value"
@@ -60,7 +68,7 @@ defmodule Skuld.Effects.Yield do
   and invokes leave_scope when the resumed computation completes.
   """
   @impl Skuld.IHandler
-  def handle({:yield, value}, env, k) do
+  def handle(%YieldOp{value: value}, env, k) do
     captured_resume = fn input ->
       {result, final_env} = k.(input, env)
 

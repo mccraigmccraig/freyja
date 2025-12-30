@@ -48,11 +48,21 @@ defmodule Skuld.Effects.Writer do
 
   @behaviour Skuld.IHandler
 
+  import Skuld.DefOp
+
   alias Skuld
   alias Skuld.Env
 
   @sig __MODULE__
   @state_key :writer_log
+
+  #############################################################################
+  ## Operation Structs
+  #############################################################################
+
+  def_op(Tell, [:msg])
+  def_op(Peek)
+  def_op(SetLog, [:log])
 
   #############################################################################
   ## Effect Operations
@@ -61,13 +71,13 @@ defmodule Skuld.Effects.Writer do
   @doc "Append a message to the log"
   @spec tell(term()) :: Skuld.computation()
   def tell(msg) do
-    Skuld.effect(@sig, {:tell, msg})
+    Skuld.effect(@sig, %Tell{msg: msg})
   end
 
   @doc "Read the current log (reverse chronological order)"
   @spec peek() :: Skuld.computation()
   def peek do
-    Skuld.effect(@sig, :peek)
+    Skuld.effect(@sig, %Peek{})
   end
 
   @doc """
@@ -129,7 +139,7 @@ defmodule Skuld.Effects.Writer do
 
   # Internal: set the log directly (used by pass)
   defp set_log(new_log) do
-    Skuld.effect(@sig, {:set_log, new_log})
+    Skuld.effect(@sig, %SetLog{log: new_log})
   end
 
   #############################################################################
@@ -163,23 +173,24 @@ defmodule Skuld.Effects.Writer do
   #############################################################################
 
   @impl Skuld.IHandler
-  def handle(args, env, k) do
-    case args do
-      {:tell, msg} ->
-        current = Env.get_state(env, @state_key, [])
-        updated = [msg | current]
-        new_env = Env.put_state(env, @state_key, updated)
-        # Return the updated log as the result (like Freyja's tell)
-        k.(updated, new_env)
+  def handle(%Tell{msg: msg}, env, k) do
+    current = Env.get_state(env, @state_key, [])
+    updated = [msg | current]
+    new_env = Env.put_state(env, @state_key, updated)
+    # Return the updated log as the result (like Freyja's tell)
+    k.(updated, new_env)
+  end
 
-      :peek ->
-        current = Env.get_state(env, @state_key, [])
-        k.(current, env)
+  @impl Skuld.IHandler
+  def handle(%Peek{}, env, k) do
+    current = Env.get_state(env, @state_key, [])
+    k.(current, env)
+  end
 
-      {:set_log, new_log} ->
-        new_env = Env.put_state(env, @state_key, new_log)
-        k.(:ok, new_env)
-    end
+  @impl Skuld.IHandler
+  def handle(%SetLog{log: new_log}, env, k) do
+    new_env = Env.put_state(env, @state_key, new_log)
+    k.(:ok, new_env)
   end
 
   #############################################################################

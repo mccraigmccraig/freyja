@@ -7,10 +7,18 @@ defmodule Skuld.Effects.Reader do
 
   @behaviour Skuld.IHandler
 
+  import Skuld.DefOp
+
   alias Skuld
   alias Skuld.Env
 
   @sig __MODULE__
+
+  #############################################################################
+  ## Operation Structs
+  #############################################################################
+
+  def_op(Ask)
 
   #############################################################################
   ## Operations
@@ -19,7 +27,7 @@ defmodule Skuld.Effects.Reader do
   @doc "Read the current environment value"
   @spec ask() :: Skuld.computation()
   def ask do
-    Skuld.effect(@sig, :ask)
+    Skuld.effect(@sig, %Ask{})
   end
 
   @doc "Read and apply a function to the environment value"
@@ -59,7 +67,7 @@ defmodule Skuld.Effects.Reader do
   #############################################################################
 
   @impl Skuld.IHandler
-  def handle(:ask, env, k) do
+  def handle(%Ask{}, env, k) do
     value = Env.get_state(env, @sig)
     k.(value, env)
   end

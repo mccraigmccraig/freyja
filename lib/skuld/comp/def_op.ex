@@ -3,7 +3,7 @@ defmodule Skuld.Comp.DefOp do
   Macro for defining serializable operation structs.
 
   Defines a struct module with Jason.Encoder implementation for
-  JSON serialization via `Freyja.Run.SerializableStruct`.
+  JSON serialization via `Skuld.Comp.SerializableStruct`.
 
   ## Example
 
@@ -47,7 +47,7 @@ defmodule Skuld.Comp.DefOp do
       defimpl Jason.Encoder, for: unquote(mod) do
         def encode(value, opts) do
           value
-          |> Freyja.Run.SerializableStruct.encode()
+          |> Skuld.Comp.SerializableStruct.encode()
           |> Jason.Encode.map(opts)
         end
       end

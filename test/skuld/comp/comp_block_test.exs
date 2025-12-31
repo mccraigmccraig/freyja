@@ -501,4 +501,243 @@ defmodule Skuld.Comp.CompBlockTest do
       assert Comp.run!(uses_private_risky(), env) == {:got, :privately_handled}
     end
   end
+
+  describe "else clause" do
+    test "handles pattern match failure in <-" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:error, :not_found})
+          return(x)
+        else
+          {:error, reason} -> return({:failed, reason})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == {:failed, :not_found}
+    end
+
+    test "passes through successful match" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:ok, 42})
+          return(x)
+        else
+          {:error, _} -> return(:failed)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == 42
+    end
+
+    test "handles multiple patterns in else" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:error, :specific})
+          return(x)
+        else
+          {:error, :specific} -> return(:specific_handled)
+          {:error, _} -> return(:generic_error)
+          other -> return({:unexpected, other})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == :specific_handled
+    end
+
+    test "unhandled match failure propagates as MatchFailed" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:error, :unhandled})
+          return(x)
+        else
+          {:error, :specific} -> return(:handled)
+        end
+
+      env = Env.new() |> Throw.handler()
+      {result, _} = Comp.run(computation, env)
+      assert %Comp.Throw{error: %Comp.MatchFailed{value: {:error, :unhandled}}} = result
+    end
+
+    test "else with catch-all handles any mismatch" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure(:something_else)
+          return(x)
+        else
+          other -> return({:caught, other})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == {:caught, :something_else}
+    end
+
+    test "simple patterns don't trigger else" do
+      # Simple variable patterns always match, so else is never called
+      computation =
+        comp do
+          x <- Comp.pure(42)
+          return(x * 2)
+        else
+          _ -> return(:should_not_reach)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == 84
+    end
+
+    test "handles pattern match failure in = binding" do
+      computation =
+        comp do
+          x <- Comp.pure(10)
+          {:ok, y} = {:error, :oops}
+          return(x + y)
+        else
+          {:error, reason} -> return({:assignment_failed, reason})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == {:assignment_failed, :oops}
+    end
+
+    test "else handler can use effects" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:error, :failed})
+          return(x)
+        else
+          {:error, _} ->
+            s <- State.get()
+            return({:recovered_with_state, s})
+        end
+
+      env = Env.new() |> Throw.handler() |> State.handler(100)
+      assert Comp.run!(computation, env) == {:recovered_with_state, 100}
+    end
+
+    test "multiple <- bindings with else" do
+      computation =
+        comp do
+          {:ok, a} <- Comp.pure({:ok, 1})
+          {:ok, b} <- Comp.pure({:ok, 2})
+          {:ok, c} <- Comp.pure({:error, :third_failed})
+          return(a + b + c)
+        else
+          {:error, reason} -> return({:failed_at, reason})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == {:failed_at, :third_failed}
+    end
+  end
+
+  describe "else with catch" do
+    test "else inside catch - throws from else are caught" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:error, :match_fail})
+          return(x)
+        else
+          {:error, :match_fail} ->
+            _ <- Throw.throw(:else_threw)
+            return(:never)
+        catch
+          :else_threw -> return(:catch_got_else_throw)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == :catch_got_else_throw
+    end
+
+    test "else inside catch - throws from body pass through else to catch" do
+      computation =
+        comp do
+          _ <- Throw.throw(:body_threw)
+          {:ok, x} <- Comp.pure({:ok, 42})
+          return(x)
+        else
+          {:error, _} -> return(:else_handled)
+        catch
+          :body_threw -> return(:catch_got_body_throw)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == :catch_got_body_throw
+    end
+
+    test "else handles match failure, catch handles throw" do
+      computation =
+        comp do
+          {:ok, x} <- Comp.pure({:error, :no_match})
+          return(x)
+        else
+          {:error, :no_match} -> return(:else_handled_match)
+        catch
+          :some_error -> return(:catch_handled_throw)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == :else_handled_match
+    end
+
+    test "ordering validation - else must come before catch" do
+      # This should raise a CompileError at compile time
+      # We can't easily test compile errors, but we document the behavior
+      assert_raise CompileError, ~r/else.*must come before.*catch/, fn ->
+        Code.compile_string("""
+        import Skuld.Comp.CompBlock
+        comp do
+          return(:ok)
+        catch
+          _ -> return(:caught)
+        else
+          _ -> return(:else)
+        end
+        """)
+      end
+    end
+  end
+
+  describe "defcomp with else" do
+    defcomp safe_unwrap(result) do
+      {:ok, value} <- Comp.pure(result)
+      return(value)
+    else
+      {:error, reason} -> return({:failed, reason})
+      other -> return({:unexpected, other})
+    end
+
+    test "defcomp with else handles match failure" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(safe_unwrap({:ok, 42}), env) == 42
+      assert Comp.run!(safe_unwrap({:error, :oops}), env) == {:failed, :oops}
+      assert Comp.run!(safe_unwrap(:weird), env) == {:unexpected, :weird}
+    end
+  end
+
+  describe "defcomp with else and catch" do
+    defcomp complex_handler(input) do
+      {:ok, x} <- Comp.pure(input)
+      _ <- if x < 0, do: Throw.throw(:negative), else: Comp.pure(:ok)
+      return(x * 2)
+    else
+      {:error, reason} -> return({:match_failed, reason})
+    catch
+      :negative -> return(:was_negative)
+    end
+
+    test "defcomp with else and catch - match failure" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(complex_handler({:error, :bad}), env) == {:match_failed, :bad}
+    end
+
+    test "defcomp with else and catch - throw" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(complex_handler({:ok, -5}), env) == :was_negative
+    end
+
+    test "defcomp with else and catch - success" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(complex_handler({:ok, 10}), env) == 20
+    end
+  end
 end

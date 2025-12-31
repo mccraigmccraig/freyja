@@ -1,6 +1,6 @@
 defmodule Skuld.Effects.EffectLogger do
   @moduledoc """
-  Effect logging and replay for Skuld via handler interposition.
+  Effect logging and replay for Skuld via handler wrapping.
 
   ## Logging
 
@@ -10,7 +10,7 @@ defmodule Skuld.Effects.EffectLogger do
 
   ## Replay
 
-  Interposes "replay" handlers that return logged responses instead of
+  Installs "replay" handlers that return logged responses instead of
   executing real effects. Pure computation segments run normally.
 
   ## Log Format
@@ -34,6 +34,7 @@ defmodule Skuld.Effects.EffectLogger do
   """
 
   alias Skuld.Comp
+  alias Skuld.Comp.ISentinel
   alias Skuld.Env
 
   @log_key :effect_log
@@ -121,59 +122,51 @@ defmodule Skuld.Effects.EffectLogger do
       # Clean up flag
       was_logged = Process.delete(flag_key)
 
-      # Handle outcomes that don't go through k (suspend, throw)
-      case result do
-        %Comp.Suspend{value: yielded, resume: inner_resume} ->
-          # Handler suspended - log start + suspension
-          start_entry = %{
-            id: log_id,
-            event: :started,
-            effect: sig,
-            args: args,
-            timestamp: started_at
-          }
+      # Handle outcomes that don't go through k (sentinels)
+      if ISentinel.sentinel?(result) do
+        case ISentinel.get_resume(result) do
+          nil ->
+            # Terminal sentinel (Throw, etc.) - only log if this handler threw
+            if was_logged do
+              # Sentinel from nested effect - just pass through
+              {result, result_env}
+            else
+              # This handler produced the sentinel - log it
+              entry =
+                %{id: log_id, effect: sig, args: args, timestamp: started_at}
+                |> Map.merge(ISentinel.serializable_payload(result))
 
-          suspend_entry = %{
-            id: log_id,
-            event: :suspended,
-            yielded: yielded,
-            timestamp: timestamp_fn.()
-          }
+              {result, append_log(result_env, entry)}
+            end
 
-          logged_env =
-            result_env
-            |> append_log(start_entry)
-            |> append_log(suspend_entry)
-
-          # Wrap the resume to log when it's called
-          # Note: Skuld.Comp resume is arity-1, returns {result, env}
-          logged_resume =
-            make_logged_resume(inner_resume, log_id, timestamp_fn)
-
-          {%Comp.Suspend{value: yielded, resume: logged_resume}, logged_env}
-
-        %Comp.Throw{error: error} ->
-          # Only log if this handler actually threw (didn't call k)
-          if was_logged do
-            # Throw from nested effect - just pass through
-            {result, result_env}
-          else
-            # This handler threw - log it
-            entry = %{
+          inner_resume ->
+            # Resumable sentinel (Suspend, etc.) - log lifecycle
+            start_entry = %{
               id: log_id,
+              event: :started,
               effect: sig,
               args: args,
-              error: error,
               timestamp: started_at
             }
 
-            {result, append_log(result_env, entry)}
-          end
+            suspend_entry =
+              %{id: log_id, event: :suspended, timestamp: timestamp_fn.()}
+              |> Map.merge(ISentinel.serializable_payload(result))
 
-        # Normal case: handler called k, which returned an outcome
-        # The logging already happened in logging_k
-        _ ->
-          {result, result_env}
+            logged_env =
+              result_env
+              |> append_log(start_entry)
+              |> append_log(suspend_entry)
+
+            # Wrap the resume to log when it's called
+            logged_resume = make_logged_resume(inner_resume, log_id, timestamp_fn)
+            new_sentinel = ISentinel.with_resume(result, logged_resume)
+
+            {new_sentinel, logged_env}
+        end
+      else
+        # Normal value - logging already happened in logging_k
+        {result, result_env}
       end
     end
   end
@@ -194,35 +187,33 @@ defmodule Skuld.Effects.EffectLogger do
       # Log the resume entry
       res_env_logged = append_log(res_env, resume_entry)
 
-      case res_result do
-        %Comp.Suspend{value: y, resume: r} ->
-          # Re-suspended - log and wrap the new resume
-          re_suspend_entry = %{
-            id: log_id,
-            event: :suspended,
-            yielded: y,
-            timestamp: timestamp_fn.()
-          }
+      if ISentinel.sentinel?(res_result) do
+        case ISentinel.get_resume(res_result) do
+          nil ->
+            # Terminal sentinel - pass through with logged env
+            {res_result, res_env_logged}
 
-          logged_r = make_logged_resume(r, log_id, timestamp_fn)
+          r ->
+            # Re-suspended - log and wrap the new resume
+            re_suspend_entry =
+              %{id: log_id, event: :suspended, timestamp: timestamp_fn.()}
+              |> Map.merge(ISentinel.serializable_payload(res_result))
 
-          {%Comp.Suspend{value: y, resume: logged_r},
-           append_log(res_env_logged, re_suspend_entry)}
+            logged_r = make_logged_resume(r, log_id, timestamp_fn)
+            new_sentinel = ISentinel.with_resume(res_result, logged_r)
 
-        %Comp.Throw{} ->
-          # Throw - just pass through with logged env
-          {res_result, res_env_logged}
+            {new_sentinel, append_log(res_env_logged, re_suspend_entry)}
+        end
+      else
+        # Normal completion - log it
+        complete_entry = %{
+          id: log_id,
+          event: :completed,
+          result: res_result,
+          timestamp: timestamp_fn.()
+        }
 
-        value ->
-          # Normal completion - log it
-          complete_entry = %{
-            id: log_id,
-            event: :completed,
-            result: value,
-            timestamp: timestamp_fn.()
-          }
-
-          {value, append_log(res_env_logged, complete_entry)}
+        {res_result, append_log(res_env_logged, complete_entry)}
       end
     end
   end
@@ -234,15 +225,7 @@ defmodule Skuld.Effects.EffectLogger do
   defp extract_log({result, env}) do
     log = Env.get_state(env, @log_key, [])
     cleaned_env = clean_log_state(env)
-
-    case result do
-      %Comp.Suspend{value: yielded, resume: resume} ->
-        {log, {%Comp.Suspend{value: yielded, resume: resume}, cleaned_env}}
-
-      _ ->
-        # Normal value or %Comp.Throw{}
-        {log, {result, cleaned_env}}
-    end
+    {log, {result, cleaned_env}}
   end
 
   defp clean_log_state(env) do

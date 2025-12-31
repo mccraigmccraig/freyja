@@ -37,7 +37,8 @@ defmodule Skuld.Effects.EffectLogger do
   alias Skuld.Comp.ISentinel
   alias Skuld.Env
 
-  @log_key :effect_log
+  @log_key {__MODULE__, :log}
+  @replay_key {__MODULE__, :replay}
 
   #############################################################################
   ## Logging
@@ -256,7 +257,7 @@ defmodule Skuld.Effects.EffectLogger do
 
     # Convert log to a queue for sequential consumption
     log_queue = :queue.from_list(log)
-    env_with_replay = Env.put_state(env, :replay_log, log_queue)
+    env_with_replay = Env.put_state(env, @replay_key, log_queue)
 
     # Interpose replay handlers on all logged effects
     logged_effects =
@@ -277,13 +278,13 @@ defmodule Skuld.Effects.EffectLogger do
 
   defp make_replay_handler(sig, original_handler, on_missing) do
     fn args, env, k ->
-      log_queue = Env.get_state(env, :replay_log)
+      log_queue = Env.get_state(env, @replay_key)
 
       case :queue.out(log_queue) do
         {{:value, entry}, rest_queue} ->
           # Check if this entry matches the current effect
           if matches_effect?(entry, sig, args) do
-            env_updated = Env.put_state(env, :replay_log, rest_queue)
+            env_updated = Env.put_state(env, @replay_key, rest_queue)
 
             case entry do
               %{result: result} ->
@@ -323,22 +324,22 @@ defmodule Skuld.Effects.EffectLogger do
 
   defp replay_suspending_effect(%{id: log_id}, env, k) do
     # Find the corresponding suspended/resumed/completed entries
-    log_queue = Env.get_state(env, :replay_log)
+    log_queue = Env.get_state(env, @replay_key)
 
     # Consume entries until we find completion or another suspension
     case consume_until_completion(log_queue, log_id) do
       {:completed, result, rest_queue} ->
-        env_updated = Env.put_state(env, :replay_log, rest_queue)
+        env_updated = Env.put_state(env, @replay_key, rest_queue)
         k.(result, env_updated)
 
       {:suspended, _yielded, input, rest_queue} ->
         # The effect suspended and was resumed with input
-        env_updated = Env.put_state(env, :replay_log, rest_queue)
+        env_updated = Env.put_state(env, @replay_key, rest_queue)
         # Continue as if we got that input
         k.(input, env_updated)
 
       {:thrown, error, rest_queue} ->
-        env_updated = Env.put_state(env, :replay_log, rest_queue)
+        env_updated = Env.put_state(env, @replay_key, rest_queue)
         {%Comp.Throw{error: error}, env_updated}
     end
   end
@@ -401,6 +402,6 @@ defmodule Skuld.Effects.EffectLogger do
   end
 
   defp clean_replay_state({result, env}) do
-    {result, %{env | state: Map.delete(env.state, :replay_log)}}
+    {result, %{env | state: Map.delete(env.state, @replay_key)}}
   end
 end

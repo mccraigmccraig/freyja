@@ -12,7 +12,7 @@ defmodule Skuld.Env do
   """
   @type t :: %__MODULE__{
           evidence: %{Skuld.Comp.sig() => Skuld.Comp.handler()},
-          state: %{atom() => term()},
+          state: %{term() => term()},
           leave_scope: Skuld.Comp.leave_scope() | nil
         }
 
@@ -50,13 +50,13 @@ defmodule Skuld.Env do
   end
 
   @doc "Update state for an effect"
-  @spec put_state(Skuld.Comp.env(), atom(), term()) :: Skuld.Comp.env()
+  @spec put_state(Skuld.Comp.env(), term(), term()) :: Skuld.Comp.env()
   def put_state(env, key, value) do
     %{env | state: Map.put(env.state, key, value)}
   end
 
   @doc "Get state for an effect"
-  @spec get_state(Skuld.Comp.env(), atom(), term()) :: term()
+  @spec get_state(Skuld.Comp.env(), term(), term()) :: term()
   def get_state(env, key, default \\ nil) do
     Map.get(env.state, key, default)
   end

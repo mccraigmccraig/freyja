@@ -64,55 +64,6 @@ defmodule Skuld.Comp.CompBlock do
   """
 
   @doc """
-  Catch errors without wrapping normal completion in {:ok, ...}.
-
-  Unlike `Throw.catch_error`, this function:
-  - Passes through normal completion unchanged
-  - After catching and recovering, continues through normal continuation
-    (not leave_scope chain), allowing subsequent binds to receive the result
-
-  This is used internally by the `comp` macro's catch clause.
-  """
-  @spec catch_errors(Skuld.Comp.computation(), (term() -> Skuld.Comp.computation())) ::
-          Skuld.Comp.computation()
-  def catch_errors(comp, error_handler) do
-    fn env, outer_k ->
-      previous_leave_scope = Skuld.Env.get_leave_scope(env)
-
-      catch_leave_scope = fn result, inner_env ->
-        case result do
-          %Skuld.Comp.Throw{error: error} ->
-            # Caught! Restore previous leave_scope and run recovery
-            restored_env = Skuld.Env.with_leave_scope(inner_env, previous_leave_scope)
-
-            # Run recovery computation
-            {recovery_result, recovery_env} =
-              error_handler.(error).(restored_env, fn v, e -> {v, e} end)
-
-            case recovery_result do
-              %Skuld.Comp.Throw{} = rethrown ->
-                # Recovery re-threw - propagate through leave_scope chain
-                # This allows outer catches to intercept it
-                previous_leave_scope.(rethrown, recovery_env)
-
-              other ->
-                # Recovery succeeded - continue through NORMAL flow (outer_k)
-                # This allows subsequent binds to receive the recovered value
-                outer_k.(other, recovery_env)
-            end
-
-          other ->
-            # Normal completion - pass through unchanged (no {:ok, ...} wrapper)
-            previous_leave_scope.(other, inner_env)
-        end
-      end
-
-      modified_env = Skuld.Env.with_leave_scope(env, catch_leave_scope)
-      comp.(modified_env, outer_k)
-    end
-  end
-
-  @doc """
   Define a public function whose body is a `comp` block.
 
   Supports optional `catch` clause.
@@ -259,12 +210,12 @@ defmodule Skuld.Comp.CompBlock do
       end
     end
 
-    # Wrap the body computation in catch_errors
+    # Wrap the body computation in Throw.catch_error
     defp wrap_with_catch(body, catch_block) do
       catch_handler_fn = build_catch_handler_fn(catch_block)
 
       quote do
-        Skuld.Comp.CompBlock.catch_errors(
+        Skuld.Effects.Throw.catch_error(
           unquote(body),
           unquote(catch_handler_fn)
         )

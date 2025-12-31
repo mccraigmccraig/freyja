@@ -103,8 +103,8 @@ defmodule Skuld.IntegrationTest do
 
       {%Comp.Suspend{value: :waiting, resume: resume}, _suspended_env} = Comp.run(comp, env)
 
-      # Resume with false - no error
-      assert {{:ok, :no_error}, _} = resume.(false)
+      # Resume with false - no error (no {:ok, ...} wrapper - value passes through unchanged)
+      assert {:no_error, _} = resume.(false)
 
       # Resume again with true - error caught
       assert {{:caught, :post_resume_error}, _} = resume.(true)

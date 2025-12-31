@@ -9,8 +9,9 @@ defmodule Skuld.Effects.Throw do
 
   - `throw(error)` returns `%Throw{error: error}` as the result
   - `catch_error` installs a leave_scope that intercepts `%Throw{}` results
-  - When caught, the leave_scope runs the recovery computation
-  - Normal completion is wrapped in `{:ok, value}`
+  - When caught, the recovery computation runs and continues normal flow
+  - Normal completion passes through unchanged
+  - If recovery re-throws, the error propagates to outer catch handlers
   """
 
   @behaviour Skuld.Comp.IHandler
@@ -41,8 +42,29 @@ defmodule Skuld.Effects.Throw do
   @doc """
   Catch errors from a sub-computation.
 
-  If the sub-computation throws, the error handler is invoked.
-  If it completes normally, the result is wrapped in {:ok, value}.
+  If the sub-computation throws, the error handler is invoked and its result
+  continues through normal flow (the continuation chain). This allows catch
+  to fully recover from errors - subsequent binds will receive the recovery value.
+
+  If the recovery computation itself throws, that error propagates through
+  the leave_scope chain to any outer catch handlers.
+
+  Normal completion passes through unchanged (no wrapping).
+
+  ## Example
+
+      # Transparent recovery - catch fully handles the error
+      Throw.catch_error(
+        risky_computation(),
+        fn :not_found -> Comp.pure(:default) end
+      )
+      # Returns either the value or :default
+
+      # Nested catch - inner catches first, unhandled propagates to outer
+      Throw.catch_error(
+        Throw.catch_error(inner, fn :a -> ... end),
+        fn :b -> ... end
+      )
   """
   @spec catch_error(Comp.computation(), (term() -> Comp.computation())) :: Comp.computation()
   def catch_error(comp, error_handler) do
@@ -59,12 +81,21 @@ defmodule Skuld.Effects.Throw do
             {recovery_result, recovery_env} =
               error_handler.(error).(restored_env, fn v, e -> {v, e} end)
 
-            # Recovery's result goes through previous leave_scope chain
-            previous_leave_scope.(recovery_result, recovery_env)
+            case recovery_result do
+              %Comp.Throw{} = rethrown ->
+                # Recovery re-threw - propagate through leave_scope chain
+                # This allows outer catches to intercept it
+                previous_leave_scope.(rethrown, recovery_env)
+
+              other ->
+                # Recovery succeeded - continue through NORMAL flow (outer_k)
+                # This allows subsequent binds to receive the recovered value
+                outer_k.(other, recovery_env)
+            end
 
           other ->
-            # Normal completion - wrap in {:ok, ...} and continue chain
-            previous_leave_scope.({:ok, other}, inner_env)
+            # Normal completion - pass through unchanged
+            previous_leave_scope.(other, inner_env)
         end
       end
 
@@ -73,10 +104,27 @@ defmodule Skuld.Effects.Throw do
     end
   end
 
-  @doc "Catch and return Either-style result"
+  @doc """
+  Catch and return Either-style result.
+
+  Wraps both success and error paths for uniform handling:
+  - Success: `{:ok, value}`
+  - Error: `{:error, error}`
+
+  ## Example
+
+      result = Throw.try_catch(risky_computation())
+      case result do
+        {:ok, value} -> handle_success(value)
+        {:error, err} -> handle_error(err)
+      end
+  """
   @spec try_catch(Comp.computation()) :: Comp.computation()
   def try_catch(comp) do
-    catch_error(comp, fn error -> Comp.pure({:error, error}) end)
+    catch_error(
+      Comp.map(comp, fn value -> {:ok, value} end),
+      fn error -> Comp.pure({:error, error}) end
+    )
   end
 
   #############################################################################

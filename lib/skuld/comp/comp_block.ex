@@ -23,6 +23,22 @@ defmodule Skuld.Comp.CompBlock do
   - `return(value)` - lift a pure value (from `Skuld.Comp.BaseOps`)
   - Last expression is the final computation
 
+  ## Catch Clause
+
+  You can add a catch clause for error handling:
+
+      comp do
+        x <- State.get()
+        _ <- if x < 0, do: Throw.throw(:negative), else: Comp.pure(:ok)
+        return(x * 2)
+      catch
+        :negative -> return(0)
+        other -> return({:error, other})
+      end
+
+  When an error is thrown, it's matched against the catch patterns.
+  If no pattern matches and there's no catch-all, the error is re-thrown.
+
   ## Function Definitions
 
       defcomp increment() do
@@ -35,10 +51,71 @@ defmodule Skuld.Comp.CompBlock do
         ctx <- Reader.ask()
         return(ctx.value)
       end
+
+  Function definitions also support catch:
+
+      defcomp safe_get() do
+        x <- State.get()
+        _ <- if x < 0, do: Throw.throw(:negative), else: Comp.pure(:ok)
+        return(x)
+      catch
+        :negative -> return(0)
+      end
   """
 
   @doc """
+  Catch errors without wrapping normal completion in {:ok, ...}.
+
+  Unlike `Throw.catch_error`, this function:
+  - Passes through normal completion unchanged
+  - After catching and recovering, continues through normal continuation
+    (not leave_scope chain), allowing subsequent binds to receive the result
+
+  This is used internally by the `comp` macro's catch clause.
+  """
+  @spec catch_errors(Skuld.Comp.computation(), (term() -> Skuld.Comp.computation())) ::
+          Skuld.Comp.computation()
+  def catch_errors(comp, error_handler) do
+    fn env, outer_k ->
+      previous_leave_scope = Skuld.Env.get_leave_scope(env)
+
+      catch_leave_scope = fn result, inner_env ->
+        case result do
+          %Skuld.Comp.Throw{error: error} ->
+            # Caught! Restore previous leave_scope and run recovery
+            restored_env = Skuld.Env.with_leave_scope(inner_env, previous_leave_scope)
+
+            # Run recovery computation
+            {recovery_result, recovery_env} =
+              error_handler.(error).(restored_env, fn v, e -> {v, e} end)
+
+            case recovery_result do
+              %Skuld.Comp.Throw{} = rethrown ->
+                # Recovery re-threw - propagate through leave_scope chain
+                # This allows outer catches to intercept it
+                previous_leave_scope.(rethrown, recovery_env)
+
+              other ->
+                # Recovery succeeded - continue through NORMAL flow (outer_k)
+                # This allows subsequent binds to receive the recovered value
+                outer_k.(other, recovery_env)
+            end
+
+          other ->
+            # Normal completion - pass through unchanged (no {:ok, ...} wrapper)
+            previous_leave_scope.(other, inner_env)
+        end
+      end
+
+      modified_env = Skuld.Env.with_leave_scope(env, catch_leave_scope)
+      comp.(modified_env, outer_k)
+    end
+  end
+
+  @doc """
   Define a public function whose body is a `comp` block.
+
+  Supports optional `catch` clause.
 
   ## Example
 
@@ -47,13 +124,22 @@ defmodule Skuld.Comp.CompBlock do
         _ <- State.put(x + 1)
         return(x)
       end
+
+      defcomp safe_fetch() do
+        x <- dangerous_op()
+        return(x)
+      catch
+        :error -> return(:default)
+      end
   """
-  defmacro defcomp(call_ast, do: body) do
-    Skuld.Comp.CompBlock.Impl.defcomp(call_ast, body)
+  defmacro defcomp(call_ast, clauses) do
+    Skuld.Comp.CompBlock.Impl.defcomp(__CALLER__, call_ast, clauses)
   end
 
   @doc """
   Define a private function whose body is a `comp` block.
+
+  Supports optional `catch` clause.
 
   ## Example
 
@@ -62,8 +148,8 @@ defmodule Skuld.Comp.CompBlock do
         return(x.config)
       end
   """
-  defmacro defcompp(call_ast, do: body) do
-    Skuld.Comp.CompBlock.Impl.defcompp(call_ast, body)
+  defmacro defcompp(call_ast, clauses) do
+    Skuld.Comp.CompBlock.Impl.defcompp(__CALLER__, call_ast, clauses)
   end
 
   @doc """
@@ -71,6 +157,8 @@ defmodule Skuld.Comp.CompBlock do
 
   Transforms arrow bindings (`<-`) into `Skuld.Comp.bind` chains.
   Regular assignments (`=`) are preserved as-is.
+
+  Supports optional `catch` clause for error handling.
 
   ## Example
 
@@ -81,51 +169,173 @@ defmodule Skuld.Comp.CompBlock do
         return(y)
       end
 
-  Is transformed into:
+  With catch clause:
 
-      State.get()
-      |> Skuld.Comp.bind(fn x ->
-        y = x * 2
-        State.put(y)
-        |> Skuld.Comp.bind(fn _ ->
-          Skuld.Comp.pure(y)
-        end)
-      end)
+      comp do
+        x <- risky_operation()
+        return(x)
+      catch
+        :error -> return(:default)
+        {:custom, reason} -> return({:failed, reason})
+      end
   """
-  defmacro comp(do: do_block) do
-    Skuld.Comp.CompBlock.Impl.comp(do_block)
+  defmacro comp(clauses) do
+    Skuld.Comp.CompBlock.Impl.comp(__CALLER__, clauses)
   end
 
   defmodule Impl do
     @moduledoc false
 
-    def defcomp(call_ast, body) do
+    def defcomp(caller, call_ast, clauses) do
+      validate_clauses!(caller, clauses)
+
+      do_block = Keyword.fetch!(clauses, :do)
+      catch_block = Keyword.get(clauses, :catch)
+
       quote do
         def unquote(call_ast) do
-          Skuld.Comp.CompBlock.comp do
-            unquote(body)
-          end
+          Skuld.Comp.CompBlock.comp(unquote(build_clauses(do_block, catch_block)))
         end
       end
     end
 
-    def defcompp(call_ast, body) do
+    def defcompp(caller, call_ast, clauses) do
+      validate_clauses!(caller, clauses)
+
+      do_block = Keyword.fetch!(clauses, :do)
+      catch_block = Keyword.get(clauses, :catch)
+
       quote do
         defp unquote(call_ast) do
-          Skuld.Comp.CompBlock.comp do
-            unquote(body)
+          Skuld.Comp.CompBlock.comp(unquote(build_clauses(do_block, catch_block)))
+        end
+      end
+    end
+
+    defp build_clauses(do_block, nil), do: [do: do_block]
+    defp build_clauses(do_block, catch_block), do: [do: do_block, catch: catch_block]
+
+    def comp(caller, clauses) do
+      validate_clauses!(caller, clauses)
+
+      do_block = Keyword.fetch!(clauses, :do)
+      catch_block = Keyword.get(clauses, :catch)
+
+      # Rewrite the do block
+      rewritten_do = rewrite_block(do_block)
+
+      # Wrap with catch if present
+      with_catch =
+        if catch_block do
+          wrap_with_catch(rewritten_do, catch_block)
+        else
+          rewritten_do
+        end
+
+      quote do
+        import Skuld.Comp.BaseOps
+        unquote(with_catch)
+      end
+    end
+
+    # Validate that only supported clauses are present
+    defp validate_clauses!(caller, clauses) do
+      keys = Keyword.keys(clauses)
+      invalid = keys -- [:do, :catch]
+
+      if invalid != [] do
+        raise CompileError,
+          file: caller.file,
+          line: caller.line,
+          description:
+            "invalid clauses in comp block: #{inspect(invalid)}. Only :do and :catch are supported."
+      end
+
+      unless Keyword.has_key?(clauses, :do) do
+        raise CompileError,
+          file: caller.file,
+          line: caller.line,
+          description: "comp block requires a :do clause"
+      end
+    end
+
+    # Wrap the body computation in catch_errors
+    defp wrap_with_catch(body, catch_block) do
+      catch_handler_fn = build_catch_handler_fn(catch_block)
+
+      quote do
+        Skuld.Comp.CompBlock.catch_errors(
+          unquote(body),
+          unquote(catch_handler_fn)
+        )
+      end
+    end
+
+    # Build the error handler function from catch block clauses
+    defp build_catch_handler_fn(catch_block) do
+      clauses = extract_clauses(catch_block)
+
+      # Rewrite each clause body (they're comp blocks too)
+      rewritten_clauses =
+        Enum.map(clauses, fn {:->, meta, [patterns, body]} ->
+          rewritten_body = rewrite_block(body)
+          {:->, meta, [patterns, rewritten_body]}
+        end)
+
+      # Check if there's a catch-all clause
+      has_catch_all = has_catch_all_clause?(clauses)
+
+      # Add a default re-throw clause if user didn't provide catch-all
+      final_clauses =
+        if has_catch_all do
+          rewritten_clauses
+        else
+          rewritten_clauses ++
+            [
+              {:->, [],
+               [
+                 [quote(do: __skuld_unhandled_error__)],
+                 quote(do: Skuld.Effects.Throw.throw(__skuld_unhandled_error__))
+               ]}
+            ]
+        end
+
+      # Build the function: fn err -> case err do ... end end
+      quote do
+        fn __skuld_error__ ->
+          import Skuld.Comp.BaseOps
+
+          case __skuld_error__ do
+            unquote(final_clauses)
           end
         end
       end
     end
 
-    def comp(do_block) do
-      quote do
-        import Skuld.Comp.BaseOps
-        unquote(rewrite_block(do_block))
-      end
+    # Extract clauses from a block
+    defp extract_clauses({:->, _, _} = single_clause), do: [single_clause]
+    defp extract_clauses({:__block__, _, clauses}), do: clauses
+    defp extract_clauses(clauses) when is_list(clauses), do: clauses
+    defp extract_clauses(nil), do: []
+
+    # Check if there's a catch-all clause (variable pattern or _)
+    defp has_catch_all_clause?(clauses) do
+      Enum.any?(clauses, fn
+        {:->, _, [[{var, _, context}], _body]}
+        when is_atom(var) and is_atom(context) and var != :^ ->
+          # Variable pattern (but not pinned)
+          true
+
+        {:->, _, [[{:_, _, _}], _body]} ->
+          # Underscore pattern
+          true
+
+        _ ->
+          false
+      end)
     end
 
+    # Rewrite block expressions
     defp rewrite_block({:__block__, _, exprs}), do: rewrite_exprs(exprs)
     defp rewrite_block(expr), do: rewrite_exprs([expr])
 

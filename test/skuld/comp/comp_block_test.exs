@@ -6,6 +6,7 @@ defmodule Skuld.Comp.CompBlockTest do
   alias Skuld.Comp
   alias Skuld.Effects.State
   alias Skuld.Effects.Reader
+  alias Skuld.Effects.Throw
   alias Skuld.Env
 
   describe "comp macro" do
@@ -286,6 +287,218 @@ defmodule Skuld.Comp.CompBlockTest do
         end
 
       assert Comp.run!(computation, Env.new()) == 3
+    end
+  end
+
+  describe "catch clause" do
+    test "catches thrown error" do
+      computation =
+        comp do
+          _ <- Throw.throw(:my_error)
+          return(:never_reached)
+        catch
+          :my_error -> return(:caught)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == :caught
+    end
+
+    test "passes through normal completion" do
+      computation =
+        comp do
+          return(42)
+        catch
+          _ -> return(:caught)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == 42
+    end
+
+    test "pattern matches on error value" do
+      computation =
+        comp do
+          _ <- Throw.throw({:error, :not_found})
+          return(:never_reached)
+        catch
+          {:error, :not_found} -> return(:not_found_handled)
+          {:error, reason} -> return({:other_error, reason})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == :not_found_handled
+    end
+
+    test "unhandled error is re-thrown" do
+      computation =
+        comp do
+          _ <- Throw.throw(:unhandled)
+          return(:never_reached)
+        catch
+          :specific_error -> return(:handled)
+        end
+
+      env = Env.new() |> Throw.handler()
+      {result, _env} = Comp.run(computation, env)
+      assert %Comp.Throw{error: :unhandled} = result
+    end
+
+    test "catch-all clause handles any error" do
+      computation =
+        comp do
+          _ <- Throw.throw(:any_error)
+          return(:never_reached)
+        catch
+          err -> return({:caught, err})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == {:caught, :any_error}
+    end
+
+    test "catch with state effects preserves state changes before throw" do
+      computation =
+        comp do
+          _ <- State.put(100)
+          _ <- Throw.throw(:error)
+          return(:never_reached)
+        catch
+          :error ->
+            x <- State.get()
+            return({:recovered, x})
+        end
+
+      env =
+        Env.new()
+        |> Throw.handler()
+        |> State.handler(0)
+
+      assert Comp.run!(computation, env) == {:recovered, 100}
+    end
+
+    test "catch handler can use effects" do
+      computation =
+        comp do
+          _ <- Throw.throw(:error)
+          return(:never_reached)
+        catch
+          :error ->
+            ctx <- Reader.ask()
+            return({:recovered, ctx.default})
+        end
+
+      env =
+        Env.new()
+        |> Throw.handler()
+        |> Reader.handler(%{default: :fallback})
+
+      assert Comp.run!(computation, env) == {:recovered, :fallback}
+    end
+
+    test "catch handler returning {:ok, value} is not incorrectly unwrapped" do
+      computation =
+        comp do
+          _ <- Throw.throw(:error)
+          return(:never_reached)
+        catch
+          :error -> return({:ok, :recovered})
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(computation, env) == {:ok, :recovered}
+    end
+
+    test "nested catch - inner catches first" do
+      inner =
+        comp do
+          _ <- Throw.throw(:inner_error)
+          return(:never)
+        catch
+          :inner_error -> return(:inner_caught)
+        end
+
+      outer =
+        comp do
+          result <- inner
+          return({:outer_got, result})
+        catch
+          _ -> return(:outer_caught)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(outer, env) == {:outer_got, :inner_caught}
+    end
+
+    test "outer catch handles errors from inner when not caught" do
+      inner =
+        comp do
+          _ <- Throw.throw(:uncaught_inner)
+          return(:never)
+        catch
+          :different_error -> return(:inner_caught)
+        end
+
+      outer =
+        comp do
+          result <- inner
+          return({:outer_got, result})
+        catch
+          :uncaught_inner -> return(:outer_caught_inner_error)
+        end
+
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(outer, env) == :outer_caught_inner_error
+    end
+  end
+
+  describe "defcomp with catch" do
+    defcomp safe_divide(a, b) do
+      _ <- if b == 0, do: Throw.throw(:divide_by_zero), else: Comp.pure(:ok)
+      return(div(a, b))
+    catch
+      :divide_by_zero -> return(:infinity)
+    end
+
+    defcomp fetch_with_default(key, default) do
+      _ <- Throw.throw({:not_found, key})
+      return(:never)
+    catch
+      {:not_found, _} -> return(default)
+    end
+
+    test "defcomp with catch handles error" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(safe_divide(10, 0), env) == :infinity
+    end
+
+    test "defcomp with catch passes through success" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(safe_divide(10, 2), env) == 5
+    end
+
+    test "defcomp with catch and args" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(fetch_with_default(:missing, :default_value), env) == :default_value
+    end
+  end
+
+  describe "defcompp with catch" do
+    defcompp private_risky do
+      _ <- Throw.throw(:private_error)
+      return(:never)
+    catch
+      :private_error -> return(:privately_handled)
+    end
+
+    defcomp uses_private_risky do
+      result <- private_risky()
+      return({:got, result})
+    end
+
+    test "defcompp with catch works" do
+      env = Env.new() |> Throw.handler()
+      assert Comp.run!(uses_private_risky(), env) == {:got, :privately_handled}
     end
   end
 end

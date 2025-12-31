@@ -5,7 +5,9 @@ defmodule Freyja.Effects.EctoFxTest do
   import Freyja.Hefty.HeftyBlock
 
   alias Freyja.Effects.EctoFx
-  alias Freyja.Effects.{FxList, Lift, Throw}
+  alias Freyja.Effects.FxList
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.Throw
   alias Freyja.Run
 
   # Test schemas

@@ -6,7 +6,8 @@ defmodule Freyja.Freer.Impl do
   require Logger
 
   alias Freyja.Freer
-  alias Freyja.Freer.{Pure, Impure}
+  alias Freyja.Freer.Impure
+  alias Freyja.Freer.Pure
 
   @doc """
   add a continuation `mf` to a queue of continuations `q`

@@ -20,12 +20,18 @@ if Code.ensure_loaded?(Ecto) do
     """
 
     alias Freyja.Effects.EctoFx
+    alias Freyja.Effects.EctoFx.Capture
+    alias Freyja.Effects.EctoFx.Change
+    alias Freyja.Effects.EctoFx.Delete
+    alias Freyja.Effects.EctoFx.DeleteAll
+    alias Freyja.Effects.EctoFx.Insert
+    alias Freyja.Effects.EctoFx.InsertAll
+    alias Freyja.Effects.EctoFx.InsertOrUpdate
     alias Freyja.Effects.EctoFx.Internal
     alias Freyja.Effects.EctoFx.Query
-    alias Freyja.Effects.EctoFx.{Insert, Update, Delete, InsertOrUpdate}
-    alias Freyja.Effects.EctoFx.{InsertAll, UpdateAll, DeleteAll}
-    alias Freyja.Effects.EctoFx.Change
-    alias Freyja.Effects.EctoFx.{Transaction, Capture}
+    alias Freyja.Effects.EctoFx.Transaction
+    alias Freyja.Effects.EctoFx.Update
+    alias Freyja.Effects.EctoFx.UpdateAll
     alias Freyja.Freer.Impl
     alias Freyja.Freer.Impure
     alias Freyja.Run.RunState
@@ -380,7 +386,7 @@ if Code.ensure_loaded?(Ecto) do
     defp invoke_query(module, %Query{mod: mod, name: name, params: params})
          when is_atom(module) do
       if function_exported?(module, :handle_query, 3) do
-        apply(module, :handle_query, [mod, name, params])
+        module.handle_query(mod, name, params)
       else
         raise ArgumentError,
               "#{inspect(module)} must export handle_query/3 to be used as a Query resolver"

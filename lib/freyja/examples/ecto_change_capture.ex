@@ -42,7 +42,11 @@ if Code.ensure_loaded?(Ecto) do
 
     use Freyja.Syntax
 
-    alias Freyja.Effects.{EctoFx, Lift, Throw, FxList, State}
+    alias Freyja.Effects.EctoFx
+    alias Freyja.Effects.FxList
+    alias Freyja.Effects.Lift
+    alias Freyja.Effects.State
+    alias Freyja.Effects.Throw
 
     # ============================================================================
     # Ecto Schemas

@@ -6,7 +6,9 @@ defmodule Freyja.Examples.EffectLoggerResume do
 
   import Freyja.Freer.FreerBlock
 
-  alias Freyja.Effects.{Coroutine, EffectLogger, State}
+  alias Freyja.Effects.Coroutine
+  alias Freyja.Effects.EffectLogger
+  alias Freyja.Effects.State
 
   @doc """
   Build the coroutine example.

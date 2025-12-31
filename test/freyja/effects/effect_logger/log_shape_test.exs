@@ -3,7 +3,9 @@ defmodule Freyja.Effects.EffectLogger.LogShapeTest do
 
   import Freyja.Freer.FreerBlock
 
-  alias Freyja.Effects.{Coroutine, EffectLogger, State}
+  alias Freyja.Effects.Coroutine
+  alias Freyja.Effects.EffectLogger
+  alias Freyja.Effects.State
   alias Freyja.Effects.EffectLogger.Log
   alias Freyja.Run
 

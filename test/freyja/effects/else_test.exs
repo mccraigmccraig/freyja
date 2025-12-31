@@ -1,7 +1,10 @@
 defmodule Freyja.Effects.ElseTest do
   use ExUnit.Case, async: true
 
-  alias Freyja.Effects.{Else, Lift, Throw, Catch}
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Else
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.Throw
   alias Freyja.Effects.State
   alias Freyja.Run
 

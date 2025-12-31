@@ -95,7 +95,9 @@ defmodule Freyja.Effects.Changes.Handler do
   @behaviour Freyja.Freer.EffectHandler
 
   alias Freyja.Effects.Changes
-  alias Freyja.Effects.Changes.{BeginCapture, Change, FinishCapture}
+  alias Freyja.Effects.Changes.BeginCapture
+  alias Freyja.Effects.Changes.Change
+  alias Freyja.Effects.Changes.FinishCapture
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Run.RunState
@@ -204,7 +206,8 @@ defmodule Freyja.Effects.Changes.Algebra do
 
   use Freyja.Syntax
 
-  alias Freyja.Effects.{Changes, Throw}
+  alias Freyja.Effects.Changes
+  alias Freyja.Effects.Throw
   alias Freyja.Effects.Changes.Capture
   alias Freyja.Effects.Throw.ThrowOp
   alias Freyja.Freer.Interpose

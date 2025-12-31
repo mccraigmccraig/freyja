@@ -6,7 +6,8 @@ defmodule Freyja.EffectLoggerErrorTest do
   import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.EffectLogger
-  alias Freyja.Effects.EffectLogger.{Log, StepLogEntry}
+  alias Freyja.Effects.EffectLogger.Log
+  alias Freyja.Effects.EffectLogger.StepLogEntry
   alias Freyja.Effects.Throw
   alias Freyja.Effects.State
   alias Freyja.Run

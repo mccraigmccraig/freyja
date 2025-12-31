@@ -6,9 +6,10 @@ defmodule Freyja.Run.PipeAPITest do
 
   alias Freyja.Run.RunBuilder
   alias Freyja.Effects.State
-  alias Freyja.Effects.Writer
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Lift
   alias Freyja.Effects.Throw
-  alias Freyja.Effects.{Lift, Catch}
+  alias Freyja.Effects.Writer
 
   describe "Pipe-friendly handler API" do
     test "single handler with State" do

@@ -29,19 +29,21 @@ if Code.ensure_loaded?(Ecto) do
     """
 
     alias Freyja.Effects.EctoFx
-    alias Freyja.Effects.EctoFx.Query
-    alias Freyja.Effects.EctoFx.{Insert, Update, Delete, InsertOrUpdate}
-    alias Freyja.Effects.EctoFx.{InsertAll, UpdateAll, DeleteAll}
     alias Freyja.Effects.EctoFx.Change
-
+    alias Freyja.Effects.EctoFx.Delete
+    alias Freyja.Effects.EctoFx.DeleteAll
+    alias Freyja.Effects.EctoFx.Insert
+    alias Freyja.Effects.EctoFx.InsertAll
+    alias Freyja.Effects.EctoFx.InsertOrUpdate
     alias Freyja.Effects.EctoFx.Internal
-    alias Freyja.Effects.EctoFx.Internal.{BeginCapture, FinishCapture}
-
-    alias Freyja.Effects.EctoFx.Internal.{
-      BeginTransaction,
-      CommitTransaction,
-      RollbackTransaction
-    }
+    alias Freyja.Effects.EctoFx.Internal.BeginCapture
+    alias Freyja.Effects.EctoFx.Internal.BeginTransaction
+    alias Freyja.Effects.EctoFx.Internal.CommitTransaction
+    alias Freyja.Effects.EctoFx.Internal.FinishCapture
+    alias Freyja.Effects.EctoFx.Internal.RollbackTransaction
+    alias Freyja.Effects.EctoFx.Query
+    alias Freyja.Effects.EctoFx.Update
+    alias Freyja.Effects.EctoFx.UpdateAll
 
     alias Freyja.Effects.EctoFx.Handler
     alias Freyja.Effects.Throw

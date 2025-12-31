@@ -2,7 +2,8 @@ defmodule Freyja.Freer.InterposeTest do
   use ExUnit.Case, async: true
 
   alias Freyja.Freer
-  alias Freyja.Freer.{Pure, Impure}
+  alias Freyja.Freer.Impure
+  alias Freyja.Freer.Pure
   alias Freyja.Freer.Interpose
 
   # Test effect signatures

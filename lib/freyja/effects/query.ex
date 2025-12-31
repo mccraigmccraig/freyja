@@ -153,7 +153,7 @@ defmodule Freyja.Effects.Query.Handler do
   defp invoke(module, %Request{mod: mod, name: name, params: params})
        when is_atom(module) do
     if function_exported?(module, :handle_query, 3) do
-      apply(module, :handle_query, [mod, name, params])
+      module.handle_query(mod, name, params)
     else
       raise ArgumentError,
             "#{inspect(module)} must export handle_query/3 to be used as a Query handler entry"

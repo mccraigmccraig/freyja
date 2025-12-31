@@ -2,7 +2,10 @@ defmodule Freyja.Effects.ChangesTest do
   use ExUnit.Case, async: true
   use Freyja.Syntax
 
-  alias Freyja.Effects.{Changes, Lift, Catch, Throw}
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Changes
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.Throw
   alias Freyja.Run
 
   describe "handler safety" do

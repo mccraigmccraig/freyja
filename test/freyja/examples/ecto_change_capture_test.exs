@@ -12,7 +12,8 @@ if Code.ensure_loaded?(Ecto) do
     use ExUnit.Case, async: true
 
     alias Freyja.Examples.EctoChangeCapture
-    alias Freyja.Examples.EctoChangeCapture.{User, AuditLog}
+    alias Freyja.Examples.EctoChangeCapture.AuditLog
+    alias Freyja.Examples.EctoChangeCapture.User
     alias Freyja.Run
 
     # ============================================================================

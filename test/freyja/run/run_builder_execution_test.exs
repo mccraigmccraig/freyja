@@ -7,9 +7,10 @@ defmodule Freyja.Run.RunBuilderExecutionTest do
   alias Freyja.Run
   alias Freyja.Run.RunOutcome
   alias Freyja.Effects.State
-  alias Freyja.Effects.Writer
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Lift
   alias Freyja.Effects.Throw
-  alias Freyja.Effects.{Lift, Catch}
+  alias Freyja.Effects.Writer
 
   describe "Run.run/1 with RunBuilder" do
     test "executes Freer computation" do

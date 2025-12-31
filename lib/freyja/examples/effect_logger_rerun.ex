@@ -6,7 +6,9 @@ defmodule Freyja.Examples.EffectLoggerRerun do
 
   import Freyja.Freer.FreerBlock
 
-  alias Freyja.Effects.{EffectLogger, State, Throw}
+  alias Freyja.Effects.EffectLogger
+  alias Freyja.Effects.State
+  alias Freyja.Effects.Throw
 
   @doc """
   Build a builder for the buggy (:original) or fixed (:patched) version.

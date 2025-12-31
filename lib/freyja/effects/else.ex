@@ -164,7 +164,8 @@ defmodule Freyja.Effects.Else.Algebra do
   @behaviour Freyja.Hefty.Algebra
 
   alias Freyja.Effects.Else, as: ElseMod
-  alias Freyja.Effects.Else.{BindMatchFailed, Else}
+  alias Freyja.Effects.Else.BindMatchFailed
+  alias Freyja.Effects.Else.Else
   alias Freyja.Freer
   alias Freyja.Freer.Interpose
 

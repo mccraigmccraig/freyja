@@ -60,7 +60,9 @@ defmodule Freyja.Examples.TaggedReaderDynamicContext do
 
   use Freyja.Syntax
 
-  alias Freyja.Effects.{FxList, TaggedReader, Lift}
+  alias Freyja.Effects.FxList
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.TaggedReader
 
   # ============================================================================
   # Data Structures

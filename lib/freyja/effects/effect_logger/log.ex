@@ -256,7 +256,7 @@ defmodule Freyja.Effects.EffectLogger.Log do
           allow_divergence?: boolean()
         }
 
-  def new() do
+  def new do
     %__MODULE__{
       stack: [],
       queue: []

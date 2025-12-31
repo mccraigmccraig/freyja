@@ -7,7 +7,8 @@ defmodule Freyja.FreerTest do
 
   alias Freyja.Effects.State
   alias Freyja.Freer
-  alias Freyja.Freer.{Pure, Impure}
+  alias Freyja.Freer.Impure
+  alias Freyja.Freer.Pure
   alias Freyja.Run
 
   describe "pure" do

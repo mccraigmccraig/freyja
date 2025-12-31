@@ -155,17 +155,15 @@ defmodule Freyja.Run.RunBuilder do
 
   defp try_protocol_conversion(computation) do
     # Try IHeftySendable (for higher-order effects that auto-lift)
-    try do
-      hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(computation)
-      {:hefty, hefty}
-    rescue
-      _e in [Protocol.UndefinedError, ArgumentError] ->
-        # Protocol doesn't work - provide a clear error message
-        # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
-        raise ArgumentError,
-              "Cannot detect computation type for: #{inspect(computation)}. " <>
-                "Value must be a Freer.Pure, Freer.Impure, Hefty.Pure, or Hefty.Impure struct."
-    end
+    hefty = Freyja.Hefty.Sig.IHeftySendable.send_to_hefty(computation)
+    {:hefty, hefty}
+  rescue
+    _e in [Protocol.UndefinedError, ArgumentError] ->
+      # Protocol doesn't work - provide a clear error message
+      # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
+      raise ArgumentError,
+            "Cannot detect computation type for: #{inspect(computation)}. " <>
+              "Value must be a Freer.Pure, Freer.Impure, Hefty.Pure, or Hefty.Impure struct."
   end
 
   defp detect_module_type(module) do

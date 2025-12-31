@@ -2,7 +2,9 @@ defmodule Freyja.Examples.EctoUserServiceTest do
   use ExUnit.Case, async: true
 
   alias Freyja.Examples.EctoUserService
-  alias Freyja.Examples.EctoUserService.{User, Profile, Queries}
+  alias Freyja.Examples.EctoUserService.Profile
+  alias Freyja.Examples.EctoUserService.Queries
+  alias Freyja.Examples.EctoUserService.User
   alias Freyja.Effects.EctoFx
   alias Freyja.Run
 

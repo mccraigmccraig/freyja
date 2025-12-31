@@ -7,10 +7,12 @@ defmodule Freyja.Effects.EffectLogger.ScopedReplayTest do
   alias Freyja.Effects.EffectLogger.Log
   alias Freyja.Effects.State
   alias Freyja.Effects.Writer
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.FxList
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.Throw
   alias Freyja.Hefty
   alias Freyja.Run
-  alias Freyja.Effects.{Lift, Throw}
-  alias Freyja.Effects.{Catch, FxList}
   alias Freyja.Effects.Throw.Handler, as: ThrowHandler
   alias Freyja.Run.RunOutcome
 

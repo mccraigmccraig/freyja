@@ -82,8 +82,9 @@ defmodule Freyja.Freer.Interpose do
   """
 
   alias Freyja.Freer
-  alias Freyja.Freer.{Pure, Impure}
   alias Freyja.Freer.Impl
+  alias Freyja.Freer.Impure
+  alias Freyja.Freer.Pure
 
   @doc """
   Interpose on effects in a Freer computation, intercepting those that match a predicate.

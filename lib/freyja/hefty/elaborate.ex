@@ -246,23 +246,21 @@ defmodule Freyja.Hefty.Elaborate do
 
   # Check if algebra handles signature, with error handling
   defp algebra_handles_hefty?(algebra, sig) do
-    try do
-      algebra.handles_hefty?(sig)
-    rescue
-      UndefinedFunctionError ->
-        # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
-        raise ArgumentError, """
-        Module #{inspect(algebra)} does not implement Freyja.Hefty.Algebra.
+    algebra.handles_hefty?(sig)
+  rescue
+    UndefinedFunctionError ->
+      # credo:disable-for-next-line Credo.Check.Warning.RaiseInsideRescue
+      raise ArgumentError, """
+      Module #{inspect(algebra)} does not implement Freyja.Hefty.Algebra.
 
-        Make sure your algebra module has:
-          @behaviour Freyja.Hefty.Algebra
+      Make sure your algebra module has:
+        @behaviour Freyja.Hefty.Algebra
 
-          @impl true
-          def handles_hefty?(sig), do: ...
+        @impl true
+        def handles_hefty?(sig), do: ...
 
-          @impl true
-          def elaborate(operation, psi, k, elaborator), do: ...
-        """
-    end
+        @impl true
+        def elaborate(operation, psi, k, elaborator), do: ...
+      """
   end
 end

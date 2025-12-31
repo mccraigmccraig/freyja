@@ -219,7 +219,10 @@ defmodule Freyja.Effects.TaggedReader.Algebra do
   import Freyja.Freer.FreerBlock
 
   alias Freyja.Effects.TaggedReader
-  alias Freyja.Effects.TaggedReader.{AskTagged, AskAll, Local, LocalAll}
+  alias Freyja.Effects.TaggedReader.AskAll
+  alias Freyja.Effects.TaggedReader.AskTagged
+  alias Freyja.Effects.TaggedReader.Local
+  alias Freyja.Effects.TaggedReader.LocalAll
   alias Freyja.Freer
   alias Freyja.Freer.Interpose
 
@@ -353,7 +356,8 @@ defmodule Freyja.Effects.TaggedReader.Handler do
   alias Freyja.Freer.Impl
   alias Freyja.Freer.Impure
   alias Freyja.Effects.TaggedReader
-  alias Freyja.Effects.TaggedReader.{AskTagged, AskAll}
+  alias Freyja.Effects.TaggedReader.AskAll
+  alias Freyja.Effects.TaggedReader.AskTagged
   alias Freyja.Run.RunState
 
   @behaviour Freyja.Freer.EffectHandler

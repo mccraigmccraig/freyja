@@ -2,7 +2,8 @@ defmodule Freyja.Examples.CommandProcessorTest do
   use ExUnit.Case, async: true
 
   alias Freyja.Examples.CommandProcessor
-  alias Freyja.Examples.CommandProcessor.{Storage, Notifications}
+  alias Freyja.Examples.CommandProcessor.Notifications
+  alias Freyja.Examples.CommandProcessor.Storage
   alias Freyja.Run
 
   setup do

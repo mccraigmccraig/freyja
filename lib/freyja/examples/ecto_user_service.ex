@@ -56,7 +56,9 @@ if Code.ensure_loaded?(Ecto) do
 
     use Freyja.Syntax
 
-    alias Freyja.Effects.{EctoFx, Lift, Throw}
+    alias Freyja.Effects.EctoFx
+    alias Freyja.Effects.Lift
+    alias Freyja.Effects.Throw
 
     # ============================================================================
     # Ecto Schemas
@@ -311,7 +313,9 @@ if Code.ensure_loaded?(Ecto) do
         outcome.result  # => {:error, {:email_taken, "alice@test.com"}}
     """
     def test_builder(computation, test_handler_state \\ EctoFx.TestHandler.new()) do
-      alias Freyja.Effects.{Lift, Throw, FxList}
+      alias Freyja.Effects.FxList
+      alias Freyja.Effects.Lift
+      alias Freyja.Effects.Throw
 
       computation
       |> EctoFx.TestHandler.run(test_handler_state)
@@ -336,7 +340,9 @@ if Code.ensure_loaded?(Ecto) do
         )
     """
     def prod_builder(computation, repo, query_registry \\ %{}) do
-      alias Freyja.Effects.{Lift, Throw, FxList}
+      alias Freyja.Effects.FxList
+      alias Freyja.Effects.Lift
+      alias Freyja.Effects.Throw
 
       computation
       |> EctoFx.Handler.run(repo, query_registry)

@@ -104,7 +104,7 @@ defmodule Freyja.Effects.TaggedWriter do
   Each tag's log list is in reverse chronological order (most recent first).
   """
   @spec peek_all :: Freer.t()
-  def peek_all(), do: %PeekAll{} |> Freer.send_effect()
+  def peek_all, do: %PeekAll{} |> Freer.send_effect()
 
   @doc """
   Execute a computation and capture all logs written during it.
@@ -170,13 +170,15 @@ defmodule Freyja.Effects.TaggedWriter.Handler do
   alias Freyja.Freer.Impure
   alias Freyja.Freer.Pure
   alias Freyja.Effects.TaggedWriter
-  alias Freyja.Effects.TaggedWriter.{TellTagged, PeekTagged, PeekAll}
+  alias Freyja.Effects.TaggedWriter.PeekAll
+  alias Freyja.Effects.TaggedWriter.PeekTagged
+  alias Freyja.Effects.TaggedWriter.TellTagged
   alias Freyja.Run.RunState
 
   @behaviour Freyja.Freer.EffectHandler
 
   @impl true
-  def default_initial_state(), do: %{}
+  def default_initial_state, do: %{}
 
   @impl true
   def handles?(%Impure{sig: sig, data: _data, q: _q}, _state) do

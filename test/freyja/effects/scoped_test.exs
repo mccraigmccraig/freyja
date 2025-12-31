@@ -6,10 +6,11 @@ defmodule Freyja.Effects.ScopedTest do
   use Freyja.Syntax
 
   alias Freyja.Effects.Coroutine
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.Throw
   alias Freyja.Effects.Writer
   alias Freyja.Run
-  alias Freyja.Effects.{Lift, Throw}
-  alias Freyja.Effects.Catch
 
   defmodule ScopedFx do
     defcon suspend_twice(a, b), [Coroutine, Writer] do

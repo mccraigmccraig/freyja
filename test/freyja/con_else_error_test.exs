@@ -1,10 +1,11 @@
 defmodule Freyja.ConElseErrorTest do
   use ExUnit.Case
 
+  alias Freyja.Effects.Catch
+  alias Freyja.Effects.Lift
+  alias Freyja.Effects.Throw
   alias Freyja.Effects.Writer
   alias Freyja.Run
-  alias Freyja.Effects.{Lift, Throw}
-  alias Freyja.Effects.Catch
 
   describe "hefty ... catch error handling" do
     test "matches a pattern and recovers" do

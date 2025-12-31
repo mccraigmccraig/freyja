@@ -3,7 +3,10 @@ defmodule Skuld.Effects.EffectLoggerTest do
 
   alias Skuld.Comp
   alias Skuld.Env
-  alias Skuld.Effects.{State, Reader, Throw, EffectLogger}
+  alias Skuld.Effects.EffectLogger
+  alias Skuld.Effects.Reader
+  alias Skuld.Effects.State
+  alias Skuld.Effects.Throw
 
   describe "logging simple effects" do
     test "logs State.get and State.put" do

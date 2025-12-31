@@ -3,7 +3,8 @@ defmodule Skuld.Effects.ThrowTest do
 
   alias Skuld.Comp
   alias Skuld.Env
-  alias Skuld.Effects.{State, Throw}
+  alias Skuld.Effects.State
+  alias Skuld.Effects.Throw
 
   describe "throw" do
     test "produces Throw result" do

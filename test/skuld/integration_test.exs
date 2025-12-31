@@ -8,7 +8,10 @@ defmodule Skuld.IntegrationTest do
 
   alias Skuld.Comp
   alias Skuld.Env
-  alias Skuld.Effects.{Reader, State, Throw, Yield}
+  alias Skuld.Effects.Reader
+  alias Skuld.Effects.State
+  alias Skuld.Effects.Throw
+  alias Skuld.Effects.Yield
 
   describe "State + Reader" do
     test "effects compose correctly" do

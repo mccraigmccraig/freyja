@@ -62,11 +62,42 @@ defmodule Skuld.Comp do
     fn env, k -> k.(value, env) end
   end
 
+  @doc """
+  Call a computation with validation.
+
+  Raises a helpful error if the value is not a valid computation (2-arity function).
+  This catches common mistakes like forgetting `return(value)` at the end of a comp block.
+  """
+  @spec call(computation(), env(), k()) :: {result(), env()}
+  def call(comp, env, k) when is_function(comp, 2) do
+    comp.(env, k)
+  end
+
+  def call(comp, _env, _k) do
+    raise ArgumentError, """
+    Expected a computation, got: #{inspect(comp)}
+
+    A computation must be a 2-arity function: fn env, k -> ... end
+
+    Common causes:
+    - Forgot `return(value)` at the end of a comp block
+    - Used a non-computation value in a `<-` binding
+
+    Example fix:
+      comp do
+        x <- State.get()
+        return(x + 1)  # <-- wrap final value with return
+      end
+    """
+  end
+
   @doc "Sequence computations"
   @spec bind(computation(), (term() -> computation())) :: computation()
   def bind(comp, f) do
     fn env, k ->
-      comp.(env, fn a, env2 -> f.(a).(env2, k) end)
+      call(comp, env, fn a, env2 ->
+        call(f.(a), env2, k)
+      end)
     end
   end
 
@@ -82,7 +113,7 @@ defmodule Skuld.Comp do
     env_with_leave_scope = Map.put_new(env, :leave_scope, fn r, e -> {r, e} end)
 
     {result, final_env} =
-      comp.(env_with_leave_scope, fn value, e ->
+      call(comp, env_with_leave_scope, fn value, e ->
         {value, e}
       end)
 
@@ -128,7 +159,11 @@ defmodule Skuld.Comp do
   @doc "Flatten nested computations"
   @spec flatten(computation()) :: computation()
   def flatten(comp) do
-    bind(comp, fn inner -> inner end)
+    fn env, k ->
+      call(comp, env, fn inner, env2 ->
+        call(inner, env2, k)
+      end)
+    end
   end
 
   @doc "Sequence a list of computations"
@@ -204,7 +239,7 @@ defmodule Skuld.Comp do
       end
 
       final_env = Env.with_leave_scope(modified_env, my_leave_scope)
-      comp.(final_env, restoring_k)
+      call(comp, final_env, restoring_k)
     end
   end
 end

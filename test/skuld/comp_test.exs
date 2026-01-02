@@ -312,4 +312,153 @@ defmodule Skuld.CompTest do
       assert {:caught_handler_error, "handler error"} = result
     end
   end
+
+  describe "handle/3 scoped handlers" do
+    alias Skuld.Effects.State
+
+    # Helper to create a state-scoping setup function
+    defp state_scope(initial) do
+      fn env ->
+        previous = Env.get_state(env, State)
+        modified = Env.put_state(env, State, initial)
+        restore = fn e -> Env.put_state(e, State, previous) end
+        {modified, restore}
+      end
+    end
+
+    test "installs handler for scope duration" do
+      # No handler in outer env
+      env = Env.new()
+
+      # Inner comp uses scoped State handler
+      inner =
+        Comp.handle(State, &State.handle/3, Comp.scoped(state_scope(42), State.get()))
+
+      {result, _env} = Comp.run(inner, env)
+
+      assert result == 42
+    end
+
+    test "handler is removed after scope exits" do
+      env = Env.new()
+
+      comp =
+        Comp.bind(
+          Comp.handle(State, &State.handle/3, Comp.scoped(state_scope(10), State.get())),
+          fn inner_result ->
+            # After handle scope, State handler should be gone
+            # Trying to use State.get() here would fail
+            Comp.pure({:inner, inner_result})
+          end
+        )
+
+      {result, final_env} = Comp.run(comp, env)
+
+      assert {:inner, 10} = result
+      # Handler should be removed
+      assert Env.get_handler(final_env, State) == nil
+    end
+
+    test "shadows outer handler and restores it" do
+      # Outer State handler with initial state 100
+      env = Env.new() |> State.handler(100)
+
+      comp =
+        Comp.bind(State.get(), fn outer_before ->
+          Comp.bind(
+            # Inner scope with its own State, initial 0
+            Comp.handle(
+              State,
+              &State.handle/3,
+              Comp.scoped(
+                state_scope(0),
+                Comp.bind(State.get(), fn inner_val ->
+                  Comp.bind(State.put(inner_val + 1), fn _ ->
+                    State.get()
+                  end)
+                end)
+              )
+            ),
+            fn inner_result ->
+              Comp.bind(State.get(), fn outer_after ->
+                Comp.pure({outer_before, inner_result, outer_after})
+              end)
+            end
+          )
+        end)
+
+      {result, _env} = Comp.run(comp, env)
+
+      # outer_before: 100, inner did 0 -> 1, outer_after: still 100
+      assert {100, 1, 100} = result
+    end
+
+    test "nested scoped handlers work correctly" do
+      env = Env.new()
+
+      comp =
+        Comp.handle(
+          State,
+          &State.handle/3,
+          Comp.scoped(
+            state_scope(1),
+            Comp.bind(State.get(), fn level1 ->
+              Comp.bind(
+                Comp.handle(State, &State.handle/3, Comp.scoped(state_scope(2), State.get())),
+                fn level2 ->
+                  Comp.bind(State.get(), fn level1_after ->
+                    Comp.pure({level1, level2, level1_after})
+                  end)
+                end
+              )
+            end)
+          )
+        )
+
+      {result, _env} = Comp.run(comp, env)
+
+      # level1: 1, level2: 2, level1_after: still 1
+      assert {1, 2, 1} = result
+    end
+
+    test "scoped handler cleanup on throw" do
+      alias Skuld.Effects.Throw
+
+      env = Env.new() |> State.handler(100) |> Throw.handler()
+
+      comp =
+        Throw.catch_error(
+          Comp.bind(State.get(), fn _outer_before ->
+            Comp.bind(
+              Comp.handle(
+                State,
+                &State.handle/3,
+                Comp.scoped(
+                  state_scope(0),
+                  Comp.bind(State.put(42), fn _ ->
+                    # Throw from inside scoped handler
+                    Throw.throw(:inner_error)
+                  end)
+                )
+              ),
+              fn _ ->
+                # Never reached
+                Comp.pure(:unreachable)
+              end
+            )
+          end),
+          fn _error ->
+            # After throw, outer State should be restored
+            Comp.bind(State.get(), fn outer_after ->
+              Comp.pure({:caught, outer_after})
+            end)
+          end
+        )
+
+      {result, _env} = Comp.run(comp, env)
+
+      # Outer state (100) should be preserved despite inner throw
+      assert {:caught, 100} = result
+    end
+  end
 end

@@ -288,4 +288,52 @@ defmodule Skuld.Comp do
       call(comp, final_env, restoring_k)
     end
   end
+
+  @doc """
+  Install a scoped handler for an effect.
+
+  The handler is installed for the duration of `comp` and then restored
+  to its previous state (or removed if there was no previous handler).
+
+  This allows "shadowing" handlers - an inner computation can have its
+  own handler for an effect while an outer handler exists.
+
+  ## Example
+
+      # Create a computation with its own State handler
+      inner = Comp.handle(State, &State.handle/3,
+        comp do
+          x <- State.get()
+          _ <- State.put(x + 1)
+          return(x)
+        end
+      )
+
+      # Use it - inner State is independent of outer State
+      outer = comp do
+        _ <- State.put(100)
+        result <- inner        # uses inner's handler
+        y <- State.get()       # uses outer's handler, still 100
+        return({result, y})
+      end
+  """
+  @spec handle(sig(), handler(), computation()) :: computation()
+  def handle(sig, handler, comp) do
+    scoped(
+      fn env ->
+        previous = Env.get_handler(env, sig)
+        modified_env = Env.with_handler(env, sig, handler)
+
+        restore = fn e ->
+          case previous do
+            nil -> Env.delete_handler(e, sig)
+            h -> Env.with_handler(e, sig, h)
+          end
+        end
+
+        {modified_env, restore}
+      end,
+      comp
+    )
+  end
 end

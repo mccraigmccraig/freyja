@@ -49,6 +49,12 @@ defmodule Skuld.Env do
     env.evidence[sig]
   end
 
+  @doc "Remove a handler for an effect signature"
+  @spec delete_handler(Skuld.Comp.env(), Skuld.Comp.sig()) :: Skuld.Comp.env()
+  def delete_handler(env, sig) do
+    %{env | evidence: Map.delete(env.evidence, sig)}
+  end
+
   @doc "Update state for an effect"
   @spec put_state(Skuld.Comp.env(), term(), term()) :: Skuld.Comp.env()
   def put_state(env, key, value) do

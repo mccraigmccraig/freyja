@@ -77,9 +77,9 @@ defmodule Skuld.Effects.Throw do
             # CAUGHT! Restore previous leave_scope and run recovery
             restored_env = Env.with_leave_scope(inner_env, previous_leave_scope)
 
-            # Run recovery computation - it returns {result, env}
+            # Run recovery computation through Comp.call so exceptions are caught
             {recovery_result, recovery_env} =
-              error_handler.(error).(restored_env, fn v, e -> {v, e} end)
+              Comp.call(error_handler.(error), restored_env, fn v, e -> {v, e} end)
 
             case recovery_result do
               %Comp.Throw{} = rethrown ->
@@ -100,7 +100,9 @@ defmodule Skuld.Effects.Throw do
       end
 
       modified_env = Env.with_leave_scope(env, catch_leave_scope)
-      comp.(modified_env, outer_k)
+      # Use Comp.call so exceptions in comp are caught with the correct env
+      # (which has catch_leave_scope installed)
+      Comp.call(comp, modified_env, outer_k)
     end
   end
 

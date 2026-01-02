@@ -118,7 +118,7 @@ defmodule Skuld.Effects.EffectLogger do
       end
 
       # Call original handler with logging k
-      {result, result_env} = original_handler.(args, env, logging_k)
+      {result, result_env} = Comp.call_handler(original_handler, args, env, logging_k)
 
       # Clean up flag
       was_logged = Process.delete(flag_key)
@@ -398,7 +398,7 @@ defmodule Skuld.Effects.EffectLogger do
 
   defp handle_missing(:execute, _sig, args, env, k, handler) do
     # Fall through to real handler
-    handler.(args, env, k)
+    Comp.call_handler(handler, args, env, k)
   end
 
   defp clean_replay_state({result, env}) do

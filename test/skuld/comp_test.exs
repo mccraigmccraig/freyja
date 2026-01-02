@@ -67,33 +67,40 @@ defmodule Skuld.CompTest do
   end
 
   describe "call/3 validation" do
+    alias Comp.InvalidComputation
+
     test "raises helpful error when given a plain value instead of computation" do
       error =
-        assert_raise ArgumentError, fn ->
+        assert_raise InvalidComputation, fn ->
           Comp.call(42, Env.new(), fn v, e -> {v, e} end)
         end
 
       assert error.message =~ "Expected a computation, got: 42"
       assert error.message =~ "Forgot `return(value)` at the end of a comp block"
+      assert error.value == 42
     end
 
     test "raises helpful error when given nil" do
       error =
-        assert_raise ArgumentError, fn ->
+        assert_raise InvalidComputation, fn ->
           Comp.call(nil, Env.new(), fn v, e -> {v, e} end)
         end
 
       assert error.message =~ "Expected a computation, got: nil"
+      assert error.value == nil
     end
 
     test "raises helpful error when given a 1-arity function" do
+      bad_fn = fn _x -> :oops end
+
       error =
-        assert_raise ArgumentError, fn ->
-          Comp.call(fn _x -> :oops end, Env.new(), fn v, e -> {v, e} end)
+        assert_raise InvalidComputation, fn ->
+          Comp.call(bad_fn, Env.new(), fn v, e -> {v, e} end)
         end
 
       assert error.message =~ "Expected a computation"
       assert error.message =~ "must be a 2-arity function"
+      assert error.value == bad_fn
     end
 
     test "bind raises when inner computation returns non-computation" do
@@ -101,7 +108,7 @@ defmodule Skuld.CompTest do
       comp = Comp.bind(Comp.pure(1), fn _a -> :not_a_computation end)
 
       error =
-        assert_raise ArgumentError, fn ->
+        assert_raise InvalidComputation, fn ->
           Comp.run(comp, Env.new())
         end
 
@@ -111,7 +118,7 @@ defmodule Skuld.CompTest do
 
     test "run raises when given non-computation" do
       error =
-        assert_raise ArgumentError, fn ->
+        assert_raise InvalidComputation, fn ->
           Comp.run(:not_a_computation, Env.new())
         end
 
@@ -125,11 +132,184 @@ defmodule Skuld.CompTest do
       comp = Comp.flatten(nested)
 
       error =
-        assert_raise ArgumentError, fn ->
+        assert_raise InvalidComputation, fn ->
           Comp.run(comp, Env.new())
         end
 
       assert error.message =~ "Expected a computation, got: :not_a_computation"
+    end
+  end
+
+  describe "exception handling" do
+    alias Skuld.Comp.Throw, as: ThrowStruct
+    alias Skuld.Effects.Throw
+
+    test "raise is converted to Throw with kind: :error" do
+      comp = fn _env, _k -> raise "boom" end
+
+      {result, _env} = Comp.run(comp, Env.new())
+
+      assert %ThrowStruct{error: error} = result
+      assert error.kind == :error
+      assert %RuntimeError{message: "boom"} = error.payload
+      assert is_list(error.stacktrace)
+    end
+
+    test "Elixir throw is converted to Throw with kind: :throw" do
+      comp = fn _env, _k -> throw(:some_value) end
+
+      {result, _env} = Comp.run(comp, Env.new())
+
+      assert %ThrowStruct{error: error} = result
+      assert error.kind == :throw
+      assert error.payload == :some_value
+      assert is_list(error.stacktrace)
+    end
+
+    test "exit is converted to Throw with kind: :exit" do
+      comp = fn _env, _k -> exit(:shutdown) end
+
+      {result, _env} = Comp.run(comp, Env.new())
+
+      assert %ThrowStruct{error: error} = result
+      assert error.kind == :exit
+      assert error.payload == :shutdown
+      assert is_list(error.stacktrace)
+    end
+
+    test "exception in bind is converted to Throw" do
+      comp =
+        Comp.bind(Comp.pure(1), fn _x ->
+          fn _env, _k -> raise "in bind" end
+        end)
+
+      {result, _env} = Comp.run(comp, Env.new())
+
+      assert %ThrowStruct{error: error} = result
+      assert error.kind == :error
+      assert %RuntimeError{message: "in bind"} = error.payload
+    end
+
+    test "exception can be caught with catch_error" do
+      comp =
+        Throw.catch_error(
+          fn _env, _k -> raise "caught me" end,
+          fn error ->
+            Comp.pure({:caught, error.kind, error.payload.message})
+          end
+        )
+
+      env = Throw.handler(Env.new())
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:caught, :error, "caught me"} = result
+    end
+
+    test "Elixir throw can be caught with catch_error" do
+      comp =
+        Throw.catch_error(
+          fn _env, _k -> throw(:thrown_value) end,
+          fn error ->
+            Comp.pure({:caught, error.kind, error.payload})
+          end
+        )
+
+      env = Throw.handler(Env.new())
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:caught, :throw, :thrown_value} = result
+    end
+
+    test "nested exceptions - inner caught, outer continues" do
+      inner =
+        Throw.catch_error(
+          fn _env, _k -> raise "inner error" end,
+          fn _error -> Comp.pure(:recovered) end
+        )
+
+      comp = Comp.bind(inner, fn value -> Comp.pure({:continued, value}) end)
+
+      env = Throw.handler(Env.new())
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:continued, :recovered} = result
+    end
+
+    test "exception after recovery propagates" do
+      comp =
+        Throw.catch_error(
+          Throw.catch_error(
+            fn _env, _k -> raise "first" end,
+            fn _error ->
+              # Recovery raises another exception
+              fn _env, _k -> raise "in recovery" end
+            end
+          ),
+          fn error ->
+            Comp.pure({:outer_caught, error.payload.message})
+          end
+        )
+
+      env = Throw.handler(Env.new())
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:outer_caught, "in recovery"} = result
+    end
+
+    test "stacktrace is captured" do
+      comp = fn _env, _k ->
+        raise "with stacktrace"
+      end
+
+      {result, _env} = Comp.run(comp, Env.new())
+
+      assert %ThrowStruct{error: error} = result
+      assert is_list(error.stacktrace)
+      assert length(error.stacktrace) > 0
+      # Stacktrace entries are tuples {module, function, arity_or_args, location}
+      assert Enum.all?(error.stacktrace, &is_tuple/1)
+    end
+
+    test "exception in effect handler is converted to Throw" do
+      # Create a handler that raises
+      raising_handler = fn _args, _env, _k ->
+        raise "handler exploded"
+      end
+
+      env =
+        Env.new()
+        |> Env.with_handler(:test_effect, raising_handler)
+        |> Throw.handler()
+
+      # Use Comp.effect to invoke the handler
+      comp = Comp.effect(:test_effect, :some_args)
+
+      {result, _env} = Comp.run(comp, env)
+
+      assert %ThrowStruct{error: error} = result
+      assert error.kind == :error
+      assert %RuntimeError{message: "handler exploded"} = error.payload
+    end
+
+    test "exception in effect handler can be caught" do
+      raising_handler = fn _args, _env, _k ->
+        raise "handler error"
+      end
+
+      env =
+        Env.new()
+        |> Env.with_handler(:test_effect, raising_handler)
+        |> Throw.handler()
+
+      comp =
+        Throw.catch_error(
+          Comp.effect(:test_effect, :args),
+          fn error -> Comp.pure({:caught_handler_error, error.payload.message}) end
+        )
+
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:caught_handler_error, "handler error"} = result
     end
   end
 end

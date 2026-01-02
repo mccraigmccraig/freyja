@@ -203,9 +203,12 @@ defmodule Skuld.Effects.EffectLoggerTest do
           Comp.pure(:done)
         end)
 
-      assert_raise RuntimeError, ~r/Replay divergence/, fn ->
-        EffectLogger.replay(comp2, env, log)
-      end
+      # Divergence raises RuntimeError which is converted to a Throw
+      {result, _env} = EffectLogger.replay(comp2, env, log)
+      assert %Skuld.Comp.Throw{error: error} = result
+      assert error.kind == :error
+      assert %RuntimeError{message: msg} = error.payload
+      assert msg =~ "Replay divergence"
     end
 
     test "replay with :execute falls through on missing" do

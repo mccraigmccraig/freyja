@@ -20,6 +20,16 @@ defmodule Skuld.Comp do
   that can clean up env or redirect control flow.
   """
 
+  defmodule InvalidComputation do
+    @moduledoc """
+    Raised when a non-computation value is used where a computation is expected.
+
+    This typically indicates a programming bug such as forgetting `return(value)`
+    at the end of a comp block.
+    """
+    defexception [:message, :value]
+  end
+
   # Sentinel protocol and types are in their own files:
   # - Skuld.Comp.ISentinel (protocol)
   # - Skuld.Comp.Suspend (bypasses leave-scope)
@@ -63,32 +73,49 @@ defmodule Skuld.Comp do
   end
 
   @doc """
-  Call a computation with validation.
+  Call a computation with validation and exception handling.
 
   Raises a helpful error if the value is not a valid computation (2-arity function).
   This catches common mistakes like forgetting `return(value)` at the end of a comp block.
+
+  Elixir exceptions (raise/throw/exit) are caught and converted to Throw effects,
+  allowing them to be handled uniformly with effect-based errors via `catch_error`.
+
+  Note: `InvalidComputation` errors (validation failures) are re-raised rather than
+  converted to Throws, since they represent programming bugs that should fail fast.
   """
   @spec call(computation(), env(), k()) :: {result(), env()}
   def call(comp, env, k) when is_function(comp, 2) do
     comp.(env, k)
+  catch
+    :error, %__MODULE__.InvalidComputation{} = e ->
+      # Re-raise validation errors - these are programming bugs, not runtime errors
+      reraise e, __STACKTRACE__
+
+    kind, payload ->
+      error = %{kind: kind, payload: payload, stacktrace: __STACKTRACE__}
+      leave_scope = Map.get(env, :leave_scope, fn r, e -> {r, e} end)
+      leave_scope.(%Skuld.Comp.Throw{error: error}, env)
   end
 
   def call(comp, _env, _k) do
-    raise ArgumentError, """
-    Expected a computation, got: #{inspect(comp)}
+    raise __MODULE__.InvalidComputation,
+      value: comp,
+      message: """
+      Expected a computation, got: #{inspect(comp)}
 
-    A computation must be a 2-arity function: fn env, k -> ... end
+      A computation must be a 2-arity function: fn env, k -> ... end
 
-    Common causes:
-    - Forgot `return(value)` at the end of a comp block
-    - Used a non-computation value in a `<-` binding
+      Common causes:
+      - Forgot `return(value)` at the end of a comp block
+      - Used a non-computation value in a `<-` binding
 
-    Example fix:
-      comp do
-        x <- State.get()
-        return(x + 1)  # <-- wrap final value with return
-      end
-    """
+      Example fix:
+        comp do
+          x <- State.get()
+          return(x + 1)  # <-- wrap final value with return
+        end
+      """
   end
 
   @doc "Sequence computations"
@@ -131,12 +158,31 @@ defmodule Skuld.Comp do
   ## Effect Invocation
   #############################################################################
 
+  @doc """
+  Call an effect handler with exception handling.
+
+  Similar to `call/3` but for 3-arity handlers. Exceptions in handler code
+  are caught and converted to Throw effects.
+  """
+  @spec call_handler(handler(), term(), env(), k()) :: {result(), env()}
+  def call_handler(handler, args, env, k) when is_function(handler, 3) do
+    handler.(args, env, k)
+  catch
+    :error, %__MODULE__.InvalidComputation{} = e ->
+      reraise e, __STACKTRACE__
+
+    kind, payload ->
+      error = %{kind: kind, payload: payload, stacktrace: __STACKTRACE__}
+      leave_scope = Map.get(env, :leave_scope, fn r, e -> {r, e} end)
+      leave_scope.(%Skuld.Comp.Throw{error: error}, env)
+  end
+
   @doc "Invoke an effect operation"
   @spec effect(sig(), term()) :: computation()
   def effect(sig, args \\ nil) do
     fn env, k ->
       handler = Env.get_handler!(env, sig)
-      handler.(args, env, k)
+      call_handler(handler, args, env, k)
     end
   end
 

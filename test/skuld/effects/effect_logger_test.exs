@@ -4,6 +4,8 @@ defmodule Skuld.Effects.EffectLoggerTest do
   alias Skuld.Comp
   alias Skuld.Env
   alias Skuld.Effects.EffectLogger
+  alias Skuld.Effects.EffectLogger.LogEntry.Completed
+  alias Skuld.Effects.EffectLogger.LogEntry.Thrown
   alias Skuld.Effects.Reader
   alias Skuld.Effects.State
   alias Skuld.Effects.Throw
@@ -27,17 +29,9 @@ defmodule Skuld.Effects.EffectLoggerTest do
       assert length(log) == 3
 
       [get1, put1, get2] = log
-      assert get1.effect == State
-      assert get1.args == %State.Get{}
-      assert get1.result == 0
-
-      assert put1.effect == State
-      assert put1.args == %State.Put{value: 1}
-      assert put1.result == :ok
-
-      assert get2.effect == State
-      assert get2.args == %State.Get{}
-      assert get2.result == 1
+      assert %Completed{effect: State, args: %State.Get{}, result: 0} = get1
+      assert %Completed{effect: State, args: %State.Put{value: 1}, result: :ok} = put1
+      assert %Completed{effect: State, args: %State.Get{}, result: 1} = get2
     end
 
     test "logs Reader.ask" do
@@ -51,9 +45,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
       assert length(log) == 1
 
       [ask_entry] = log
-      assert ask_entry.effect == Reader
-      assert ask_entry.args == %Reader.Ask{}
-      assert ask_entry.result == %{name: "test"}
+      assert %Completed{effect: Reader, args: %Reader.Ask{}, result: %{name: "test"}} = ask_entry
     end
 
     test "logs multiple effects" do
@@ -114,9 +106,12 @@ defmodule Skuld.Effects.EffectLoggerTest do
       assert length(log) == 1
 
       [throw_entry] = log
-      assert throw_entry.effect == Throw
-      assert throw_entry.args == %Throw.ThrowOp{error: :my_error}
-      assert throw_entry.error == :my_error
+
+      assert %Thrown{
+               effect: Throw,
+               args: %Throw.ThrowOp{error: :my_error},
+               error: :my_error
+             } = throw_entry
     end
 
     test "logs effects before throw" do
@@ -269,18 +264,23 @@ defmodule Skuld.Effects.EffectLoggerTest do
   end
 
   describe "log format" do
-    test "log entries have expected fields" do
+    test "log entries are Completed structs with expected fields" do
       env = Env.new() |> State.handler(42)
 
       comp = State.get()
 
       {_outcome, [entry]} = EffectLogger.with_logging(comp, env)
 
-      assert Map.has_key?(entry, :id)
-      assert Map.has_key?(entry, :effect)
-      assert Map.has_key?(entry, :args)
-      assert Map.has_key?(entry, :result)
-      assert Map.has_key?(entry, :timestamp)
+      assert %Completed{
+               id: id,
+               effect: State,
+               args: %State.Get{},
+               result: 42,
+               timestamp: timestamp
+             } = entry
+
+      assert id != nil
+      assert %DateTime{} = timestamp
     end
 
     test "custom timestamp function" do

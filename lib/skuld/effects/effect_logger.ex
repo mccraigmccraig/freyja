@@ -13,29 +13,31 @@ defmodule Skuld.Effects.EffectLogger do
   Installs "replay" handlers that return logged responses instead of
   executing real effects. Pure computation segments run normally.
 
-  ## Log Format
+  ## Log Entry Types
 
-  Each log entry is a map:
+  All entries are structs from `Skuld.Effects.EffectLogger.LogEntry`:
 
-      %{
-        id: unique_id,
-        effect: Skuld.Effects.State,
-        args: %State.Get{},
-        result: 42,
-        timestamp: ~U[2024-01-01 00:00:00Z]
-      }
+  - `Completed` - Simple effect completed synchronously
+  - `Thrown` - Effect threw an error
+  - `Started` - Suspending effect began (for Yield, etc.)
+  - `Suspended` - Effect yielded a value
+  - `Resumed` - Suspended effect was resumed with input
+  - `Finished` - Suspending effect completed after resume(s)
 
-  For effects that suspend (Yield), additional entries track the lifecycle:
-
-      %{id: id, event: :started, effect: Skuld.Effects.Yield, args: %Yield.YieldOp{...}, timestamp: ...}
-      %{id: id, event: :suspended, yielded: value, timestamp: ...}
-      %{id: id, event: :resumed, input: value, timestamp: ...}
-      %{id: id, event: :completed, result: value, timestamp: ...}
+  See `Skuld.Effects.EffectLogger.LogEntry` for full documentation.
   """
 
   alias Skuld.Comp
   alias Skuld.Comp.ISentinel
   alias Skuld.Env
+
+  alias __MODULE__.LogEntry
+  alias LogEntry.Completed
+  alias LogEntry.Finished
+  alias LogEntry.Resumed
+  alias LogEntry.Started
+  alias LogEntry.Suspended
+  alias LogEntry.Thrown
 
   @log_key {__MODULE__, :log}
   @replay_key {__MODULE__, :replay}
@@ -57,7 +59,7 @@ defmodule Skuld.Effects.EffectLogger do
   - `:id_fn` - function to generate unique IDs (default: `make_ref/0`)
   """
   @spec with_logging(Comp.computation(), Comp.env(), keyword()) ::
-          {{term(), Comp.env()}, [map()]}
+          {{term(), Comp.env()}, [LogEntry.t()]}
   def with_logging(comp, env, opts \\ []) do
     effects_to_log = Keyword.get(opts, :effects, Map.keys(env.evidence))
     timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
@@ -104,7 +106,7 @@ defmodule Skuld.Effects.EffectLogger do
         Process.put(flag_key, true)
 
         # Log the effect completion BEFORE continuing
-        entry = %{
+        entry = %Completed{
           id: log_id,
           effect: sig,
           args: args,
@@ -133,26 +135,35 @@ defmodule Skuld.Effects.EffectLogger do
               {result, result_env}
             else
               # This handler produced the sentinel - log it
-              entry =
-                %{id: log_id, effect: sig, args: args, timestamp: started_at}
-                |> Map.merge(ISentinel.serializable_payload(result))
+              %{error: error} = ISentinel.serializable_payload(result)
+
+              entry = %Thrown{
+                id: log_id,
+                effect: sig,
+                args: args,
+                error: error,
+                timestamp: started_at
+              }
 
               {result, append_log(result_env, entry)}
             end
 
           inner_resume ->
             # Resumable sentinel (Suspend, etc.) - log lifecycle
-            start_entry = %{
+            start_entry = %Started{
               id: log_id,
-              event: :started,
               effect: sig,
               args: args,
               timestamp: started_at
             }
 
-            suspend_entry =
-              %{id: log_id, event: :suspended, timestamp: timestamp_fn.()}
-              |> Map.merge(ISentinel.serializable_payload(result))
+            %{yielded: yielded} = ISentinel.serializable_payload(result)
+
+            suspend_entry = %Suspended{
+              id: log_id,
+              yielded: yielded,
+              timestamp: timestamp_fn.()
+            }
 
             logged_env =
               result_env
@@ -175,9 +186,8 @@ defmodule Skuld.Effects.EffectLogger do
   # Create a logged resume function that wraps the original
   defp make_logged_resume(inner_resume, log_id, timestamp_fn) do
     fn input ->
-      resume_entry = %{
+      resume_entry = %Resumed{
         id: log_id,
-        event: :resumed,
         input: input,
         timestamp: timestamp_fn.()
       }
@@ -196,9 +206,13 @@ defmodule Skuld.Effects.EffectLogger do
 
           r ->
             # Re-suspended - log and wrap the new resume
-            re_suspend_entry =
-              %{id: log_id, event: :suspended, timestamp: timestamp_fn.()}
-              |> Map.merge(ISentinel.serializable_payload(res_result))
+            %{yielded: yielded} = ISentinel.serializable_payload(res_result)
+
+            re_suspend_entry = %Suspended{
+              id: log_id,
+              yielded: yielded,
+              timestamp: timestamp_fn.()
+            }
 
             logged_r = make_logged_resume(r, log_id, timestamp_fn)
             new_sentinel = ISentinel.with_resume(res_result, logged_r)
@@ -207,9 +221,8 @@ defmodule Skuld.Effects.EffectLogger do
         end
       else
         # Normal completion - log it
-        complete_entry = %{
+        complete_entry = %Finished{
           id: log_id,
-          event: :completed,
           result: res_result,
           timestamp: timestamp_fn.()
         }
@@ -251,7 +264,7 @@ defmodule Skuld.Effects.EffectLogger do
     - `:error` (default) - raise an error
     - `:execute` - fall through to real handler
   """
-  @spec replay(Comp.computation(), Comp.env(), [map()], keyword()) :: {term(), Comp.env()}
+  @spec replay(Comp.computation(), Comp.env(), [LogEntry.t()], keyword()) :: {term(), Comp.env()}
   def replay(comp, env, log, opts \\ []) do
     on_missing = Keyword.get(opts, :on_missing, :error)
 
@@ -287,15 +300,15 @@ defmodule Skuld.Effects.EffectLogger do
             env_updated = Env.put_state(env, @replay_key, rest_queue)
 
             case entry do
-              %{result: result} ->
+              %Completed{result: result} ->
                 # Simple effect - return logged result
                 k.(result, env_updated)
 
-              %{event: :started} ->
+              %Started{} ->
                 # Suspending effect - need to handle the full lifecycle
                 replay_suspending_effect(entry, env_updated, k)
 
-              %{error: error} ->
+              %Thrown{error: error} ->
                 # Effect threw - return Throw sentinel
                 {%Comp.Throw{error: error}, env_updated}
             end
@@ -311,18 +324,21 @@ defmodule Skuld.Effects.EffectLogger do
     end
   end
 
-  defp matches_effect?(%{effect: effect, args: logged_args}, sig, args) do
+  defp matches_effect?(%Completed{effect: effect, args: logged_args}, sig, args) do
     effect == sig && logged_args == args
   end
 
-  defp matches_effect?(%{effect: effect}, sig, _args) do
-    # For lifecycle events, just check effect signature
-    effect == sig
+  defp matches_effect?(%Thrown{effect: effect, args: logged_args}, sig, args) do
+    effect == sig && logged_args == args
+  end
+
+  defp matches_effect?(%Started{effect: effect, args: logged_args}, sig, args) do
+    effect == sig && logged_args == args
   end
 
   defp matches_effect?(_, _, _), do: false
 
-  defp replay_suspending_effect(%{id: log_id}, env, k) do
+  defp replay_suspending_effect(%Started{id: log_id}, env, k) do
     # Find the corresponding suspended/resumed/completed entries
     log_queue = Env.get_state(env, @replay_key)
 
@@ -346,13 +362,13 @@ defmodule Skuld.Effects.EffectLogger do
 
   defp consume_until_completion(queue, log_id) do
     case :queue.out(queue) do
-      {{:value, %{id: ^log_id, event: :completed, result: result}}, rest} ->
+      {{:value, %Finished{id: ^log_id, result: result}}, rest} ->
         {:completed, result, rest}
 
-      {{:value, %{id: ^log_id, event: :suspended}}, rest} ->
+      {{:value, %Suspended{id: ^log_id}}, rest} ->
         # Look for the resume
         case :queue.out(rest) do
-          {{:value, %{id: ^log_id, event: :resumed, input: input}}, rest2} ->
+          {{:value, %Resumed{id: ^log_id, input: input}}, rest2} ->
             # Check what happens after resume
             consume_until_completion_after_resume(rest2, log_id, input)
 
@@ -361,7 +377,7 @@ defmodule Skuld.Effects.EffectLogger do
             {:suspended, nil, nil, rest}
         end
 
-      {{:value, %{id: ^log_id, event: :thrown, error: error}}, rest} ->
+      {{:value, %Thrown{id: ^log_id, error: error}}, rest} ->
         {:thrown, error, rest}
 
       {{:value, _other}, rest} ->
@@ -376,11 +392,11 @@ defmodule Skuld.Effects.EffectLogger do
 
   defp consume_until_completion_after_resume(queue, log_id, input) do
     case :queue.out(queue) do
-      {{:value, %{id: ^log_id, event: :completed, result: _result}}, rest} ->
+      {{:value, %Finished{id: ^log_id}}, rest} ->
         # Completed after resume - return the input that was used
         {:suspended, nil, input, rest}
 
-      {{:value, %{id: ^log_id, event: :suspended}}, _rest} ->
+      {{:value, %Suspended{id: ^log_id}}, _rest} ->
         # Re-suspended - continue looking
         consume_until_completion(queue, log_id)
 

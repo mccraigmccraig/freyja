@@ -69,9 +69,9 @@ defmodule Skuld.Effects.StateTest do
     end
   end
 
-  describe "handle/2" do
+  describe "with_handler/2" do
     test "installs handler and state for computation" do
-      # No handler in env - State.handle provides everything
+      # No handler in env - State.with_handler provides everything
       env = Env.new()
 
       comp =
@@ -80,7 +80,7 @@ defmodule Skuld.Effects.StateTest do
             State.get()
           end)
         end)
-        |> State.handle(42)
+        |> State.with_handler(42)
 
       {result, _env} = Comp.run(comp, env)
       assert result == 43
@@ -97,7 +97,7 @@ defmodule Skuld.Effects.StateTest do
                 State.get()
               end)
             end)
-            |> State.handle(0)
+            |> State.with_handler(0)
 
           Comp.bind(inner_comp, fn inner_result ->
             Comp.bind(State.get(), fn outer_after ->
@@ -117,7 +117,7 @@ defmodule Skuld.Effects.StateTest do
 
       comp =
         Comp.bind(State.get(), fn level1 ->
-          inner = State.get() |> State.handle(2)
+          inner = State.get() |> State.with_handler(2)
 
           Comp.bind(inner, fn level2 ->
             Comp.bind(State.get(), fn level1_after ->
@@ -125,7 +125,7 @@ defmodule Skuld.Effects.StateTest do
             end)
           end)
         end)
-        |> State.handle(1)
+        |> State.with_handler(1)
 
       {result, _env} = Comp.run(comp, env)
 
@@ -143,7 +143,7 @@ defmodule Skuld.Effects.StateTest do
             Comp.bind(State.put(42), fn _ ->
               Throw.throw(:inner_error)
             end)
-            |> State.handle(0),
+            |> State.with_handler(0),
             fn _ -> Comp.pure(:unreachable) end
           ),
           fn _error ->
@@ -164,7 +164,7 @@ defmodule Skuld.Effects.StateTest do
 
       comp =
         Comp.bind(
-          State.get() |> State.handle(10),
+          State.get() |> State.with_handler(10),
           fn inner_result ->
             Comp.pure({:done, inner_result})
           end
@@ -188,8 +188,8 @@ defmodule Skuld.Effects.StateTest do
             Comp.pure({s, r})
           end)
         end)
-        |> Skuld.Effects.Reader.handle(:config)
-        |> State.handle(42)
+        |> Skuld.Effects.Reader.with_handler(:config)
+        |> State.with_handler(42)
 
       {result, _env} = Comp.run(comp, env)
 

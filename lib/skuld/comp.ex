@@ -315,7 +315,7 @@ defmodule Skuld.Comp do
           _ <- State.put(x + 1)
           return(x)
         end
-        |> Comp.handle(State, &State.handle/3)
+        |> Comp.with_handler(State, &State.handle/3)
 
       # Use it - inner State is independent of outer State
       outer = comp do
@@ -325,8 +325,8 @@ defmodule Skuld.Comp do
         return({result, y})
       end
   """
-  @spec handle(computation(), sig(), handler()) :: computation()
-  def handle(comp, sig, handler) do
+  @spec with_handler(computation(), sig(), handler()) :: computation()
+  def with_handler(comp, sig, handler) do
     scoped(
       comp,
       fn env ->

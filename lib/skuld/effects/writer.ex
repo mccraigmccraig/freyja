@@ -143,11 +143,60 @@ defmodule Skuld.Effects.Writer do
   end
 
   #############################################################################
-  ## Handler
+  ## Handler Installation
   #############################################################################
 
   @doc """
-  Install the Writer handler into an environment.
+  Install a scoped Writer handler for a computation.
+
+  Installs the Writer handler and initializes the log for the duration of `comp`.
+  Both the handler and log state are restored/removed when `comp` completes or throws.
+
+  The argument order is pipe-friendly.
+
+  ## Example
+
+      # Wrap a computation with its own Writer log
+      comp_with_writer =
+        comp do
+          _ <- Writer.tell("step 1")
+          _ <- Writer.tell("step 2")
+          return(:done)
+        end
+        |> Writer.with_handler()
+
+      # With initial log entries
+      comp_with_initial =
+        my_comp
+        |> Writer.with_handler(["existing entry"])
+
+      # Compose multiple handlers with pipes
+      my_comp
+      |> Writer.with_handler()
+      |> State.with_handler(0)
+      |> Comp.run(Env.new())
+  """
+  @spec with_handler(Comp.computation(), list()) :: Comp.computation()
+  def with_handler(comp, initial \\ []) do
+    comp
+    |> Comp.scoped(fn env ->
+      previous_log = Env.get_state(env, @state_key)
+      modified = Env.put_state(env, @state_key, initial)
+
+      restore = fn e ->
+        case previous_log do
+          nil -> %{e | state: Map.delete(e.state, @state_key)}
+          log -> Env.put_state(e, @state_key, log)
+        end
+      end
+
+      {modified, restore}
+    end)
+    |> Comp.with_handler(@sig, &__MODULE__.handle/3)
+  end
+
+  @doc """
+  Install the Writer handler into an environment (env-based, for top-level setup).
 
   ## Options
 

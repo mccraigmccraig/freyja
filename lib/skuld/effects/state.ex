@@ -75,24 +75,24 @@ defmodule Skuld.Effects.State do
           _ <- State.put(x + 1)
           return(x)
         end
-        |> State.handle(0)
+        |> State.with_handler(0)
 
       # Can be nested - inner State shadows outer
       outer_comp = comp do
         _ <- State.put(100)
-        inner_result <- State.get() |> State.handle(0)
+        inner_result <- State.get() |> State.with_handler(0)
         outer_val <- State.get()
         return({inner_result, outer_val})  # {0, 100}
       end
 
       # Compose multiple handlers with pipes
       my_comp
-      |> Reader.handle(:config)
-      |> State.handle(0)
+      |> Reader.with_handler(:config)
+      |> State.with_handler(0)
       |> Comp.run(Env.new())
   """
-  @spec handle(Comp.computation(), term()) :: Comp.computation()
-  def handle(comp, initial) do
+  @spec with_handler(Comp.computation(), term()) :: Comp.computation()
+  def with_handler(comp, initial) do
     comp
     |> Comp.scoped(fn env ->
       previous = Env.get_state(env, @sig)
@@ -107,7 +107,7 @@ defmodule Skuld.Effects.State do
 
       {modified, restore}
     end)
-    |> Comp.handle(@sig, &__MODULE__.handle/3)
+    |> Comp.with_handler(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Install the State handler with an initial value (env-based, for top-level setup)"

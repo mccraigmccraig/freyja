@@ -49,7 +49,36 @@ defmodule Skuld.Effects.Yield do
   #############################################################################
 
   @doc """
-  Install the default Yield handler.
+  Install a scoped Yield handler for a computation.
+
+  Installs the Yield handler for the duration of `comp`. The handler is
+  restored/removed when `comp` completes or suspends.
+
+  The argument order is pipe-friendly.
+
+  ## Example
+
+      # Wrap a computation with Yield handling
+      comp_with_yield =
+        comp do
+          input <- Yield.yield(:question)
+          return({:got, input})
+        end
+        |> Yield.with_handler()
+
+      # Compose with other handlers
+      my_comp
+      |> Yield.with_handler()
+      |> State.with_handler(0)
+      |> Comp.run(Env.new())
+  """
+  @spec with_handler(Comp.computation()) :: Comp.computation()
+  def with_handler(comp) do
+    Comp.with_handler(comp, @sig, &__MODULE__.handle/3)
+  end
+
+  @doc """
+  Install the default Yield handler (env-based, for top-level setup).
 
   The default handler suspends execution, returning `%Suspend{}` with
   a resume function that captures the env and invokes leave_scope on completion.

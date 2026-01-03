@@ -334,7 +334,7 @@ defmodule Skuld.CompTest do
       inner =
         State.get()
         |> Comp.scoped(state_scope(42))
-        |> Comp.handle(State, &State.handle/3)
+        |> Comp.with_handler(State, &State.handle/3)
 
       {result, _env} = Comp.run(inner, env)
 
@@ -348,7 +348,7 @@ defmodule Skuld.CompTest do
         Comp.bind(
           State.get()
           |> Comp.scoped(state_scope(10))
-          |> Comp.handle(State, &State.handle/3),
+          |> Comp.with_handler(State, &State.handle/3),
           fn inner_result ->
             # After handle scope, State handler should be gone
             # Trying to use State.get() here would fail
@@ -377,7 +377,7 @@ defmodule Skuld.CompTest do
               end)
             end)
             |> Comp.scoped(state_scope(0))
-            |> Comp.handle(State, &State.handle/3),
+            |> Comp.with_handler(State, &State.handle/3),
             fn inner_result ->
               Comp.bind(State.get(), fn outer_after ->
                 Comp.pure({outer_before, inner_result, outer_after})
@@ -400,7 +400,7 @@ defmodule Skuld.CompTest do
           Comp.bind(
             State.get()
             |> Comp.scoped(state_scope(2))
-            |> Comp.handle(State, &State.handle/3),
+            |> Comp.with_handler(State, &State.handle/3),
             fn level2 ->
               Comp.bind(State.get(), fn level1_after ->
                 Comp.pure({level1, level2, level1_after})
@@ -409,7 +409,7 @@ defmodule Skuld.CompTest do
           )
         end)
         |> Comp.scoped(state_scope(1))
-        |> Comp.handle(State, &State.handle/3)
+        |> Comp.with_handler(State, &State.handle/3)
 
       {result, _env} = Comp.run(comp, env)
 
@@ -431,7 +431,7 @@ defmodule Skuld.CompTest do
                 Throw.throw(:inner_error)
               end)
               |> Comp.scoped(state_scope(0))
-              |> Comp.handle(State, &State.handle/3),
+              |> Comp.with_handler(State, &State.handle/3),
               fn _ ->
                 # Never reached
                 Comp.pure(:unreachable)

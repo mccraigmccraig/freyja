@@ -134,7 +134,36 @@ defmodule Skuld.Effects.Throw do
   #############################################################################
 
   @doc """
-  Install the default Throw handler.
+  Install a scoped Throw handler for a computation.
+
+  Installs the Throw handler for the duration of `comp`. The handler is
+  restored/removed when `comp` completes or throws.
+
+  The argument order is pipe-friendly.
+
+  ## Example
+
+      # Wrap a computation with Throw handling
+      comp_with_throw =
+        comp do
+          result <- risky_operation()
+          return(result)
+        end
+        |> Throw.with_handler()
+
+      # Compose with other handlers
+      my_comp
+      |> Throw.with_handler()
+      |> State.with_handler(0)
+      |> Comp.run(Env.new())
+  """
+  @spec with_handler(Comp.computation()) :: Comp.computation()
+  def with_handler(comp) do
+    Comp.with_handler(comp, @sig, &__MODULE__.handle/3)
+  end
+
+  @doc """
+  Install the default Throw handler (env-based, for top-level setup).
 
   The default handler returns a `%Skuld.Comp.Throw{}` struct as the result.
   """

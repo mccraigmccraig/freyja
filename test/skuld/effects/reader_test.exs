@@ -75,12 +75,12 @@ defmodule Skuld.Effects.ReaderTest do
     end
   end
 
-  describe "handle/2" do
+  describe "with_handler/2" do
     test "installs handler and context for computation" do
-      # No handler in env - Reader.handle provides everything
+      # No handler in env - Reader.with_handler provides everything
       env = Env.new()
 
-      comp = Reader.asks(& &1.name) |> Reader.handle(%{name: "test"})
+      comp = Reader.asks(& &1.name) |> Reader.with_handler(%{name: "test"})
 
       {result, _env} = Comp.run(comp, env)
       assert result == "test"
@@ -91,7 +91,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(Reader.ask(), fn outer_before ->
-          inner = Reader.ask() |> Reader.handle(:inner)
+          inner = Reader.ask() |> Reader.with_handler(:inner)
 
           Comp.bind(inner, fn inner_result ->
             Comp.bind(Reader.ask(), fn outer_after ->
@@ -110,7 +110,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(Reader.ask(), fn l1 ->
-          inner = Reader.ask() |> Reader.handle(:level2)
+          inner = Reader.ask() |> Reader.with_handler(:level2)
 
           Comp.bind(inner, fn l2 ->
             Comp.bind(Reader.ask(), fn l1_after ->
@@ -118,7 +118,7 @@ defmodule Skuld.Effects.ReaderTest do
             end)
           end)
         end)
-        |> Reader.handle(:level1)
+        |> Reader.with_handler(:level1)
 
       {result, _env} = Comp.run(comp, env)
 
@@ -133,7 +133,7 @@ defmodule Skuld.Effects.ReaderTest do
       comp =
         Throw.catch_error(
           Comp.bind(
-            Throw.throw(:error) |> Reader.handle(:inner),
+            Throw.throw(:error) |> Reader.with_handler(:inner),
             fn _ -> Comp.pure(:unreachable) end
           ),
           fn _error ->
@@ -153,7 +153,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(
-          Reader.ask() |> Reader.handle(:config),
+          Reader.ask() |> Reader.with_handler(:config),
           fn inner_result ->
             Comp.pure({:done, inner_result})
           end
@@ -182,7 +182,7 @@ defmodule Skuld.Effects.ReaderTest do
             end
           )
         end)
-        |> Reader.handle(10)
+        |> Reader.with_handler(10)
 
       {result, _env} = Comp.run(comp, env)
 

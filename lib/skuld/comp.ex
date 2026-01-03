@@ -140,10 +140,12 @@ defmodule Skuld.Comp do
   """
   @spec run(computation(), env()) :: {result(), env()}
   def run(comp, env) do
-    env_with_leave_scope = Map.put_new(env, :leave_scope, &identity_k/2)
-
     {result, final_env} =
-      call(comp, env_with_leave_scope, &identity_k/2)
+      call(
+        comp,
+        Env.with_leave_scope(env, &identity_k/2),
+        &identity_k/2
+      )
 
     ISentinel.run(result, final_env)
   end

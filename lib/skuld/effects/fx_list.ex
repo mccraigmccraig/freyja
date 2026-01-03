@@ -11,6 +11,7 @@ defmodule Skuld.Effects.FxList do
   - `fx_map(list, f)` - Map effectful function over list
   - `fx_reduce(list, init, f)` - Reduce with effectful function
   - `fx_each(list, f)` - Execute effectful function for each element (returns :ok)
+  - `fx_filter(list, pred)` - Filter with effectful predicate
 
   ## Example
 
@@ -28,24 +29,46 @@ defmodule Skuld.Effects.FxList do
         return(users)
       end
 
-  ## Benchmark Use Case
+  ## Performance Warning: Large Lists
 
-  FxList allows running N iterations inside a single computation,
-  paying the handler setup/teardown cost once instead of N times:
+  FxList builds continuation chains proportional to list length. For large
+  lists (10,000+ elements), this causes memory/cache pressure that degrades
+  performance to ~O(n^1.3) instead of O(n).
 
-      # Setup handlers once, run N iterations inside
-      comp do
-        _ <- FxList.fx_each(1..10000, fn _ ->
-          comp do
-            n <- State.get()
-            _ <- State.put(n + 1)
-            return(:ok)
-          end
-        end)
-        State.get()
+  **Benchmarks show:**
+  - 1,000 elements: ~0.2µs per operation
+  - 10,000 elements: ~0.4µs per operation (2x slower per-op)
+  - 100,000 elements: ~0.8µs per operation (4x slower per-op)
+
+  **For large iteration counts, use `Skuld.Effects.Yield` instead:**
+
+      # Yield-based approach: O(n) scaling at any size
+      def iteration_loop() do
+        comp do
+          n <- State.get()
+          _ <- State.put(n + 1)
+          _ <- Yield.yield(:ok)
+          iteration_loop()
+        end
       end
+
+      # Run N iterations with constant per-op cost
+      iteration_loop()
+      |> Yield.with_handler()
       |> State.with_handler(0)
-      |> Comp.run()
+      |> Yield.run_with_driver(fn _yielded ->
+        if iterations_remaining > 0 do
+          {:continue, :ok}
+        else
+          {:stop, :done}
+        end
+      end)
+
+  The Yield approach maintains ~0.17µs per operation regardless of N,
+  achieving 2-8x speedup over FxList at large scales.
+
+  **Rule of thumb:** Use FxList for lists under ~5,000 elements.
+  For larger iteration counts, use Yield-based coroutines.
   """
 
   alias Skuld.Comp

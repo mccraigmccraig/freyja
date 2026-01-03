@@ -71,6 +71,20 @@ defmodule Skuld.Comp.CompBlock do
   - `else` handles pattern match failures from the main computation
   - `catch` handles throws from both the main computation AND the else handler
 
+  ## Installing Handlers
+
+  Use the pipe operator with `Module.with_handler/2` to install scoped handlers:
+
+      comp do
+        x <- State.get()
+        y <- Reader.ask()
+        return(x + y)
+      end
+      |> State.with_handler(0)
+      |> Reader.with_handler(:config)
+
+  Handlers are applied in order (first in pipe = innermost).
+
   ## Function Definitions
 
       defcomp increment() do
@@ -201,12 +215,16 @@ defmodule Skuld.Comp.CompBlock do
       end
     end
 
-    defp build_clauses(do_block, nil, nil), do: [do: do_block]
-    defp build_clauses(do_block, else_block, nil), do: [do: do_block, else: else_block]
-    defp build_clauses(do_block, nil, catch_block), do: [do: do_block, catch: catch_block]
+    defp build_clauses(do_block, else_block, catch_block) do
+      # Build clauses in correct order: do, else, catch
+      # Using list concatenation to preserve order (Keyword.put prepends)
+      [{:do, do_block}]
+      |> maybe_append_clause(:else, else_block)
+      |> maybe_append_clause(:catch, catch_block)
+    end
 
-    defp build_clauses(do_block, else_block, catch_block),
-      do: [do: do_block, else: else_block, catch: catch_block]
+    defp maybe_append_clause(clauses, _key, nil), do: clauses
+    defp maybe_append_clause(clauses, key, value), do: clauses ++ [{key, value}]
 
     def comp(caller, clauses) do
       validate_clauses!(caller, clauses)
@@ -228,7 +246,7 @@ defmodule Skuld.Comp.CompBlock do
         end
 
       # Wrap with catch if present (outermost)
-      with_catch =
+      result =
         if catch_block do
           wrap_with_catch(with_else, catch_block)
         else
@@ -237,7 +255,7 @@ defmodule Skuld.Comp.CompBlock do
 
       quote do
         import Skuld.Comp.BaseOps
-        unquote(with_catch)
+        unquote(result)
       end
     end
 

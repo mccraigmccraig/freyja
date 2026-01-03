@@ -112,17 +112,18 @@ defmodule Skuld.Effects.Yield do
   Run a computation with a driver function that handles yields.
 
   The driver receives yielded values and returns `{:continue, input}` or `{:stop, reason}`.
+
+  The computation should already have handlers installed via `with_handler`.
   """
   @spec run_with_driver(
           Comp.computation(),
-          Comp.env(),
           (term() -> {:continue, term()} | {:stop, term()})
         ) ::
           {:done, term(), Comp.env()}
           | {:stopped, term(), Comp.env()}
           | {:thrown, term(), Comp.env()}
-  def run_with_driver(comp, env, driver) do
-    case Comp.run(comp, env) do
+  def run_with_driver(comp, driver) do
+    case Comp.run(comp) do
       {%Comp.Suspend{value: yielded, resume: resume}, suspended_env} ->
         case driver.(yielded) do
           {:continue, input} ->
@@ -166,12 +167,14 @@ defmodule Skuld.Effects.Yield do
   Collect all yielded values until completion.
 
   Resumes with the provided input value (default: nil) each time.
+
+  The computation should already have handlers installed via `with_handler`.
   """
-  @spec collect(Comp.computation(), Comp.env(), term()) ::
+  @spec collect(Comp.computation(), term()) ::
           {:done, term(), [term()], Comp.env()}
           | {:thrown, term(), [term()], Comp.env()}
-  def collect(comp, env, resume_input \\ nil) do
-    case Comp.run(comp, env) do
+  def collect(comp, resume_input \\ nil) do
+    case Comp.run(comp) do
       {%Comp.Suspend{} = suspend, suspended_env} ->
         do_collect(suspend, suspended_env, [], resume_input)
 
@@ -202,13 +205,15 @@ defmodule Skuld.Effects.Yield do
   Feed a list of inputs to a computation, collecting yields.
 
   Each yield consumes one input. If inputs run out, stops with remaining computation.
+
+  The computation should already have handlers installed via `with_handler`.
   """
-  @spec feed(Comp.computation(), Comp.env(), [term()]) ::
+  @spec feed(Comp.computation(), [term()]) ::
           {:done, term(), [term()], Comp.env()}
           | {:suspended, term(), (term() -> {Comp.result(), Comp.env()}), [term()], Comp.env()}
           | {:thrown, term(), [term()], Comp.env()}
-  def feed(comp, env, inputs) do
-    case Comp.run(comp, env) do
+  def feed(comp, inputs) do
+    case Comp.run(comp) do
       {%Comp.Suspend{} = suspend, suspended_env} ->
         do_feed(suspend, suspended_env, [], inputs)
 

@@ -2,7 +2,6 @@ defmodule Skuld.Effects.EffectLoggerTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
   alias Skuld.Effects.EffectLogger
   alias Skuld.Effects.EffectLogger.LogEntry.Completed
   alias Skuld.Effects.EffectLogger.LogEntry.Thrown
@@ -25,7 +24,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging()
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result == 1
       assert length(log) == 3
@@ -43,7 +42,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging()
         |> Reader.with_handler(%{name: "test"})
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result == "test"
       assert length(log) == 1
@@ -67,7 +66,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> EffectLogger.with_logging()
         |> State.with_handler(10)
         |> Reader.with_handler(:config)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result == {:config, 10}
       assert length(log) == 3
@@ -90,7 +89,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> EffectLogger.with_logging(effects: [State])
         |> State.with_handler(0)
         |> Reader.with_handler(:config)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result == 0
       assert length(log) == 1
@@ -106,7 +105,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging()
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert %Comp.Throw{error: :my_error} = result
       assert length(log) == 1
@@ -136,7 +135,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> EffectLogger.with_logging()
         |> State.with_handler(0)
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert %Comp.Throw{error: {:error, 42}} = result
       assert length(log) == 3
@@ -162,7 +161,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging()
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result1 == {0, 1}
 
@@ -172,7 +171,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.replay(log)
         |> State.with_handler(999)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Result should match original, not the 999 initial state
       assert result2 == {0, 1}
@@ -186,7 +185,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging()
         |> Reader.with_handler(%{value: 42})
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result1 == 42
 
@@ -195,7 +194,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.replay(log)
         |> Reader.with_handler(%{value: 999})
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Should get original logged value
       assert result2 == 42
@@ -211,7 +210,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp1
         |> EffectLogger.with_logging()
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Different computation that does State.put instead of State.get
       comp2 =
@@ -225,7 +224,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> EffectLogger.replay(log)
         |> State.with_handler(0)
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert %Comp.Throw{error: error} = result
       assert error.kind == :error
@@ -240,7 +239,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp1
         |> EffectLogger.with_logging()
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Computation with extra effect not in log
       comp2 =
@@ -255,7 +254,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp2
         |> EffectLogger.replay(log, on_missing: :execute)
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result == 100
     end
@@ -284,7 +283,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> EffectLogger.with_logging()
         |> State.with_handler(0)
         |> Reader.with_handler(%{multiplier: 10})
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result1 == {0, 1, 10}
 
@@ -294,7 +293,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         |> EffectLogger.replay(log)
         |> State.with_handler(999)
         |> Reader.with_handler(%{multiplier: 1})
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result2 == {0, 1, 10}
     end
@@ -308,7 +307,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging()
         |> State.with_handler(42)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert %Completed{
                id: id,
@@ -330,7 +329,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging(timestamp_fn: fn -> fixed_time end)
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert entry.timestamp == fixed_time
     end
@@ -342,7 +341,7 @@ defmodule Skuld.Effects.EffectLoggerTest do
         comp
         |> EffectLogger.with_logging(id_fn: fn -> "custom-id" end)
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert entry.id == "custom-id"
     end

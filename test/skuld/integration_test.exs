@@ -7,7 +7,6 @@ defmodule Skuld.IntegrationTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
   alias Skuld.Effects.Reader
   alias Skuld.Effects.State
   alias Skuld.Effects.Throw
@@ -28,7 +27,7 @@ defmodule Skuld.IntegrationTest do
         comp
         |> State.with_handler(0)
         |> Reader.with_handler(10)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert result == 10
     end
@@ -59,7 +58,7 @@ defmodule Skuld.IntegrationTest do
         comp
         |> State.with_handler(0)
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert caught_state == 2
       assert final_state == 2
@@ -84,7 +83,7 @@ defmodule Skuld.IntegrationTest do
         comp
         |> Yield.with_handler()
         |> State.with_handler(0)
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Note: State is inside the scoped handler, so we check via the result
       # The suspend happens before completion, so state at suspend is 10
@@ -113,7 +112,7 @@ defmodule Skuld.IntegrationTest do
         comp
         |> Yield.with_handler()
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Resume with false - no error (no {:ok, ...} wrapper - value passes through unchanged)
       assert {:no_error, _} = resume.(false)
@@ -146,7 +145,7 @@ defmodule Skuld.IntegrationTest do
         comp
         |> Reader.with_handler(1)
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Error handler sees original reader value (1), not local value (100)
       assert {:caught, 100, 1} = result
@@ -171,7 +170,7 @@ defmodule Skuld.IntegrationTest do
         comp
         |> Reader.with_handler(1)
         |> Yield.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # After resume, still inside local scope
       assert {{100, 100}, _} = resume.(:ignored)

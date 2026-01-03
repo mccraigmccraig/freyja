@@ -8,14 +8,14 @@ defmodule Skuld.Effects.ReaderTest do
   describe "ask" do
     test "reads environment value" do
       comp = Reader.ask() |> Reader.with_handler(:config_value)
-      assert {:config_value, _} = Comp.run(comp, Env.new())
+      assert {:config_value, _} = Comp.run(comp)
     end
   end
 
   describe "asks" do
     test "applies function to environment" do
       comp = Reader.asks(& &1.count) |> Reader.with_handler(%{name: "test", count: 42})
-      assert {42, _} = Comp.run(comp, Env.new())
+      assert {42, _} = Comp.run(comp)
     end
   end
 
@@ -36,7 +36,7 @@ defmodule Skuld.Effects.ReaderTest do
         |> Reader.with_handler(10)
 
       # Note: after_local is INSIDE the local, so it sees modified value
-      assert {{10, 20, 20}, _} = Comp.run(comp, Env.new())
+      assert {{10, 20, 20}, _} = Comp.run(comp)
     end
 
     test "restores environment after scope exits" do
@@ -49,7 +49,7 @@ defmodule Skuld.Effects.ReaderTest do
         end)
         |> Reader.with_handler(10)
 
-      assert {10, _} = Comp.run(comp, Env.new())
+      assert {10, _} = Comp.run(comp)
     end
 
     test "nested local scopes" do
@@ -64,18 +64,17 @@ defmodule Skuld.Effects.ReaderTest do
         |> Reader.with_handler(1)
 
       # 1 * 10 = 10, then 10 + 5 = 15
-      assert {15, _} = Comp.run(comp, Env.new())
+      assert {15, _} = Comp.run(comp)
     end
   end
 
   describe "with_handler/2" do
     test "installs handler and context for computation" do
       # No handler in env - Reader.with_handler provides everything
-      env = Env.new()
 
       comp = Reader.asks(& &1.name) |> Reader.with_handler(%{name: "test"})
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
       assert result == "test"
     end
 
@@ -92,13 +91,12 @@ defmodule Skuld.Effects.ReaderTest do
         end)
         |> Reader.with_handler(:outer)
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:outer, :inner, :outer} = result
     end
 
     test "nested scoped handlers work correctly" do
-      env = Env.new()
 
       comp =
         Comp.bind(Reader.ask(), fn l1 ->
@@ -112,7 +110,7 @@ defmodule Skuld.Effects.ReaderTest do
         end)
         |> Reader.with_handler(:level1)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
 
       assert {:level1, :level2, :level1} = result
     end
@@ -135,13 +133,12 @@ defmodule Skuld.Effects.ReaderTest do
         |> Reader.with_handler(:outer)
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:caught, :outer} = result
     end
 
     test "handler removed after scope when no previous handler" do
-      env = Env.new()
 
       comp =
         Comp.bind(
@@ -151,7 +148,7 @@ defmodule Skuld.Effects.ReaderTest do
           end
         )
 
-      {result, final_env} = Comp.run(comp, env)
+      {result, final_env} = Comp.run(comp)
 
       assert {:done, :config} = result
       # Handler should be removed
@@ -161,7 +158,6 @@ defmodule Skuld.Effects.ReaderTest do
     end
 
     test "local still works inside handle" do
-      env = Env.new()
 
       comp =
         Comp.bind(Reader.ask(), fn before_local ->
@@ -176,7 +172,7 @@ defmodule Skuld.Effects.ReaderTest do
         end)
         |> Reader.with_handler(10)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
 
       assert {10, 20, 10} = result
     end

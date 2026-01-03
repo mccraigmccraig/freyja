@@ -134,16 +134,27 @@ defmodule Skuld.Comp do
   @doc """
   Run a computation to completion.
 
+  Creates a fresh environment internally - all handler installation should
+  be done via `with_handler` on the computation.
+
   Uses ISentinel protocol to determine completion behavior:
   - Suspend: bypasses leave-scope chain
   - Other values: invoke leave-scope chain
+
+  ## Example
+
+      {result, _env} =
+        my_comp
+        |> State.with_handler(0)
+        |> Reader.with_handler(:config)
+        |> Comp.run()
   """
-  @spec run(computation(), env()) :: {result(), env()}
-  def run(comp, env) do
+  @spec run(computation()) :: {result(), env()}
+  def run(comp) do
     {result, final_env} =
       call(
         comp,
-        Env.with_leave_scope(env, &identity_k/2),
+        Env.with_leave_scope(Env.new(), &identity_k/2),
         &identity_k/2
       )
 
@@ -151,9 +162,9 @@ defmodule Skuld.Comp do
   end
 
   @doc "Run a computation, extracting just the value (raises on Suspend/Throw)"
-  @spec run!(computation(), env()) :: term()
-  def run!(comp, env) do
-    {result, _env} = run(comp, env)
+  @spec run!(computation()) :: term()
+  def run!(comp) do
+    {result, _env} = run(comp)
     ISentinel.run!(result)
   end
 

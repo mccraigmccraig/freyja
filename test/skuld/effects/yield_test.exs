@@ -2,7 +2,6 @@ defmodule Skuld.Effects.YieldTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
   alias Skuld.Effects.Yield
 
   describe "yield" do
@@ -12,7 +11,7 @@ defmodule Skuld.Effects.YieldTest do
       {result, _env} =
         comp
         |> Yield.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert %Comp.Suspend{value: :hello, resume: resume} = result
       assert is_function(resume, 1)
@@ -27,7 +26,7 @@ defmodule Skuld.Effects.YieldTest do
       {%Comp.Suspend{value: :first, resume: resume}, _suspended_env} =
         comp
         |> Yield.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert {{:got, :input_value}, _} = resume.(:input_value)
     end
@@ -45,7 +44,7 @@ defmodule Skuld.Effects.YieldTest do
       {%Comp.Suspend{value: 1, resume: r1}, _e1} =
         comp
         |> Yield.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       {%Comp.Suspend{value: 2, resume: r2}, _e2} = r1.(10)
       {%Comp.Suspend{value: 3, resume: r3}, _e3} = r2.(20)
@@ -66,7 +65,7 @@ defmodule Skuld.Effects.YieldTest do
         end)
         |> Yield.with_handler()
 
-      assert {:done, :done, [:a, :b, :c], _} = Yield.collect(comp, Env.new())
+      assert {:done, :done, [:a, :b, :c], _} = Yield.collect(comp)
     end
   end
 
@@ -80,7 +79,7 @@ defmodule Skuld.Effects.YieldTest do
         end)
         |> Yield.with_handler()
 
-      assert {:done, 12, [:want_x, :want_y], _} = Yield.feed(comp, Env.new(), [3, 4])
+      assert {:done, 12, [:want_x, :want_y], _} = Yield.feed(comp, [3, 4])
     end
 
     test "stops when inputs exhausted" do
@@ -94,7 +93,7 @@ defmodule Skuld.Effects.YieldTest do
         end)
         |> Yield.with_handler()
 
-      {:suspended, 2, _resume, [1], _env} = Yield.feed(comp, Env.new(), [:a])
+      {:suspended, 2, _resume, [1], _env} = Yield.feed(comp, [:a])
     end
   end
 end

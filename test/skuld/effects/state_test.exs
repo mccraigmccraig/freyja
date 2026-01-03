@@ -8,7 +8,7 @@ defmodule Skuld.Effects.StateTest do
   describe "get" do
     test "returns current state" do
       comp = State.get() |> State.with_handler(42)
-      assert {42, _} = Comp.run(comp, Env.new())
+      assert {42, _} = Comp.run(comp)
     end
   end
 
@@ -20,7 +20,7 @@ defmodule Skuld.Effects.StateTest do
         end)
         |> State.with_handler(0)
 
-      assert {100, final_env} = Comp.run(comp, Env.new())
+      assert {100, final_env} = Comp.run(comp)
       # Note: State is scoped, so it's removed after with_handler exits
       assert State.get_state(final_env) == nil
     end
@@ -36,14 +36,14 @@ defmodule Skuld.Effects.StateTest do
         end)
         |> State.with_handler(10)
 
-      assert {{10, 15}, _} = Comp.run(comp, Env.new())
+      assert {{10, 15}, _} = Comp.run(comp)
     end
   end
 
   describe "gets" do
     test "applies function to state" do
       comp = State.gets(& &1.count) |> State.with_handler(%{count: 42, name: "test"})
-      assert {42, _} = Comp.run(comp, Env.new())
+      assert {42, _} = Comp.run(comp)
     end
   end
 
@@ -59,14 +59,13 @@ defmodule Skuld.Effects.StateTest do
         end)
         |> State.with_handler(0)
 
-      assert {3, _} = Comp.run(comp, Env.new())
+      assert {3, _} = Comp.run(comp)
     end
   end
 
   describe "with_handler/2" do
     test "installs handler and state for computation" do
       # No handler in env - State.with_handler provides everything
-      env = Env.new()
 
       comp =
         Comp.bind(State.get(), fn x ->
@@ -76,7 +75,7 @@ defmodule Skuld.Effects.StateTest do
         end)
         |> State.with_handler(42)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
       assert result == 43
     end
 
@@ -99,14 +98,13 @@ defmodule Skuld.Effects.StateTest do
         end)
         |> State.with_handler(100)
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       # outer: 100, inner: 0->1, outer still 100
       assert {100, 1, 100} = result
     end
 
     test "nested scoped handlers work correctly" do
-      env = Env.new()
 
       comp =
         Comp.bind(State.get(), fn level1 ->
@@ -120,7 +118,7 @@ defmodule Skuld.Effects.StateTest do
         end)
         |> State.with_handler(1)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
 
       assert {1, 2, 1} = result
     end
@@ -146,14 +144,13 @@ defmodule Skuld.Effects.StateTest do
         |> State.with_handler(100)
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       # Outer state (100) preserved despite inner throw
       assert {:caught, 100} = result
     end
 
     test "handler removed after scope when no previous handler" do
-      env = Env.new()
 
       comp =
         Comp.bind(
@@ -163,7 +160,7 @@ defmodule Skuld.Effects.StateTest do
           end
         )
 
-      {result, final_env} = Comp.run(comp, env)
+      {result, final_env} = Comp.run(comp)
 
       assert {:done, 10} = result
       # Handler should be removed
@@ -173,7 +170,6 @@ defmodule Skuld.Effects.StateTest do
     end
 
     test "composable - pipe multiple scoped handlers" do
-      env = Env.new()
 
       comp =
         Comp.bind(State.get(), fn s ->
@@ -184,7 +180,7 @@ defmodule Skuld.Effects.StateTest do
         |> Skuld.Effects.Reader.with_handler(:config)
         |> State.with_handler(42)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
 
       assert {42, :config} = result
     end

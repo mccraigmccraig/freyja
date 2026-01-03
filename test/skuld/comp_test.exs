@@ -7,7 +7,7 @@ defmodule Skuld.CompTest do
   describe "pure" do
     test "returns value" do
       comp = Comp.pure(42)
-      assert {42, _env} = Comp.run(comp, Env.new())
+      assert {42, _env} = Comp.run(comp)
     end
   end
 
@@ -20,14 +20,14 @@ defmodule Skuld.CompTest do
           end)
         end)
 
-      assert {3, _env} = Comp.run(comp, Env.new())
+      assert {3, _env} = Comp.run(comp)
     end
   end
 
   describe "map" do
     test "transforms result" do
       comp = Comp.map(Comp.pure(5), &(&1 * 2))
-      assert {10, _env} = Comp.run(comp, Env.new())
+      assert {10, _env} = Comp.run(comp)
     end
   end
 
@@ -35,26 +35,26 @@ defmodule Skuld.CompTest do
     test "collects results" do
       comps = [Comp.pure(1), Comp.pure(2), Comp.pure(3)]
       comp = Comp.sequence(comps)
-      assert {[1, 2, 3], _env} = Comp.run(comp, Env.new())
+      assert {[1, 2, 3], _env} = Comp.run(comp)
     end
 
     test "empty list returns empty list" do
       comp = Comp.sequence([])
-      assert {[], _env} = Comp.run(comp, Env.new())
+      assert {[], _env} = Comp.run(comp)
     end
   end
 
   describe "traverse" do
     test "maps and sequences" do
       comp = Comp.traverse([1, 2, 3], fn x -> Comp.pure(x * 2) end)
-      assert {[2, 4, 6], _env} = Comp.run(comp, Env.new())
+      assert {[2, 4, 6], _env} = Comp.run(comp)
     end
   end
 
   describe "then_do" do
     test "ignores first result" do
       comp = Comp.then_do(Comp.pure(:ignored), Comp.pure(:kept))
-      assert {:kept, _env} = Comp.run(comp, Env.new())
+      assert {:kept, _env} = Comp.run(comp)
     end
   end
 
@@ -62,7 +62,7 @@ defmodule Skuld.CompTest do
     test "flattens nested computation" do
       nested = Comp.pure(Comp.pure(42))
       comp = Comp.flatten(nested)
-      assert {42, _env} = Comp.run(comp, Env.new())
+      assert {42, _env} = Comp.run(comp)
     end
   end
 
@@ -109,7 +109,7 @@ defmodule Skuld.CompTest do
 
       error =
         assert_raise InvalidComputation, fn ->
-          Comp.run(comp, Env.new())
+          Comp.run(comp)
         end
 
       assert error.message =~ "Expected a computation, got: :not_a_computation"
@@ -119,7 +119,7 @@ defmodule Skuld.CompTest do
     test "run raises when given non-computation" do
       error =
         assert_raise InvalidComputation, fn ->
-          Comp.run(:not_a_computation, Env.new())
+          Comp.run(:not_a_computation)
         end
 
       assert error.message =~ "Expected a computation, got: :not_a_computation"
@@ -133,7 +133,7 @@ defmodule Skuld.CompTest do
 
       error =
         assert_raise InvalidComputation, fn ->
-          Comp.run(comp, Env.new())
+          Comp.run(comp)
         end
 
       assert error.message =~ "Expected a computation, got: :not_a_computation"
@@ -147,7 +147,7 @@ defmodule Skuld.CompTest do
     test "raise is converted to Throw with kind: :error" do
       comp = fn _env, _k -> raise "boom" end
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert %ThrowStruct{error: error} = result
       assert error.kind == :error
@@ -158,7 +158,7 @@ defmodule Skuld.CompTest do
     test "Elixir throw is converted to Throw with kind: :throw" do
       comp = fn _env, _k -> throw(:some_value) end
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert %ThrowStruct{error: error} = result
       assert error.kind == :throw
@@ -169,7 +169,7 @@ defmodule Skuld.CompTest do
     test "exit is converted to Throw with kind: :exit" do
       comp = fn _env, _k -> exit(:shutdown) end
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert %ThrowStruct{error: error} = result
       assert error.kind == :exit
@@ -183,7 +183,7 @@ defmodule Skuld.CompTest do
           fn _env, _k -> raise "in bind" end
         end)
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert %ThrowStruct{error: error} = result
       assert error.kind == :error
@@ -200,7 +200,7 @@ defmodule Skuld.CompTest do
         )
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:caught, :error, "caught me"} = result
     end
@@ -215,7 +215,7 @@ defmodule Skuld.CompTest do
         )
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:caught, :throw, :thrown_value} = result
     end
@@ -231,7 +231,7 @@ defmodule Skuld.CompTest do
         Comp.bind(inner, fn value -> Comp.pure({:continued, value}) end)
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:continued, :recovered} = result
     end
@@ -252,7 +252,7 @@ defmodule Skuld.CompTest do
         )
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:outer_caught, "in recovery"} = result
     end
@@ -262,7 +262,7 @@ defmodule Skuld.CompTest do
         raise "with stacktrace"
       end
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert %ThrowStruct{error: error} = result
       assert is_list(error.stacktrace)
@@ -283,7 +283,7 @@ defmodule Skuld.CompTest do
         |> Comp.with_handler(:test_effect, raising_handler)
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert %ThrowStruct{error: error} = result
       assert error.kind == :error
@@ -303,7 +303,7 @@ defmodule Skuld.CompTest do
         |> Comp.with_handler(:test_effect, raising_handler)
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       assert {:caught_handler_error, "handler error"} = result
     end
@@ -324,7 +324,6 @@ defmodule Skuld.CompTest do
 
     test "installs handler for scope duration" do
       # No handler in outer env
-      env = Env.new()
 
       # Inner comp uses scoped State handler
       inner =
@@ -332,13 +331,12 @@ defmodule Skuld.CompTest do
         |> Comp.scoped(state_scope(42))
         |> Comp.with_handler(State, &State.handle/3)
 
-      {result, _env} = Comp.run(inner, env)
+      {result, _env} = Comp.run(inner)
 
       assert result == 42
     end
 
     test "handler is removed after scope exits" do
-      env = Env.new()
 
       comp =
         Comp.bind(
@@ -352,7 +350,7 @@ defmodule Skuld.CompTest do
           end
         )
 
-      {result, final_env} = Comp.run(comp, env)
+      {result, final_env} = Comp.run(comp)
 
       assert {:inner, 10} = result
       # Handler should be removed
@@ -381,14 +379,13 @@ defmodule Skuld.CompTest do
         end)
         |> State.with_handler(100)
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       # outer_before: 100, inner did 0 -> 1, outer_after: still 100
       assert {100, 1, 100} = result
     end
 
     test "nested scoped handlers work correctly" do
-      env = Env.new()
 
       comp =
         Comp.bind(State.get(), fn level1 ->
@@ -406,7 +403,7 @@ defmodule Skuld.CompTest do
         |> Comp.scoped(state_scope(1))
         |> Comp.with_handler(State, &State.handle/3)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp)
 
       # level1: 1, level2: 2, level1_after: still 1
       assert {1, 2, 1} = result
@@ -441,7 +438,7 @@ defmodule Skuld.CompTest do
         |> State.with_handler(100)
         |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, Env.new())
+      {result, _env} = Comp.run(comp)
 
       # Outer state (100) should be preserved despite inner throw
       assert {:caught, 100} = result

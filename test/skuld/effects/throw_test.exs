@@ -2,7 +2,6 @@ defmodule Skuld.Effects.ThrowTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
   alias Skuld.Effects.State
   alias Skuld.Effects.Throw
 
@@ -13,7 +12,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert %Comp.Throw{error: :boom} = result
     end
@@ -32,7 +31,7 @@ defmodule Skuld.Effects.ThrowTest do
         comp
         |> State.with_handler(0)
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Result is the Throw sentinel
       assert %Comp.Throw{error: :error} = result
@@ -50,7 +49,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert {:caught, :my_error} = result
     end
@@ -65,7 +64,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # No {:ok, ...} wrapping - value passes through unchanged
       assert result == 42
@@ -86,7 +85,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         outer
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Recovery value flows through bind
       assert {:got, :recovered} = result
@@ -105,7 +104,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Inner catches, recovery flows through, no wrapping
       assert {:inner_caught, :inner_error} = result
@@ -135,7 +134,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # Inner doesn't match, re-throws, outer catches
       assert :outer_caught = result
@@ -157,7 +156,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       # No match, error propagates as Throw
       assert %Comp.Throw{error: :unhandled} = result
@@ -176,7 +175,7 @@ defmodule Skuld.Effects.ThrowTest do
         comp
         |> State.with_handler(0)
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert {:recovered_with_state, 10} = result
     end
@@ -189,7 +188,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert {:ok, 42} = result
     end
@@ -200,7 +199,7 @@ defmodule Skuld.Effects.ThrowTest do
       {result, _env} =
         comp
         |> Throw.with_handler()
-        |> Comp.run(Env.new())
+        |> Comp.run()
 
       assert {:error, :failed} = result
     end

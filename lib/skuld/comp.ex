@@ -250,19 +250,22 @@ defmodule Skuld.Comp do
 
   The previous leave-scope is automatically restored in both paths.
 
+  The argument order is pipe-friendly (computation first).
+
   ## Example
 
       def local(modify, comp) do
-        Skuld.Comp.scoped(fn env ->
+        comp
+        |> Skuld.Comp.scoped(fn env ->
           current = Env.get_state(env, @sig)
           modified_env = Env.put_state(env, @sig, modify.(current))
           restore = fn e -> Env.put_state(e, @sig, current) end
           {modified_env, restore}
-        end, comp)
+        end)
       end
   """
-  @spec scoped((env() -> {env(), (env() -> env())}), computation()) :: computation()
-  def scoped(setup, comp) do
+  @spec scoped(computation(), (env() -> {env(), (env() -> env())})) :: computation()
+  def scoped(comp, setup) do
     fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
       {modified_env, restore} = setup.(env)
@@ -301,16 +304,18 @@ defmodule Skuld.Comp do
   This allows "shadowing" handlers - an inner computation can have its
   own handler for an effect while an outer handler exists.
 
+  The argument order is pipe-friendly (computation first).
+
   ## Example
 
       # Create a computation with its own State handler
-      inner = Comp.handle(State, &State.handle/3,
+      inner =
         comp do
           x <- State.get()
           _ <- State.put(x + 1)
           return(x)
         end
-      )
+        |> Comp.handle(State, &State.handle/3)
 
       # Use it - inner State is independent of outer State
       outer = comp do
@@ -320,9 +325,10 @@ defmodule Skuld.Comp do
         return({result, y})
       end
   """
-  @spec handle(sig(), handler(), computation()) :: computation()
-  def handle(sig, handler, comp) do
+  @spec handle(computation(), sig(), handler()) :: computation()
+  def handle(comp, sig, handler) do
     scoped(
+      comp,
       fn env ->
         previous = Env.get_handler(env, sig)
         modified_env = Env.with_handler(env, sig, handler)
@@ -335,8 +341,7 @@ defmodule Skuld.Comp do
         end
 
         {modified_env, restore}
-      end,
-      comp
+      end
     )
   end
 end

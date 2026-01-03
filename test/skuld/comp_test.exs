@@ -332,7 +332,9 @@ defmodule Skuld.CompTest do
 
       # Inner comp uses scoped State handler
       inner =
-        Comp.handle(State, &State.handle/3, Comp.scoped(state_scope(42), State.get()))
+        State.get()
+        |> Comp.scoped(state_scope(42))
+        |> Comp.handle(State, &State.handle/3)
 
       {result, _env} = Comp.run(inner, env)
 
@@ -344,7 +346,9 @@ defmodule Skuld.CompTest do
 
       comp =
         Comp.bind(
-          Comp.handle(State, &State.handle/3, Comp.scoped(state_scope(10), State.get())),
+          State.get()
+          |> Comp.scoped(state_scope(10))
+          |> Comp.handle(State, &State.handle/3),
           fn inner_result ->
             # After handle scope, State handler should be gone
             # Trying to use State.get() here would fail
@@ -367,18 +371,13 @@ defmodule Skuld.CompTest do
         Comp.bind(State.get(), fn outer_before ->
           Comp.bind(
             # Inner scope with its own State, initial 0
-            Comp.handle(
-              State,
-              &State.handle/3,
-              Comp.scoped(
-                state_scope(0),
-                Comp.bind(State.get(), fn inner_val ->
-                  Comp.bind(State.put(inner_val + 1), fn _ ->
-                    State.get()
-                  end)
-                end)
-              )
-            ),
+            Comp.bind(State.get(), fn inner_val ->
+              Comp.bind(State.put(inner_val + 1), fn _ ->
+                State.get()
+              end)
+            end)
+            |> Comp.scoped(state_scope(0))
+            |> Comp.handle(State, &State.handle/3),
             fn inner_result ->
               Comp.bind(State.get(), fn outer_after ->
                 Comp.pure({outer_before, inner_result, outer_after})
@@ -397,23 +396,20 @@ defmodule Skuld.CompTest do
       env = Env.new()
 
       comp =
-        Comp.handle(
-          State,
-          &State.handle/3,
-          Comp.scoped(
-            state_scope(1),
-            Comp.bind(State.get(), fn level1 ->
-              Comp.bind(
-                Comp.handle(State, &State.handle/3, Comp.scoped(state_scope(2), State.get())),
-                fn level2 ->
-                  Comp.bind(State.get(), fn level1_after ->
-                    Comp.pure({level1, level2, level1_after})
-                  end)
-                end
-              )
-            end)
+        Comp.bind(State.get(), fn level1 ->
+          Comp.bind(
+            State.get()
+            |> Comp.scoped(state_scope(2))
+            |> Comp.handle(State, &State.handle/3),
+            fn level2 ->
+              Comp.bind(State.get(), fn level1_after ->
+                Comp.pure({level1, level2, level1_after})
+              end)
+            end
           )
-        )
+        end)
+        |> Comp.scoped(state_scope(1))
+        |> Comp.handle(State, &State.handle/3)
 
       {result, _env} = Comp.run(comp, env)
 
@@ -430,17 +426,12 @@ defmodule Skuld.CompTest do
         Throw.catch_error(
           Comp.bind(State.get(), fn _outer_before ->
             Comp.bind(
-              Comp.handle(
-                State,
-                &State.handle/3,
-                Comp.scoped(
-                  state_scope(0),
-                  Comp.bind(State.put(42), fn _ ->
-                    # Throw from inside scoped handler
-                    Throw.throw(:inner_error)
-                  end)
-                )
-              ),
+              Comp.bind(State.put(42), fn _ ->
+                # Throw from inside scoped handler
+                Throw.throw(:inner_error)
+              end)
+              |> Comp.scoped(state_scope(0))
+              |> Comp.handle(State, &State.handle/3),
               fn _ ->
                 # Never reached
                 Comp.pure(:unreachable)

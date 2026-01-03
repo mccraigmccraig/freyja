@@ -93,26 +93,21 @@ defmodule Skuld.Effects.State do
   """
   @spec with_scoped_handler(Comp.computation(), term()) :: Comp.computation()
   def with_scoped_handler(comp, initial) do
-    Comp.handle(
-      @sig,
-      &__MODULE__.handle/3,
-      Comp.scoped(
-        fn env ->
-          previous = Env.get_state(env, @sig)
-          modified = Env.put_state(env, @sig, initial)
+    comp
+    |> Comp.scoped(fn env ->
+      previous = Env.get_state(env, @sig)
+      modified = Env.put_state(env, @sig, initial)
 
-          restore = fn e ->
-            case previous do
-              nil -> %{e | state: Map.delete(e.state, @sig)}
-              val -> Env.put_state(e, @sig, val)
-            end
-          end
+      restore = fn e ->
+        case previous do
+          nil -> %{e | state: Map.delete(e.state, @sig)}
+          val -> Env.put_state(e, @sig, val)
+        end
+      end
 
-          {modified, restore}
-        end,
-        comp
-      )
-    )
+      {modified, restore}
+    end)
+    |> Comp.handle(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Install the State handler with an initial value (env-based, for top-level setup)"

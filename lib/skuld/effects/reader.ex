@@ -39,15 +39,12 @@ defmodule Skuld.Effects.Reader do
   @doc "Run a computation with a modified environment value"
   @spec local((term() -> term()), Comp.computation()) :: Comp.computation()
   def local(modify, comp) do
-    Comp.scoped(
-      fn env ->
-        current = Env.get_state(env, @sig)
-        modified_env = Env.put_state(env, @sig, modify.(current))
-        restore = fn e -> Env.put_state(e, @sig, current) end
-        {modified_env, restore}
-      end,
-      comp
-    )
+    Comp.scoped(comp, fn env ->
+      current = Env.get_state(env, @sig)
+      modified_env = Env.put_state(env, @sig, modify.(current))
+      restore = fn e -> Env.put_state(e, @sig, current) end
+      {modified_env, restore}
+    end)
   end
 
   #############################################################################
@@ -88,26 +85,21 @@ defmodule Skuld.Effects.Reader do
   """
   @spec with_scoped_handler(Comp.computation(), term()) :: Comp.computation()
   def with_scoped_handler(comp, value) do
-    Comp.handle(
-      @sig,
-      &__MODULE__.handle/3,
-      Comp.scoped(
-        fn env ->
-          previous = Env.get_state(env, @sig)
-          modified = Env.put_state(env, @sig, value)
+    comp
+    |> Comp.scoped(fn env ->
+      previous = Env.get_state(env, @sig)
+      modified = Env.put_state(env, @sig, value)
 
-          restore = fn e ->
-            case previous do
-              nil -> %{e | state: Map.delete(e.state, @sig)}
-              val -> Env.put_state(e, @sig, val)
-            end
-          end
+      restore = fn e ->
+        case previous do
+          nil -> %{e | state: Map.delete(e.state, @sig)}
+          val -> Env.put_state(e, @sig, val)
+        end
+      end
 
-          {modified, restore}
-        end,
-        comp
-      )
-    )
+      {modified, restore}
+    end)
+    |> Comp.handle(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Install the Reader handler with an initial value (env-based, for top-level setup)"

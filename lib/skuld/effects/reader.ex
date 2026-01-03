@@ -61,27 +61,33 @@ defmodule Skuld.Effects.Reader do
   Both the handler and context are restored/removed when `comp` completes or throws.
 
   This is the composable alternative to `handler/2` - it operates on computations
-  rather than environments.
+  rather than environments. The argument order is pipe-friendly.
 
   ## Example
 
       # Wrap a computation with its own Reader context
-      comp_with_reader = Reader.with_scoped_handler(%{config: "value"},
+      comp_with_reader =
         comp do
           cfg <- Reader.ask()
           return(cfg.config)
         end
-      )
+        |> Reader.with_scoped_handler(%{config: "value"})
 
       # Can be nested - inner Reader shadows outer
       outer_comp = comp do
         outer_cfg <- Reader.ask()
-        inner_result <- Reader.with_scoped_handler(%{inner: true}, Reader.ask())
+        inner_result <- Reader.ask() |> Reader.with_scoped_handler(%{inner: true})
         return({outer_cfg, inner_result})
       end
+
+      # Compose multiple handlers with pipes
+      my_comp
+      |> Reader.with_scoped_handler(:config)
+      |> State.with_scoped_handler(0)
+      |> Comp.run(Env.new())
   """
-  @spec with_scoped_handler(term(), Comp.computation()) :: Comp.computation()
-  def with_scoped_handler(value, comp) do
+  @spec with_scoped_handler(Comp.computation(), term()) :: Comp.computation()
+  def with_scoped_handler(comp, value) do
     Comp.handle(
       @sig,
       &__MODULE__.handle/3,

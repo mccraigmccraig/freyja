@@ -64,29 +64,35 @@ defmodule Skuld.Effects.State do
   Both the handler and state are restored/removed when `comp` completes or throws.
 
   This is the composable alternative to `handler/2` - it operates on computations
-  rather than environments.
+  rather than environments. The argument order is pipe-friendly.
 
   ## Example
 
       # Wrap a computation with its own State
-      comp_with_state = State.with_scoped_handler(0, 
+      comp_with_state =
         comp do
           x <- State.get()
           _ <- State.put(x + 1)
           return(x)
         end
-      )
+        |> State.with_scoped_handler(0)
 
       # Can be nested - inner State shadows outer
       outer_comp = comp do
         _ <- State.put(100)
-        inner_result <- State.with_scoped_handler(0, State.get())
+        inner_result <- State.get() |> State.with_scoped_handler(0)
         outer_val <- State.get()
         return({inner_result, outer_val})  # {0, 100}
       end
+
+      # Compose multiple handlers with pipes
+      my_comp
+      |> Reader.with_scoped_handler(:config)
+      |> State.with_scoped_handler(0)
+      |> Comp.run(Env.new())
   """
-  @spec with_scoped_handler(term(), Comp.computation()) :: Comp.computation()
-  def with_scoped_handler(initial, comp) do
+  @spec with_scoped_handler(Comp.computation(), term()) :: Comp.computation()
+  def with_scoped_handler(comp, initial) do
     Comp.handle(
       @sig,
       &__MODULE__.handle/3,

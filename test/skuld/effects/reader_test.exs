@@ -80,7 +80,7 @@ defmodule Skuld.Effects.ReaderTest do
       # No handler in env - with_scoped_handler provides everything
       env = Env.new()
 
-      comp = Reader.with_scoped_handler(%{name: "test"}, Reader.asks(& &1.name))
+      comp = Reader.asks(& &1.name) |> Reader.with_scoped_handler(%{name: "test"})
 
       {result, _env} = Comp.run(comp, env)
       assert result == "test"
@@ -91,14 +91,13 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(Reader.ask(), fn outer_before ->
-          Comp.bind(
-            Reader.with_scoped_handler(:inner, Reader.ask()),
-            fn inner_result ->
-              Comp.bind(Reader.ask(), fn outer_after ->
-                Comp.pure({outer_before, inner_result, outer_after})
-              end)
-            end
-          )
+          inner = Reader.ask() |> Reader.with_scoped_handler(:inner)
+
+          Comp.bind(inner, fn inner_result ->
+            Comp.bind(Reader.ask(), fn outer_after ->
+              Comp.pure({outer_before, inner_result, outer_after})
+            end)
+          end)
         end)
 
       {result, _env} = Comp.run(comp, env)
@@ -110,19 +109,16 @@ defmodule Skuld.Effects.ReaderTest do
       env = Env.new()
 
       comp =
-        Reader.with_scoped_handler(
-          :level1,
-          Comp.bind(Reader.ask(), fn l1 ->
-            Comp.bind(
-              Reader.with_scoped_handler(:level2, Reader.ask()),
-              fn l2 ->
-                Comp.bind(Reader.ask(), fn l1_after ->
-                  Comp.pure({l1, l2, l1_after})
-                end)
-              end
-            )
+        Comp.bind(Reader.ask(), fn l1 ->
+          inner = Reader.ask() |> Reader.with_scoped_handler(:level2)
+
+          Comp.bind(inner, fn l2 ->
+            Comp.bind(Reader.ask(), fn l1_after ->
+              Comp.pure({l1, l2, l1_after})
+            end)
           end)
-        )
+        end)
+        |> Reader.with_scoped_handler(:level1)
 
       {result, _env} = Comp.run(comp, env)
 
@@ -137,7 +133,7 @@ defmodule Skuld.Effects.ReaderTest do
       comp =
         Throw.catch_error(
           Comp.bind(
-            Reader.with_scoped_handler(:inner, Throw.throw(:error)),
+            Throw.throw(:error) |> Reader.with_scoped_handler(:inner),
             fn _ -> Comp.pure(:unreachable) end
           ),
           fn _error ->
@@ -157,7 +153,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(
-          Reader.with_scoped_handler(:config, Reader.ask()),
+          Reader.ask() |> Reader.with_scoped_handler(:config),
           fn inner_result ->
             Comp.pure({:done, inner_result})
           end
@@ -176,19 +172,17 @@ defmodule Skuld.Effects.ReaderTest do
       env = Env.new()
 
       comp =
-        Reader.with_scoped_handler(
-          10,
-          Comp.bind(Reader.ask(), fn before_local ->
-            Comp.bind(
-              Reader.local(&(&1 * 2), Reader.ask()),
-              fn during_local ->
-                Comp.bind(Reader.ask(), fn after_local ->
-                  Comp.pure({before_local, during_local, after_local})
-                end)
-              end
-            )
-          end)
-        )
+        Comp.bind(Reader.ask(), fn before_local ->
+          Comp.bind(
+            Reader.local(&(&1 * 2), Reader.ask()),
+            fn during_local ->
+              Comp.bind(Reader.ask(), fn after_local ->
+                Comp.pure({before_local, during_local, after_local})
+              end)
+            end
+          )
+        end)
+        |> Reader.with_scoped_handler(10)
 
       {result, _env} = Comp.run(comp, env)
 

@@ -75,12 +75,12 @@ defmodule Skuld.Effects.ReaderTest do
     end
   end
 
-  describe "with_scoped_handler" do
+  describe "handle/2" do
     test "installs handler and context for computation" do
-      # No handler in env - with_scoped_handler provides everything
+      # No handler in env - Reader.handle provides everything
       env = Env.new()
 
-      comp = Reader.asks(& &1.name) |> Reader.with_scoped_handler(%{name: "test"})
+      comp = Reader.asks(& &1.name) |> Reader.handle(%{name: "test"})
 
       {result, _env} = Comp.run(comp, env)
       assert result == "test"
@@ -91,7 +91,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(Reader.ask(), fn outer_before ->
-          inner = Reader.ask() |> Reader.with_scoped_handler(:inner)
+          inner = Reader.ask() |> Reader.handle(:inner)
 
           Comp.bind(inner, fn inner_result ->
             Comp.bind(Reader.ask(), fn outer_after ->
@@ -110,7 +110,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(Reader.ask(), fn l1 ->
-          inner = Reader.ask() |> Reader.with_scoped_handler(:level2)
+          inner = Reader.ask() |> Reader.handle(:level2)
 
           Comp.bind(inner, fn l2 ->
             Comp.bind(Reader.ask(), fn l1_after ->
@@ -118,7 +118,7 @@ defmodule Skuld.Effects.ReaderTest do
             end)
           end)
         end)
-        |> Reader.with_scoped_handler(:level1)
+        |> Reader.handle(:level1)
 
       {result, _env} = Comp.run(comp, env)
 
@@ -133,7 +133,7 @@ defmodule Skuld.Effects.ReaderTest do
       comp =
         Throw.catch_error(
           Comp.bind(
-            Throw.throw(:error) |> Reader.with_scoped_handler(:inner),
+            Throw.throw(:error) |> Reader.handle(:inner),
             fn _ -> Comp.pure(:unreachable) end
           ),
           fn _error ->
@@ -153,7 +153,7 @@ defmodule Skuld.Effects.ReaderTest do
 
       comp =
         Comp.bind(
-          Reader.ask() |> Reader.with_scoped_handler(:config),
+          Reader.ask() |> Reader.handle(:config),
           fn inner_result ->
             Comp.pure({:done, inner_result})
           end
@@ -168,7 +168,7 @@ defmodule Skuld.Effects.ReaderTest do
       assert Env.get_state(final_env, Reader) == nil
     end
 
-    test "local still works inside with_scoped_handler" do
+    test "local still works inside handle" do
       env = Env.new()
 
       comp =
@@ -182,7 +182,7 @@ defmodule Skuld.Effects.ReaderTest do
             end
           )
         end)
-        |> Reader.with_scoped_handler(10)
+        |> Reader.handle(10)
 
       {result, _env} = Comp.run(comp, env)
 

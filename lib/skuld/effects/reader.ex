@@ -68,23 +68,23 @@ defmodule Skuld.Effects.Reader do
           cfg <- Reader.ask()
           return(cfg.config)
         end
-        |> Reader.with_scoped_handler(%{config: "value"})
+        |> Reader.handle(%{config: "value"})
 
       # Can be nested - inner Reader shadows outer
       outer_comp = comp do
         outer_cfg <- Reader.ask()
-        inner_result <- Reader.ask() |> Reader.with_scoped_handler(%{inner: true})
+        inner_result <- Reader.ask() |> Reader.handle(%{inner: true})
         return({outer_cfg, inner_result})
       end
 
       # Compose multiple handlers with pipes
       my_comp
-      |> Reader.with_scoped_handler(:config)
-      |> State.with_scoped_handler(0)
+      |> Reader.handle(:config)
+      |> State.handle(0)
       |> Comp.run(Env.new())
   """
-  @spec with_scoped_handler(Comp.computation(), term()) :: Comp.computation()
-  def with_scoped_handler(comp, value) do
+  @spec handle(Comp.computation(), term()) :: Comp.computation()
+  def handle(comp, value) do
     comp
     |> Comp.scoped(fn env ->
       previous = Env.get_state(env, @sig)

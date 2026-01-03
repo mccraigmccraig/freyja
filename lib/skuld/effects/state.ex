@@ -75,24 +75,24 @@ defmodule Skuld.Effects.State do
           _ <- State.put(x + 1)
           return(x)
         end
-        |> State.with_scoped_handler(0)
+        |> State.handle(0)
 
       # Can be nested - inner State shadows outer
       outer_comp = comp do
         _ <- State.put(100)
-        inner_result <- State.get() |> State.with_scoped_handler(0)
+        inner_result <- State.get() |> State.handle(0)
         outer_val <- State.get()
         return({inner_result, outer_val})  # {0, 100}
       end
 
       # Compose multiple handlers with pipes
       my_comp
-      |> Reader.with_scoped_handler(:config)
-      |> State.with_scoped_handler(0)
+      |> Reader.handle(:config)
+      |> State.handle(0)
       |> Comp.run(Env.new())
   """
-  @spec with_scoped_handler(Comp.computation(), term()) :: Comp.computation()
-  def with_scoped_handler(comp, initial) do
+  @spec handle(Comp.computation(), term()) :: Comp.computation()
+  def handle(comp, initial) do
     comp
     |> Comp.scoped(fn env ->
       previous = Env.get_state(env, @sig)

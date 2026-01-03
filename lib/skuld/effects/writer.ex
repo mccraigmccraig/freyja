@@ -190,7 +190,7 @@ defmodule Skuld.Effects.Writer do
       previous_log = Env.get_state(env, @state_key)
       modified = Env.put_state(env, @state_key, initial)
 
-      restore = fn value, e ->
+      finally_k = fn value, e ->
         restored_env =
           case previous_log do
             nil -> %{e | state: Map.delete(e.state, @state_key)}
@@ -200,7 +200,7 @@ defmodule Skuld.Effects.Writer do
         {value, restored_env}
       end
 
-      {modified, restore}
+      {modified, finally_k}
     end)
     |> Comp.with_handler(@sig, &__MODULE__.handle/3)
   end

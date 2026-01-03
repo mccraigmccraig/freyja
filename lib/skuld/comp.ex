@@ -238,16 +238,16 @@ defmodule Skuld.Comp do
   #############################################################################
 
   @doc """
-  Create a scoped computation with dual-path cleanup and result transformation.
+  Create a scoped computation with a final continuation for cleanup and result transformation.
 
   The `setup` function receives the current env and must return
-  `{modified_env, restore}` where `restore :: (value, env) -> {value, env}`
-  can both restore the env to its pre-scope state AND transform the result.
+  `{modified_env, finally_k}` where `finally_k :: (value, env) -> {value, env}`
+  is a continuation that runs when the scope exits.
 
   This enables Koka-style `with` semantics where handlers can transform
   computation results (e.g., wrapping with collected state, logs, etc.).
 
-  The restore function is called on both:
+  The `finally_k` continuation is called on both:
   - **Normal exit**: before continuing to outer computation
   - **Abnormal exit**: during leave-scope unwinding (e.g., throw)
 
@@ -262,8 +262,8 @@ defmodule Skuld.Comp do
         |> Skuld.Comp.scoped(fn env ->
           current = Env.get_state(env, @sig)
           modified_env = Env.put_state(env, @sig, modify.(current))
-          restore = fn value, e -> {value, Env.put_state(e, @sig, current)} end
-          {modified_env, restore}
+          finally_k = fn value, e -> {value, Env.put_state(e, @sig, current)} end
+          {modified_env, finally_k}
         end)
       end
 
@@ -274,13 +274,13 @@ defmodule Skuld.Comp do
         |> Skuld.Comp.scoped(fn env ->
           env_with_log = Env.put_state(env, :log, [])
 
-          restore = fn value, e ->
+          finally_k = fn value, e ->
             log = Env.get_state(e, :log)
             cleaned = Map.delete(e.state, :log)
             {{value, Enum.reverse(log)}, %{e | state: cleaned}}
           end
 
-          {env_with_log, restore}
+          {env_with_log, finally_k}
         end)
       end
   """
@@ -289,24 +289,21 @@ defmodule Skuld.Comp do
   def scoped(comp, setup) do
     fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
-      {modified_env, restore} = setup.(env)
+      {modified_env, finally_k} = setup.(env)
 
-      # Normal exit: restore env/transform result and leave_scope before continuing
-      restoring_k = fn value, inner_env ->
-        {new_value, restored_env} = restore.(value, inner_env)
-        final_env = Env.with_leave_scope(restored_env, previous_leave_scope)
-        outer_k.(new_value, final_env)
+      # Normal exit: run finally_k then continue to outer
+      normal_k = fn value, inner_env ->
+        {new_value, final_env} = finally_k.(value, inner_env)
+        outer_k.(new_value, Env.with_leave_scope(final_env, previous_leave_scope))
       end
 
-      # Abnormal exit: restore env/transform result and leave_scope during unwinding
+      # Abnormal exit: run finally_k during leave-scope unwinding
       my_leave_scope = fn result, inner_env ->
-        {new_result, cleaned_env} = restore.(result, inner_env)
-        final_env = Env.with_leave_scope(cleaned_env, previous_leave_scope)
-        previous_leave_scope.(new_result, final_env)
+        {new_result, final_env} = finally_k.(result, inner_env)
+        previous_leave_scope.(new_result, Env.with_leave_scope(final_env, previous_leave_scope))
       end
 
-      final_env = Env.with_leave_scope(modified_env, my_leave_scope)
-      call(comp, final_env, restoring_k)
+      call(comp, Env.with_leave_scope(modified_env, my_leave_scope), normal_k)
     end
   end
 
@@ -348,7 +345,7 @@ defmodule Skuld.Comp do
         previous = Env.get_handler(env, sig)
         modified_env = Env.with_handler(env, sig, handler)
 
-        restore = fn value, e ->
+        finally_k = fn value, e ->
           restored_env =
             case previous do
               nil -> Env.delete_handler(e, sig)
@@ -358,7 +355,7 @@ defmodule Skuld.Comp do
           {value, restored_env}
         end
 
-        {modified_env, restore}
+        {modified_env, finally_k}
       end
     )
   end

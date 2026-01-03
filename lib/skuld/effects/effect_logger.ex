@@ -110,14 +110,14 @@ defmodule Skuld.Effects.EffectLogger do
           end
         end)
 
-      # Restore: extract log and transform result to {result, log}
-      restore = fn result, final_env ->
+      # Finally: extract log and transform result to {result, log}
+      finally_k = fn result, final_env ->
         log = Env.get_state(final_env, @log_key, [])
         cleaned_env = clean_log_state(final_env)
         {{result, Enum.reverse(log)}, cleaned_env}
       end
 
-      {logged_env, restore}
+      {logged_env, finally_k}
     end)
   end
 

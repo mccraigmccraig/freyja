@@ -18,3 +18,12 @@
 {"id":"freyja-ci8","ts":"2025-12-16T08:38:55.346813Z","by":"mccraigmccraig","reason":"cleanup"}
 {"id":"freyja-h7d","ts":"2025-12-16T08:38:55.35788Z","by":"mccraigmccraig","reason":"cleanup"}
 {"id":"freyja-a9b4fc42","ts":"2025-12-16T08:38:55.362747Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-5ca","ts":"2025-12-18T00:09:28.164626Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
+{"id":"freyja-wmt","ts":"2025-12-18T00:09:28.172195Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
+{"id":"freyja-r69","ts":"2025-12-18T00:09:28.177607Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
+{"id":"freyja-vbr","ts":"2026-01-03T17:22:27.314275Z","by":"git-history-backfill","reason":"recovered from git history (pruned from manifest)"}
+{"id":"freyja-bvm","ts":"2026-01-03T17:24:14.45613Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-6nl","ts":"2026-01-03T17:24:14.462034Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-ci8","ts":"2026-01-03T17:24:14.466641Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-h7d","ts":"2026-01-03T17:24:14.471443Z","by":"mccraigmccraig","reason":"cleanup"}
+{"id":"freyja-a9b4fc42","ts":"2026-01-03T17:24:14.476337Z","by":"mccraigmccraig","reason":"cleanup"}

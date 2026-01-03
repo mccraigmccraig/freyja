@@ -54,7 +54,57 @@ defmodule Skuld.Effects.Reader do
   ## Handler Installation
   #############################################################################
 
-  @doc "Install the Reader handler with an initial value"
+  @doc """
+  Install a scoped Reader handler for a computation.
+
+  Installs the Reader handler and context for the duration of `comp`.
+  Both the handler and context are restored/removed when `comp` completes or throws.
+
+  This is the composable alternative to `handler/2` - it operates on computations
+  rather than environments.
+
+  ## Example
+
+      # Wrap a computation with its own Reader context
+      comp_with_reader = Reader.with_scoped_handler(%{config: "value"},
+        comp do
+          cfg <- Reader.ask()
+          return(cfg.config)
+        end
+      )
+
+      # Can be nested - inner Reader shadows outer
+      outer_comp = comp do
+        outer_cfg <- Reader.ask()
+        inner_result <- Reader.with_scoped_handler(%{inner: true}, Reader.ask())
+        return({outer_cfg, inner_result})
+      end
+  """
+  @spec with_scoped_handler(term(), Comp.computation()) :: Comp.computation()
+  def with_scoped_handler(value, comp) do
+    Comp.handle(
+      @sig,
+      &__MODULE__.handle/3,
+      Comp.scoped(
+        fn env ->
+          previous = Env.get_state(env, @sig)
+          modified = Env.put_state(env, @sig, value)
+
+          restore = fn e ->
+            case previous do
+              nil -> %{e | state: Map.delete(e.state, @sig)}
+              val -> Env.put_state(e, @sig, val)
+            end
+          end
+
+          {modified, restore}
+        end,
+        comp
+      )
+    )
+  end
+
+  @doc "Install the Reader handler with an initial value (env-based, for top-level setup)"
   @spec handler(Comp.env(), term()) :: Comp.env()
   def handler(env, value) do
     env

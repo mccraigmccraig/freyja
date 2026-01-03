@@ -57,7 +57,59 @@ defmodule Skuld.Effects.State do
   ## Handler Installation
   #############################################################################
 
-  @doc "Install the State handler with an initial value"
+  @doc """
+  Install a scoped State handler for a computation.
+
+  Installs the State handler and initializes state for the duration of `comp`.
+  Both the handler and state are restored/removed when `comp` completes or throws.
+
+  This is the composable alternative to `handler/2` - it operates on computations
+  rather than environments.
+
+  ## Example
+
+      # Wrap a computation with its own State
+      comp_with_state = State.with_scoped_handler(0, 
+        comp do
+          x <- State.get()
+          _ <- State.put(x + 1)
+          return(x)
+        end
+      )
+
+      # Can be nested - inner State shadows outer
+      outer_comp = comp do
+        _ <- State.put(100)
+        inner_result <- State.with_scoped_handler(0, State.get())
+        outer_val <- State.get()
+        return({inner_result, outer_val})  # {0, 100}
+      end
+  """
+  @spec with_scoped_handler(term(), Comp.computation()) :: Comp.computation()
+  def with_scoped_handler(initial, comp) do
+    Comp.handle(
+      @sig,
+      &__MODULE__.handle/3,
+      Comp.scoped(
+        fn env ->
+          previous = Env.get_state(env, @sig)
+          modified = Env.put_state(env, @sig, initial)
+
+          restore = fn e ->
+            case previous do
+              nil -> %{e | state: Map.delete(e.state, @sig)}
+              val -> Env.put_state(e, @sig, val)
+            end
+          end
+
+          {modified, restore}
+        end,
+        comp
+      )
+    )
+  end
+
+  @doc "Install the State handler with an initial value (env-based, for top-level setup)"
   @spec handler(Comp.env(), term()) :: Comp.env()
   def handler(env, initial) do
     env

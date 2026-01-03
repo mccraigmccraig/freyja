@@ -74,4 +74,125 @@ defmodule Skuld.Effects.ReaderTest do
       assert {15, _} = Comp.run(comp, env)
     end
   end
+
+  describe "with_scoped_handler" do
+    test "installs handler and context for computation" do
+      # No handler in env - with_scoped_handler provides everything
+      env = Env.new()
+
+      comp = Reader.with_scoped_handler(%{name: "test"}, Reader.asks(& &1.name))
+
+      {result, _env} = Comp.run(comp, env)
+      assert result == "test"
+    end
+
+    test "shadows outer handler and restores it" do
+      env = Env.new() |> Reader.handler(:outer)
+
+      comp =
+        Comp.bind(Reader.ask(), fn outer_before ->
+          Comp.bind(
+            Reader.with_scoped_handler(:inner, Reader.ask()),
+            fn inner_result ->
+              Comp.bind(Reader.ask(), fn outer_after ->
+                Comp.pure({outer_before, inner_result, outer_after})
+              end)
+            end
+          )
+        end)
+
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:outer, :inner, :outer} = result
+    end
+
+    test "nested scoped handlers work correctly" do
+      env = Env.new()
+
+      comp =
+        Reader.with_scoped_handler(
+          :level1,
+          Comp.bind(Reader.ask(), fn l1 ->
+            Comp.bind(
+              Reader.with_scoped_handler(:level2, Reader.ask()),
+              fn l2 ->
+                Comp.bind(Reader.ask(), fn l1_after ->
+                  Comp.pure({l1, l2, l1_after})
+                end)
+              end
+            )
+          end)
+        )
+
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:level1, :level2, :level1} = result
+    end
+
+    test "cleanup on throw" do
+      alias Skuld.Effects.Throw
+
+      env = Env.new() |> Reader.handler(:outer) |> Throw.handler()
+
+      comp =
+        Throw.catch_error(
+          Comp.bind(
+            Reader.with_scoped_handler(:inner, Throw.throw(:error)),
+            fn _ -> Comp.pure(:unreachable) end
+          ),
+          fn _error ->
+            Comp.bind(Reader.ask(), fn outer_after ->
+              Comp.pure({:caught, outer_after})
+            end)
+          end
+        )
+
+      {result, _env} = Comp.run(comp, env)
+
+      assert {:caught, :outer} = result
+    end
+
+    test "handler removed after scope when no previous handler" do
+      env = Env.new()
+
+      comp =
+        Comp.bind(
+          Reader.with_scoped_handler(:config, Reader.ask()),
+          fn inner_result ->
+            Comp.pure({:done, inner_result})
+          end
+        )
+
+      {result, final_env} = Comp.run(comp, env)
+
+      assert {:done, :config} = result
+      # Handler should be removed
+      assert Env.get_handler(final_env, Reader) == nil
+      # State should be removed
+      assert Env.get_state(final_env, Reader) == nil
+    end
+
+    test "local still works inside with_scoped_handler" do
+      env = Env.new()
+
+      comp =
+        Reader.with_scoped_handler(
+          10,
+          Comp.bind(Reader.ask(), fn before_local ->
+            Comp.bind(
+              Reader.local(&(&1 * 2), Reader.ask()),
+              fn during_local ->
+                Comp.bind(Reader.ask(), fn after_local ->
+                  Comp.pure({before_local, during_local, after_local})
+                end)
+              end
+            )
+          end)
+        )
+
+      {result, _env} = Comp.run(comp, env)
+
+      assert {10, 20, 10} = result
+    end
+  end
 end

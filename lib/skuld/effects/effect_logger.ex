@@ -86,15 +86,17 @@ defmodule Skuld.Effects.EffectLogger do
   """
   @spec with_logging(Comp.computation(), keyword()) :: Comp.computation()
   def with_logging(comp, opts \\ []) do
-    fn env, k ->
-      effects_to_log = Keyword.get(opts, :effects, Map.keys(env.evidence))
-      timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
-      id_fn = Keyword.get(opts, :id_fn, &make_ref/0)
+    timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
+    id_fn = Keyword.get(opts, :id_fn, &make_ref/0)
+    effects_opt = Keyword.get(opts, :effects)
 
-      # Initialize log in env
+    comp
+    |> Comp.scoped(fn env ->
+      effects_to_log = effects_opt || Map.keys(env.evidence)
+
+      # Setup: initialize log and interpose logging handlers
       env_with_log = Env.put_state(env, @log_key, [])
 
-      # Interpose logging on specified effects
       logged_env =
         Enum.reduce(effects_to_log, env_with_log, fn sig, acc_env ->
           case acc_env.evidence[sig] do
@@ -108,26 +110,15 @@ defmodule Skuld.Effects.EffectLogger do
           end
         end)
 
-      # Inner k extracts the log and wraps the result
-      inner_k = fn result, final_env ->
+      # Restore: extract log and transform result to {result, log}
+      restore = fn result, final_env ->
         log = Env.get_state(final_env, @log_key, [])
         cleaned_env = clean_log_state(final_env)
-        k.({result, Enum.reverse(log)}, cleaned_env)
+        {{result, Enum.reverse(log)}, cleaned_env}
       end
 
-      # Run inner computation with logged handlers
-      {result, result_env} = Comp.call(comp, logged_env, inner_k)
-
-      # If we got a sentinel that bypassed inner_k, extract the log here
-      if ISentinel.sentinel?(result) do
-        log = Env.get_state(result_env, @log_key, [])
-        cleaned_env = clean_log_state(result_env)
-        k.({result, Enum.reverse(log)}, cleaned_env)
-      else
-        # Normal return already went through inner_k
-        {result, result_env}
-      end
-    end
+      {logged_env, restore}
+    end)
   end
 
   defp make_logging_handler(sig, original_handler, timestamp_fn, id_fn) do

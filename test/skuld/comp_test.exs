@@ -317,7 +317,7 @@ defmodule Skuld.CompTest do
       fn env ->
         previous = Env.get_state(env, State)
         modified = Env.put_state(env, State, initial)
-        restore = fn e -> Env.put_state(e, State, previous) end
+        restore = fn value, e -> {value, Env.put_state(e, State, previous)} end
         {modified, restore}
       end
     end

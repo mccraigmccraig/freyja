@@ -42,7 +42,7 @@ defmodule Skuld.Effects.Reader do
     Comp.scoped(comp, fn env ->
       current = Env.get_state(env, @sig)
       modified_env = Env.put_state(env, @sig, modify.(current))
-      restore = fn e -> Env.put_state(e, @sig, current) end
+      restore = fn value, e -> {value, Env.put_state(e, @sig, current)} end
       {modified_env, restore}
     end)
   end
@@ -89,11 +89,14 @@ defmodule Skuld.Effects.Reader do
       previous = Env.get_state(env, @sig)
       modified = Env.put_state(env, @sig, value)
 
-      restore = fn e ->
-        case previous do
-          nil -> %{e | state: Map.delete(e.state, @sig)}
-          val -> Env.put_state(e, @sig, val)
-        end
+      restore = fn v, e ->
+        restored_env =
+          case previous do
+            nil -> %{e | state: Map.delete(e.state, @sig)}
+            val -> Env.put_state(e, @sig, val)
+          end
+
+        {v, restored_env}
       end
 
       {modified, restore}

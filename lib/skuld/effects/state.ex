@@ -97,11 +97,14 @@ defmodule Skuld.Effects.State do
       previous = Env.get_state(env, @sig)
       modified = Env.put_state(env, @sig, initial)
 
-      restore = fn e ->
-        case previous do
-          nil -> %{e | state: Map.delete(e.state, @sig)}
-          val -> Env.put_state(e, @sig, val)
-        end
+      restore = fn value, e ->
+        restored_env =
+          case previous do
+            nil -> %{e | state: Map.delete(e.state, @sig)}
+            val -> Env.put_state(e, @sig, val)
+          end
+
+        {value, restored_env}
       end
 
       {modified, restore}

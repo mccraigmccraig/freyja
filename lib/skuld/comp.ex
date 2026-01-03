@@ -238,11 +238,14 @@ defmodule Skuld.Comp do
   #############################################################################
 
   @doc """
-  Create a scoped computation with dual-path cleanup.
+  Create a scoped computation with dual-path cleanup and result transformation.
 
   The `setup` function receives the current env and must return
-  `{modified_env, restore}` where `restore :: (env -> env)` restores
-  the env to its pre-scope state.
+  `{modified_env, restore}` where `restore :: (value, env) -> {value, env}`
+  can both restore the env to its pre-scope state AND transform the result.
+
+  This enables Koka-style `with` semantics where handlers can transform
+  computation results (e.g., wrapping with collected state, logs, etc.).
 
   The restore function is called on both:
   - **Normal exit**: before continuing to outer computation
@@ -252,42 +255,54 @@ defmodule Skuld.Comp do
 
   The argument order is pipe-friendly (computation first).
 
-  ## Example
+  ## Example - Environment restoration only
 
       def local(modify, comp) do
         comp
         |> Skuld.Comp.scoped(fn env ->
           current = Env.get_state(env, @sig)
           modified_env = Env.put_state(env, @sig, modify.(current))
-          restore = fn e -> Env.put_state(e, @sig, current) end
+          restore = fn value, e -> {value, Env.put_state(e, @sig, current)} end
           {modified_env, restore}
         end)
       end
+
+  ## Example - Result transformation (like EffectLogger)
+
+      def with_logging(comp) do
+        comp
+        |> Skuld.Comp.scoped(fn env ->
+          env_with_log = Env.put_state(env, :log, [])
+
+          restore = fn value, e ->
+            log = Env.get_state(e, :log)
+            cleaned = Map.delete(e.state, :log)
+            {{value, Enum.reverse(log)}, %{e | state: cleaned}}
+          end
+
+          {env_with_log, restore}
+        end)
+      end
   """
-  @spec scoped(computation(), (env() -> {env(), (env() -> env())})) :: computation()
+  @spec scoped(computation(), (env() -> {env(), (result(), env() -> {result(), env()})})) ::
+          computation()
   def scoped(comp, setup) do
     fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
       {modified_env, restore} = setup.(env)
 
-      # Normal exit: restore env and leave_scope before continuing
+      # Normal exit: restore env/transform result and leave_scope before continuing
       restoring_k = fn value, inner_env ->
-        restored_env =
-          inner_env
-          |> restore.()
-          |> Env.with_leave_scope(previous_leave_scope)
-
-        outer_k.(value, restored_env)
+        {new_value, restored_env} = restore.(value, inner_env)
+        final_env = Env.with_leave_scope(restored_env, previous_leave_scope)
+        outer_k.(new_value, final_env)
       end
 
-      # Abnormal exit: restore env and leave_scope during unwinding
+      # Abnormal exit: restore env/transform result and leave_scope during unwinding
       my_leave_scope = fn result, inner_env ->
-        cleaned_env =
-          inner_env
-          |> restore.()
-          |> Env.with_leave_scope(previous_leave_scope)
-
-        previous_leave_scope.(result, cleaned_env)
+        {new_result, cleaned_env} = restore.(result, inner_env)
+        final_env = Env.with_leave_scope(cleaned_env, previous_leave_scope)
+        previous_leave_scope.(new_result, final_env)
       end
 
       final_env = Env.with_leave_scope(modified_env, my_leave_scope)
@@ -333,11 +348,14 @@ defmodule Skuld.Comp do
         previous = Env.get_handler(env, sig)
         modified_env = Env.with_handler(env, sig, handler)
 
-        restore = fn e ->
-          case previous do
-            nil -> Env.delete_handler(e, sig)
-            h -> Env.with_handler(e, sig, h)
-          end
+        restore = fn value, e ->
+          restored_env =
+            case previous do
+              nil -> Env.delete_handler(e, sig)
+              h -> Env.with_handler(e, sig, h)
+            end
+
+          {value, restored_env}
         end
 
         {modified_env, restore}

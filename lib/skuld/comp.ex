@@ -31,43 +31,20 @@ defmodule Skuld.Comp do
   end
 
   # Sentinel protocol and types are in their own files:
+  # - Skuld.Comp.Types (type definitions)
   # - Skuld.Comp.ISentinel (protocol)
   # - Skuld.Comp.Suspend (bypasses leave-scope)
   # - Skuld.Comp.Throw (error sentinel)
-  alias Skuld.Comp.ISentinel
   alias Skuld.Comp.Env
-
-  #############################################################################
-  ## Types
-  #############################################################################
-
-  @typedoc "Any result value - opaque to the framework"
-  @type result :: term()
-
-  @typedoc "Effect signature - identifies which handler handles an operation"
-  @type sig :: atom()
-
-  @typedoc "The environment carrying evidence, state, and leave-scope"
-  @type env :: Env.t()
-
-  @typedoc "A handler interprets effect operations"
-  @type handler :: (args :: term(), env(), k() -> {result(), env()})
-
-  @typedoc "Continuation after an effect"
-  @type k :: (term(), env() -> {result(), env()})
-
-  @typedoc "A computation awaiting execution"
-  @type computation :: (env(), k() -> {result(), env()})
-
-  @typedoc "Leave-scope handler - cleans up or redirects"
-  @type leave_scope :: (result(), env() -> {result(), env()})
+  alias Skuld.Comp.ISentinel
+  alias Skuld.Comp.Types
 
   #############################################################################
   ## Core Operations
   #############################################################################
 
   @doc "Lift a pure value into a computation"
-  @spec pure(term()) :: computation()
+  @spec pure(term()) :: Types.computation()
   def pure(value) do
     fn env, k -> k.(value, env) end
   end
@@ -84,7 +61,7 @@ defmodule Skuld.Comp do
   Note: `InvalidComputation` errors (validation failures) are re-raised rather than
   converted to Throws, since they represent programming bugs that should fail fast.
   """
-  @spec call(computation(), env(), k()) :: {result(), env()}
+  @spec call(Types.computation(), Types.env(), Types.k()) :: {Types.result(), Types.env()}
   def call(comp, env, k) when is_function(comp, 2) do
     comp.(env, k)
   catch
@@ -119,7 +96,7 @@ defmodule Skuld.Comp do
   end
 
   @doc "Sequence computations"
-  @spec bind(computation(), (term() -> computation())) :: computation()
+  @spec bind(Types.computation(), (term() -> Types.computation())) :: Types.computation()
   def bind(comp, f) do
     fn env, k ->
       call(comp, env, fn a, env2 ->
@@ -149,7 +126,7 @@ defmodule Skuld.Comp do
         |> Reader.with_handler(:config)
         |> Comp.run()
   """
-  @spec run(computation()) :: {result(), env()}
+  @spec run(Types.computation()) :: {Types.result(), Types.env()}
   def run(comp) do
     {result, final_env} =
       call(
@@ -162,7 +139,7 @@ defmodule Skuld.Comp do
   end
 
   @doc "Run a computation, extracting just the value (raises on Suspend/Throw)"
-  @spec run!(computation()) :: term()
+  @spec run!(Types.computation()) :: term()
   def run!(comp) do
     {result, _env} = run(comp)
     ISentinel.run!(result)
@@ -178,7 +155,8 @@ defmodule Skuld.Comp do
   Similar to `call/3` but for 3-arity handlers. Exceptions in handler code
   are caught and converted to Throw effects.
   """
-  @spec call_handler(handler(), term(), env(), k()) :: {result(), env()}
+  @spec call_handler(Types.handler(), term(), Types.env(), Types.k()) ::
+          {Types.result(), Types.env()}
   def call_handler(handler, args, env, k) when is_function(handler, 3) do
     handler.(args, env, k)
   catch
@@ -192,7 +170,7 @@ defmodule Skuld.Comp do
   end
 
   @doc "Invoke an effect operation"
-  @spec effect(sig(), term()) :: computation()
+  @spec effect(Types.sig(), term()) :: Types.computation()
   def effect(sig, args \\ nil) do
     fn env, k ->
       handler = Env.get_handler!(env, sig)
@@ -205,19 +183,19 @@ defmodule Skuld.Comp do
   #############################################################################
 
   @doc "Sequence computations, ignoring first result"
-  @spec then_do(computation(), computation()) :: computation()
+  @spec then_do(Types.computation(), Types.computation()) :: Types.computation()
   def then_do(comp1, comp2) do
     bind(comp1, fn _ -> comp2 end)
   end
 
   @doc "Map over a computation's result"
-  @spec map(computation(), (term() -> term())) :: computation()
+  @spec map(Types.computation(), (term() -> term())) :: Types.computation()
   def map(comp, f) do
     bind(comp, fn a -> pure(f.(a)) end)
   end
 
   @doc "Flatten nested computations"
-  @spec flatten(computation()) :: computation()
+  @spec flatten(Types.computation()) :: Types.computation()
   def flatten(comp) do
     fn env, k ->
       call(comp, env, fn inner, env2 ->
@@ -227,7 +205,7 @@ defmodule Skuld.Comp do
   end
 
   @doc "Sequence a list of computations"
-  @spec sequence([computation()]) :: computation()
+  @spec sequence([Types.computation()]) :: Types.computation()
   def sequence([]), do: pure([])
 
   def sequence([comp | rest]) do
@@ -239,7 +217,7 @@ defmodule Skuld.Comp do
   end
 
   @doc "Apply f to each element, sequence the resulting computations"
-  @spec traverse(list(), (term() -> computation())) :: computation()
+  @spec traverse(list(), (term() -> Types.computation())) :: Types.computation()
   def traverse(list, f) do
     sequence(Enum.map(list, f))
   end
@@ -295,8 +273,11 @@ defmodule Skuld.Comp do
         end)
       end
   """
-  @spec scoped(computation(), (env() -> {env(), (result(), env() -> {result(), env()})})) ::
-          computation()
+  @spec scoped(Types.computation(), (Types.env() ->
+                                       {Types.env(),
+                                        (Types.result(), Types.env() ->
+                                           {Types.result(), Types.env()})})) ::
+          Types.computation()
   def scoped(comp, setup) do
     fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
@@ -348,7 +329,7 @@ defmodule Skuld.Comp do
         return({result, y})
       end
   """
-  @spec with_handler(computation(), sig(), handler()) :: computation()
+  @spec with_handler(Types.computation(), Types.sig(), Types.handler()) :: Types.computation()
   def with_handler(comp, sig, handler) do
     scoped(
       comp,

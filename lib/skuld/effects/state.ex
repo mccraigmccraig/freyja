@@ -11,6 +11,7 @@ defmodule Skuld.Effects.State do
 
   alias Skuld.Comp
   alias Skuld.Comp.Env
+  alias Skuld.Comp.Types
 
   @sig __MODULE__
 
@@ -26,19 +27,19 @@ defmodule Skuld.Effects.State do
   #############################################################################
 
   @doc "Get the current state"
-  @spec get() :: Comp.computation()
+  @spec get() :: Types.computation()
   def get do
     Comp.effect(@sig, %Get{})
   end
 
   @doc "Replace the state, returning :ok"
-  @spec put(term()) :: Comp.computation()
+  @spec put(term()) :: Types.computation()
   def put(value) do
     Comp.effect(@sig, %Put{value: value})
   end
 
   @doc "Modify the state with a function, returning the old value"
-  @spec modify((term() -> term())) :: Comp.computation()
+  @spec modify((term() -> term())) :: Types.computation()
   def modify(f) do
     Comp.bind(get(), fn old ->
       Comp.bind(put(f.(old)), fn _ ->
@@ -48,7 +49,7 @@ defmodule Skuld.Effects.State do
   end
 
   @doc "Get a value derived from the state"
-  @spec gets((term() -> term())) :: Comp.computation()
+  @spec gets((term() -> term())) :: Types.computation()
   def gets(f) do
     Comp.map(get(), f)
   end
@@ -90,7 +91,7 @@ defmodule Skuld.Effects.State do
       |> State.with_handler(0)
       |> Comp.run(Env.new())
   """
-  @spec with_handler(Comp.computation(), term()) :: Comp.computation()
+  @spec with_handler(Types.computation(), term()) :: Types.computation()
   def with_handler(comp, initial) do
     comp
     |> Comp.scoped(fn env ->
@@ -113,7 +114,7 @@ defmodule Skuld.Effects.State do
   end
 
   @doc "Extract the final state from an env"
-  @spec get_state(Comp.env()) :: term()
+  @spec get_state(Types.env()) :: term()
   def get_state(env) do
     Env.get_state(env, @sig)
   end

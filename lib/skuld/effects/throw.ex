@@ -20,6 +20,7 @@ defmodule Skuld.Effects.Throw do
 
   alias Skuld.Comp
   alias Skuld.Comp.Env
+  alias Skuld.Comp.Types
 
   @sig __MODULE__
 
@@ -34,7 +35,7 @@ defmodule Skuld.Effects.Throw do
   #############################################################################
 
   @doc "Throw an error - does not resume"
-  @spec throw(term()) :: Comp.computation()
+  @spec throw(term()) :: Types.computation()
   def throw(error) do
     Comp.effect(@sig, %ThrowOp{error: error})
   end
@@ -66,7 +67,7 @@ defmodule Skuld.Effects.Throw do
         fn :b -> ... end
       )
   """
-  @spec catch_error(Comp.computation(), (term() -> Comp.computation())) :: Comp.computation()
+  @spec catch_error(Types.computation(), (term() -> Types.computation())) :: Types.computation()
   def catch_error(comp, error_handler) do
     fn env, outer_k ->
       previous_leave_scope = Env.get_leave_scope(env)
@@ -121,7 +122,7 @@ defmodule Skuld.Effects.Throw do
         {:error, err} -> handle_error(err)
       end
   """
-  @spec try_catch(Comp.computation()) :: Comp.computation()
+  @spec try_catch(Types.computation()) :: Types.computation()
   def try_catch(comp) do
     catch_error(
       Comp.map(comp, fn value -> {:ok, value} end),
@@ -157,7 +158,7 @@ defmodule Skuld.Effects.Throw do
       |> State.with_handler(0)
       |> Comp.run(Env.new())
   """
-  @spec with_handler(Comp.computation()) :: Comp.computation()
+  @spec with_handler(Types.computation()) :: Types.computation()
   def with_handler(comp) do
     Comp.with_handler(comp, @sig, &__MODULE__.handle/3)
   end

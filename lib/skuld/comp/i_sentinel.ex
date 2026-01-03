@@ -9,7 +9,7 @@ defprotocol Skuld.Comp.ISentinel do
   @fallback_to_any true
 
   @doc "Complete a computation result - invoke leave_scope or bypass for sentinels"
-  @spec run(t, Skuld.Comp.env()) :: {Skuld.Comp.result(), Skuld.Comp.env()}
+  @spec run(t, Skuld.Comp.Types.env()) :: {Skuld.Comp.Types.result(), Skuld.Comp.Types.env()}
   def run(result, env)
 
   @doc "Extract value or raise for sentinel types"
@@ -21,11 +21,11 @@ defprotocol Skuld.Comp.ISentinel do
   def sentinel?(value)
 
   @doc "Get the resume function if this sentinel is resumable, nil otherwise."
-  @spec get_resume(t) :: (term() -> {term(), Skuld.Comp.env()}) | nil
+  @spec get_resume(t) :: (term() -> {term(), Skuld.Comp.Types.env()}) | nil
   def get_resume(sentinel)
 
   @doc "Return a new sentinel with the resume function replaced. Returns unchanged if not resumable."
-  @spec with_resume(t, (term() -> {term(), Skuld.Comp.env()})) :: t
+  @spec with_resume(t, (term() -> {term(), Skuld.Comp.Types.env()})) :: t
   def with_resume(sentinel, new_resume)
 
   @doc "Get the serializable payload (struct fields minus :resume). Used for logging/serialization."

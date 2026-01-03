@@ -19,6 +19,6 @@ defmodule Skuld.Comp.BaseOps do
         return(x + 1)
       end
   """
-  @spec return(term()) :: Skuld.Comp.computation()
+  @spec return(term()) :: Skuld.Comp.Types.computation()
   def return(x), do: Skuld.Comp.pure(x)
 end

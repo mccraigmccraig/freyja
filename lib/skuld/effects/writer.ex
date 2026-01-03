@@ -59,6 +59,7 @@ defmodule Skuld.Effects.Writer do
 
   alias Skuld.Comp
   alias Skuld.Comp.Env
+  alias Skuld.Comp.Types
 
   @sig __MODULE__
   @state_key :writer_log
@@ -76,13 +77,13 @@ defmodule Skuld.Effects.Writer do
   #############################################################################
 
   @doc "Append a message to the log"
-  @spec tell(term()) :: Comp.computation()
+  @spec tell(term()) :: Types.computation()
   def tell(msg) do
     Comp.effect(@sig, %Tell{msg: msg})
   end
 
   @doc "Read the current log (reverse chronological order)"
-  @spec peek() :: Comp.computation()
+  @spec peek() :: Types.computation()
   def peek do
     Comp.effect(@sig, %Peek{})
   end
@@ -95,7 +96,7 @@ defmodule Skuld.Effects.Writer do
 
   Uses peek before/after to calculate the captured logs.
   """
-  @spec listen(Comp.computation()) :: Comp.computation()
+  @spec listen(Types.computation()) :: Types.computation()
   def listen(comp) do
     Comp.bind(peek(), fn initial_log ->
       Comp.bind(comp, fn result ->
@@ -113,7 +114,7 @@ defmodule Skuld.Effects.Writer do
 
   The transform function is applied to the logs written during the computation.
   """
-  @spec pass(Comp.computation()) :: Comp.computation()
+  @spec pass(Types.computation()) :: Types.computation()
   def pass(comp) do
     Comp.bind(peek(), fn initial_log ->
       Comp.bind(comp, fn {value, transform_fn} ->
@@ -135,7 +136,7 @@ defmodule Skuld.Effects.Writer do
   end
 
   @doc "Censor: transform all logs written during a computation"
-  @spec censor(Comp.computation(), (list() -> list())) :: Comp.computation()
+  @spec censor(Types.computation(), (list() -> list())) :: Types.computation()
   def censor(comp, transform_fn) do
     pass(
       Comp.bind(comp, fn result ->
@@ -183,7 +184,7 @@ defmodule Skuld.Effects.Writer do
       |> State.with_handler(0)
       |> Comp.run(Env.new())
   """
-  @spec with_handler(Comp.computation(), list()) :: Comp.computation()
+  @spec with_handler(Types.computation(), list()) :: Types.computation()
   def with_handler(comp, initial \\ []) do
     comp
     |> Comp.scoped(fn env ->
@@ -206,7 +207,7 @@ defmodule Skuld.Effects.Writer do
   end
 
   @doc "Get the accumulated log from the environment"
-  @spec get_log(Comp.env()) :: [term()]
+  @spec get_log(Types.env()) :: [term()]
   def get_log(env) do
     Env.get_state(env, @state_key, [])
   end
@@ -241,13 +242,13 @@ defmodule Skuld.Effects.Writer do
   #############################################################################
 
   @doc "Tell multiple messages"
-  @spec tell_many([term()]) :: Comp.computation()
+  @spec tell_many([term()]) :: Types.computation()
   def tell_many(messages) do
     Comp.traverse(messages, &tell/1)
   end
 
   @doc "Clear the log"
-  @spec clear() :: Comp.computation()
+  @spec clear() :: Types.computation()
   def clear do
     set_log([])
   end

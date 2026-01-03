@@ -33,6 +33,6 @@ defmodule Skuld.Comp.IHandler do
   Must return `{result, env}` - either by calling `k.(value, env)` or
   by returning a sentinel like `{%Skuld.Comp.Throw{}, env}`.
   """
-  @callback handle(args :: term(), env :: Skuld.Comp.env(), k :: Skuld.Comp.k()) ::
-              {Skuld.Comp.result(), Skuld.Comp.env()}
+  @callback handle(args :: term(), env :: Skuld.Comp.Types.env(), k :: Skuld.Comp.Types.k()) ::
+              {Skuld.Comp.Types.result(), Skuld.Comp.Types.env()}
 end

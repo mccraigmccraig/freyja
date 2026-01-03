@@ -18,6 +18,7 @@ defmodule Skuld.Effects.Yield do
   import Skuld.Comp.DefOp
 
   alias Skuld.Comp
+  alias Skuld.Comp.Types
 
   @sig __MODULE__
 
@@ -32,13 +33,13 @@ defmodule Skuld.Effects.Yield do
   #############################################################################
 
   @doc "Yield a value and suspend, waiting for input to resume"
-  @spec yield(term()) :: Comp.computation()
+  @spec yield(term()) :: Types.computation()
   def yield(value) do
     Comp.effect(@sig, %YieldOp{value: value})
   end
 
   @doc "Yield without a value"
-  @spec yield() :: Comp.computation()
+  @spec yield() :: Types.computation()
   def yield do
     yield(nil)
   end
@@ -71,7 +72,7 @@ defmodule Skuld.Effects.Yield do
       |> State.with_handler(0)
       |> Comp.run(Env.new())
   """
-  @spec with_handler(Comp.computation()) :: Comp.computation()
+  @spec with_handler(Types.computation()) :: Types.computation()
   def with_handler(comp) do
     Comp.with_handler(comp, @sig, &__MODULE__.handle/3)
   end
@@ -116,12 +117,12 @@ defmodule Skuld.Effects.Yield do
   The computation should already have handlers installed via `with_handler`.
   """
   @spec run_with_driver(
-          Comp.computation(),
+          Types.computation(),
           (term() -> {:continue, term()} | {:stop, term()})
         ) ::
-          {:done, term(), Comp.env()}
-          | {:stopped, term(), Comp.env()}
-          | {:thrown, term(), Comp.env()}
+          {:done, term(), Types.env()}
+          | {:stopped, term(), Types.env()}
+          | {:thrown, term(), Types.env()}
   def run_with_driver(comp, driver) do
     case Comp.run(comp) do
       {%Comp.Suspend{value: yielded, resume: resume}, suspended_env} ->
@@ -170,9 +171,9 @@ defmodule Skuld.Effects.Yield do
 
   The computation should already have handlers installed via `with_handler`.
   """
-  @spec collect(Comp.computation(), term()) ::
-          {:done, term(), [term()], Comp.env()}
-          | {:thrown, term(), [term()], Comp.env()}
+  @spec collect(Types.computation(), term()) ::
+          {:done, term(), [term()], Types.env()}
+          | {:thrown, term(), [term()], Types.env()}
   def collect(comp, resume_input \\ nil) do
     case Comp.run(comp) do
       {%Comp.Suspend{} = suspend, suspended_env} ->
@@ -208,10 +209,10 @@ defmodule Skuld.Effects.Yield do
 
   The computation should already have handlers installed via `with_handler`.
   """
-  @spec feed(Comp.computation(), [term()]) ::
-          {:done, term(), [term()], Comp.env()}
-          | {:suspended, term(), (term() -> {Comp.result(), Comp.env()}), [term()], Comp.env()}
-          | {:thrown, term(), [term()], Comp.env()}
+  @spec feed(Types.computation(), [term()]) ::
+          {:done, term(), [term()], Types.env()}
+          | {:suspended, term(), (term() -> {Types.result(), Types.env()}), [term()], Types.env()}
+          | {:thrown, term(), [term()], Types.env()}
   def feed(comp, inputs) do
     case Comp.run(comp) do
       {%Comp.Suspend{} = suspend, suspended_env} ->

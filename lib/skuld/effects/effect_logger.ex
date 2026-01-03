@@ -41,8 +41,9 @@ defmodule Skuld.Effects.EffectLogger do
   """
 
   alias Skuld.Comp
-  alias Skuld.Comp.ISentinel
   alias Skuld.Comp.Env
+  alias Skuld.Comp.ISentinel
+  alias Skuld.Comp.Types
 
   alias __MODULE__.LogEntry
   alias LogEntry.Completed
@@ -84,7 +85,7 @@ defmodule Skuld.Effects.EffectLogger do
 
       {result, log} = result_with_log
   """
-  @spec with_logging(Comp.computation(), keyword()) :: Comp.computation()
+  @spec with_logging(Types.computation(), keyword()) :: Types.computation()
   def with_logging(comp, opts \\ []) do
     timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
     id_fn = Keyword.get(opts, :id_fn, &make_ref/0)
@@ -297,7 +298,7 @@ defmodule Skuld.Effects.EffectLogger do
         |> State.with_handler(0)
         |> Comp.run(Env.new())
   """
-  @spec replay(Comp.computation(), [LogEntry.t()], keyword()) :: Comp.computation()
+  @spec replay(Types.computation(), [LogEntry.t()], keyword()) :: Types.computation()
   def replay(comp, log, opts \\ []) do
     fn env, k ->
       on_missing = Keyword.get(opts, :on_missing, :error)

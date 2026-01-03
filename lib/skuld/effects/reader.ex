@@ -11,6 +11,7 @@ defmodule Skuld.Effects.Reader do
 
   alias Skuld.Comp
   alias Skuld.Comp.Env
+  alias Skuld.Comp.Types
 
   @sig __MODULE__
 
@@ -25,19 +26,19 @@ defmodule Skuld.Effects.Reader do
   #############################################################################
 
   @doc "Read the current environment value"
-  @spec ask() :: Comp.computation()
+  @spec ask() :: Types.computation()
   def ask do
     Comp.effect(@sig, %Ask{})
   end
 
   @doc "Read and apply a function to the environment value"
-  @spec asks((term() -> term())) :: Comp.computation()
+  @spec asks((term() -> term())) :: Types.computation()
   def asks(f) do
     Comp.map(ask(), f)
   end
 
   @doc "Run a computation with a modified environment value"
-  @spec local((term() -> term()), Comp.computation()) :: Comp.computation()
+  @spec local((term() -> term()), Types.computation()) :: Types.computation()
   def local(modify, comp) do
     Comp.scoped(comp, fn env ->
       current = Env.get_state(env, @sig)
@@ -82,7 +83,7 @@ defmodule Skuld.Effects.Reader do
       |> State.with_handler(0)
       |> Comp.run(Env.new())
   """
-  @spec with_handler(Comp.computation(), term()) :: Comp.computation()
+  @spec with_handler(Types.computation(), term()) :: Types.computation()
   def with_handler(comp, value) do
     comp
     |> Comp.scoped(fn env ->

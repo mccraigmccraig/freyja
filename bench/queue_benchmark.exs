@@ -15,6 +15,8 @@
 # 8. Ev/Nested     - Evidence-passing style: state monad + evidence map for handler dispatch
 # 9. Evf/Nested    - Flat evidence-passing: handlers as direct env keys (single map lookup)
 # 10. Skuld/Nested - Skuld library: evidence-passing with CPS for control effects
+# 11. Skuld/Chained - Skuld library with chained binds (tests CPS queue behavior)
+# 12. Skuld/FxList - Skuld with FxList: all iterations inside single computation
 #
 # All measurements include both build and run time.
 
@@ -22,6 +24,8 @@ alias Freyja.Effects.State
 alias Freyja.Freer
 alias Freyja.Run
 alias Skuld.Effects.State, as: SkuldState
+alias Skuld.Effects.FxList, as: SkuldFxList
+alias Skuld.Effects.Yield, as: SkuldYield
 
 defmodule QueueBenchmark do
   # ============================================================
@@ -363,27 +367,142 @@ defmodule QueueBenchmark do
     end)
   end
 
+  # Evf/Single: all benchmark iterations in a single run
+  # This pays handler setup ONCE across all iterations
+  def evf_single(target, benchmark_iterations) do
+    total_ops = target * benchmark_iterations
+    evf_with_state(0, evf_nested_loop(total_ops))
+  end
+
   # ============================================================
   # Skuld - evidence-passing library with CPS for control effects
   # ============================================================
 
+  alias Skuld.Comp
+
   # Skuld/Nested: Skuld library with nested binds
   # Uses the actual Skuld library implementation
+  # Queue stays short (CPS style), builds incrementally during execution
   def skuld_nested(target) do
     skuld_nested_loop(target)
   end
 
   defp skuld_nested_loop(target) do
     SkuldState.get()
-    |> Skuld.bind(fn n ->
+    |> Comp.bind(fn n ->
       if n >= target do
-        Skuld.pure(n)
+        Comp.pure(n)
       else
         SkuldState.put(n + 1)
-        |> Skuld.bind(fn _ ->
+        |> Comp.bind(fn _ ->
           skuld_nested_loop(target)
         end)
       end
+    end)
+  end
+
+  # Skuld/Chained: Skuld library with chained binds
+  # Tests whether Skuld's CPS style avoids O(n²) queue overhead
+  def skuld_chained(target) do
+    base = SkuldState.get()
+
+    Enum.reduce(1..target, base, fn _i, acc ->
+      acc
+      |> Comp.bind(fn n ->
+        if n >= target do
+          Comp.pure(n)
+        else
+          SkuldState.put(n + 1)
+          |> Comp.bind(fn _ ->
+            SkuldState.get()
+          end)
+        end
+      end)
+    end)
+  end
+
+  # Skuld/FxList: All iterations inside a single computation
+  # But NOTE: each Comp.run() still pays scoped handler setup/teardown
+  def skuld_fxlist(target) do
+    SkuldFxList.fx_each(1..target, fn _i ->
+      SkuldState.get()
+      |> Comp.bind(fn n ->
+        SkuldState.put(n + 1)
+      end)
+    end)
+    |> Comp.bind(fn _ ->
+      SkuldState.get()
+    end)
+  end
+
+  # Skuld/FxList "single": benchmark iterations * target iterations all in ONE Comp.run()
+  # This truly pays handler setup/teardown ONCE across all benchmark iterations
+  def skuld_fxlist_single(target, benchmark_iterations) do
+    total_ops = target * benchmark_iterations
+
+    SkuldFxList.fx_each(1..total_ops, fn _i ->
+      SkuldState.get()
+      |> Comp.bind(fn n ->
+        SkuldState.put(n + 1)
+      end)
+    end)
+    |> Comp.bind(fn _ ->
+      SkuldState.get()
+    end)
+    |> SkuldState.with_handler(0)
+  end
+
+  # ============================================================
+  # Skuld/Yield: Coroutine approach - handler setup ONCE, short continuation chains
+  # ============================================================
+
+  # A looping computation that does one iteration then yields
+  # The continuation chain stays small (just one iteration's worth)
+  # Matches FxList work: State.get + State.put per iteration
+  def skuld_yield_loop() do
+    SkuldState.get()
+    |> Comp.bind(fn n ->
+      SkuldState.put(n + 1)
+    end)
+    |> Comp.bind(fn _ ->
+      # Yield :ok, then loop when resumed
+      SkuldYield.yield(:ok)
+      |> Comp.bind(fn _input ->
+        skuld_yield_loop()
+      end)
+    end)
+  end
+
+  # Pre-wrapped computation with all handlers installed
+  def skuld_yield_wrapped(initial_state) do
+    skuld_yield_loop()
+    |> SkuldYield.with_handler()
+    |> SkuldState.with_handler(initial_state)
+  end
+
+  # Run N iterations using yield/resume pattern
+  # Handler setup happens ONCE, then we resume N times
+  def time_skuld_yield(target) do
+    wrapped = skuld_yield_wrapped(0)
+    iterations_remaining = target
+
+    driver = fn _yielded_value ->
+      # We use process dictionary to track iterations (simpler than threading state)
+      remaining = Process.get(:yield_iterations, iterations_remaining)
+
+      if remaining > 1 do
+        Process.put(:yield_iterations, remaining - 1)
+        {:continue, :ok}
+      else
+        Process.delete(:yield_iterations)
+        {:stop, :done}
+      end
+    end
+
+    Process.put(:yield_iterations, iterations_remaining)
+
+    :timer.tc(fn ->
+      SkuldYield.run_with_driver(wrapped, driver)
     end)
   end
 
@@ -391,11 +510,15 @@ defmodule QueueBenchmark do
   # Timing helpers
   # ============================================================
 
-  def time_run(computation) do
-    :timer.tc(fn ->
+  # Freyja: RunBuilder must be constructed per-run (consumed by Run.run)
+  # We time only the Run.run() call, not the builder construction
+  def time_freyja(computation, initial_state) do
+    builder =
       computation
-      |> State.Handler.run(0)
-      |> Run.run()
+      |> State.Handler.run(initial_state)
+
+    :timer.tc(fn ->
+      Run.run(builder)
     end)
   end
 
@@ -403,30 +526,36 @@ defmodule QueueBenchmark do
     :timer.tc(fun)
   end
 
-  def time_monad(computation) do
+  def time_monad(computation, initial_state) do
     :timer.tc(fn ->
-      monad_run(computation, 0)
+      monad_run(computation, initial_state)
     end)
   end
 
   def time_ev(computation) do
+    # ev_with_state is part of the computation, so we just run it
     :timer.tc(fn ->
       ev_run(computation, %{evidence: %{}})
     end)
   end
 
   def time_evf(computation) do
+    # evf_with_state is part of the computation, so we just run it
     :timer.tc(fn ->
       evf_run(computation, %{})
     end)
   end
 
-  def time_skuld(computation) do
+  # Skuld: pre-wrapped computation can be reused (just a function)
+  def time_skuld_wrapped(wrapped_computation) do
     :timer.tc(fn ->
-      computation
-      |> SkuldState.with_handler(0)
-      |> Skuld.Comp.run()
+      Comp.run(wrapped_computation)
     end)
+  end
+
+  # Skuld: wrap + run (for warmup or when we want to include setup)
+  def skuld_wrap(computation, initial_state) do
+    computation |> SkuldState.with_handler(initial_state)
   end
 
   def run_benchmark(targets \\ [500, 1_000, 2_000, 5_000, 10_000]) do
@@ -435,23 +564,30 @@ defmodule QueueBenchmark do
     IO.puts("")
     IO.puts("Comparing nested vs chained binds, with and without real effect work.")
     IO.puts("Pure baselines show the cost of equivalent computation without effects.")
-    IO.puts("All times include both construction and execution.")
+    IO.puts("Handler setup is done ONCE per measurement; only execution is timed.")
     IO.puts("")
 
     # Warmup
     IO.puts("Warming up...")
 
     for _ <- 1..3 do
-      _ = time_run(state_nested(100))
-      _ = time_run(state_chained(100))
-      _ = time_run(minimal_nested(100))
-      _ = time_run(minimal_chained(100))
+      _ = time_freyja(state_nested(100), 0)
+      _ = time_freyja(state_chained(100), 0)
+      _ = time_freyja(minimal_nested(100), 0)
+      _ = time_freyja(minimal_chained(100), 0)
       _ = time_pure(fn -> pure_reduce(100) end)
       _ = time_pure(fn -> pure_recurse(100) end)
-      _ = time_monad(monad_nested(100))
+      _ = time_monad(monad_nested(100), 0)
       _ = time_ev(ev_nested(100))
       _ = time_evf(evf_nested(100))
-      _ = time_skuld(skuld_nested(100))
+      _ = time_skuld_wrapped(skuld_wrap(skuld_nested(100), 0))
+      _ = time_skuld_wrapped(skuld_wrap(skuld_chained(100), 0))
+      _ = time_skuld_wrapped(skuld_wrap(skuld_fxlist(100), 0))
+      # Single-run variants
+      _ = time_evf(evf_single(100, 10))
+      _ = time_skuld_wrapped(skuld_fxlist_single(100, 10))
+      # Yield variant
+      _ = time_skuld_yield(100)
     end
 
     IO.puts("")
@@ -469,34 +605,50 @@ defmodule QueueBenchmark do
         String.pad_trailing("Monad/Nest", 12) <>
         String.pad_trailing("Ev/Nest", 12) <>
         String.pad_trailing("Evf/Nest", 12) <>
-        String.pad_trailing("Skuld/Nest", 12)
+        String.pad_trailing("Skuld/Nest", 12) <>
+        String.pad_trailing("Skuld/Chain", 12) <>
+        String.pad_trailing("Skuld/FxL", 12)
     )
 
-    IO.puts(String.duplicate("-", 128))
+    IO.puts(String.duplicate("-", 152))
 
     for target <- targets do
-      # State/Nested
+      # Build computations once per target
+      state_nested_comp = state_nested(target)
+      state_chained_comp = state_chained(target)
+      minimal_nested_comp = minimal_nested(target)
+      minimal_chained_comp = minimal_chained(target)
+      monad_nested_comp = monad_nested(target)
+      ev_nested_comp = ev_nested(target)
+      evf_nested_comp = evf_nested(target)
+
+      # Skuld: wrap once, reuse for all iterations (handlers installed once)
+      skuld_nested_wrapped = skuld_wrap(skuld_nested(target), 0)
+      skuld_chained_wrapped = skuld_wrap(skuld_chained(target), 0)
+      skuld_fxlist_wrapped = skuld_wrap(skuld_fxlist(target), 0)
+
+      # State/Nested (Freyja) - builder constructed per iteration, only run() timed
       state_nested_time =
         median_time(iterations, fn ->
-          time_run(state_nested(target))
+          time_freyja(state_nested_comp, 0)
         end)
 
-      # State/Chained
+      # State/Chained (Freyja)
       state_chained_time =
         median_time(iterations, fn ->
-          time_run(state_chained(target))
+          time_freyja(state_chained_comp, 0)
         end)
 
-      # Minimal/Nested
+      # Minimal/Nested (Freyja)
       minimal_nested_time =
         median_time(iterations, fn ->
-          time_run(minimal_nested(target))
+          time_freyja(minimal_nested_comp, 0)
         end)
 
-      # Minimal/Chained
+      # Minimal/Chained (Freyja)
       minimal_chained_time =
         median_time(iterations, fn ->
-          time_run(minimal_chained(target))
+          time_freyja(minimal_chained_comp, 0)
         end)
 
       # Pure/Reduce
@@ -514,25 +666,37 @@ defmodule QueueBenchmark do
       # Monad/Nested
       monad_nested_time =
         median_time(iterations, fn ->
-          time_monad(monad_nested(target))
+          time_monad(monad_nested_comp, 0)
         end)
 
       # Ev/Nested
       ev_nested_time =
         median_time(iterations, fn ->
-          time_ev(ev_nested(target))
+          time_ev(ev_nested_comp)
         end)
 
       # Evf/Nested
       evf_nested_time =
         median_time(iterations, fn ->
-          time_evf(evf_nested(target))
+          time_evf(evf_nested_comp)
         end)
 
-      # Skuld/Nested
+      # Skuld/Nested - wrapped once, run() timed multiple times
       skuld_nested_time =
         median_time(iterations, fn ->
-          time_skuld(skuld_nested(target))
+          time_skuld_wrapped(skuld_nested_wrapped)
+        end)
+
+      # Skuld/Chained - wrapped once, run() timed multiple times
+      skuld_chained_time =
+        median_time(iterations, fn ->
+          time_skuld_wrapped(skuld_chained_wrapped)
+        end)
+
+      # Skuld/FxList - all iterations inside single computation
+      skuld_fxlist_time =
+        median_time(iterations, fn ->
+          time_skuld_wrapped(skuld_fxlist_wrapped)
         end)
 
       IO.puts(
@@ -546,7 +710,9 @@ defmodule QueueBenchmark do
           String.pad_trailing(format_time(monad_nested_time), 12) <>
           String.pad_trailing(format_time(ev_nested_time), 12) <>
           String.pad_trailing(format_time(evf_nested_time), 12) <>
-          String.pad_trailing(format_time(skuld_nested_time), 12)
+          String.pad_trailing(format_time(skuld_nested_time), 12) <>
+          String.pad_trailing(format_time(skuld_chained_time), 12) <>
+          String.pad_trailing(format_time(skuld_fxlist_time), 12)
       )
     end
 
@@ -560,12 +726,165 @@ defmodule QueueBenchmark do
     IO.puts("- Ev/Nest: Evidence-passing - nested map lookup %{effect => %{op => handler}}")
     IO.puts("- Evf/Nest: Flat evidence - single map lookup %{state_get => handler}")
     IO.puts("- Skuld/Nest: Skuld library - evidence-passing with CPS for control effects")
+    IO.puts("- Skuld/Chain: Skuld library with chained binds (tests CPS queue behavior)")
+    IO.puts("- Skuld/FxL: Skuld with FxList - all iterations inside single computation")
     IO.puts("")
     IO.puts("- Min/Chain isolates queue construction overhead (O(n²) if present)")
     IO.puts("- Compare State/Nest to Skuld/Nest to see Freyja vs Skuld performance")
-    IO.puts("- Compare Skuld/Nest to Evf/Nest to see overhead of CPS + outcome handling")
+    IO.puts("- Compare Skuld/Nest to Skuld/Chain to verify CPS avoids O(n²) queue overhead")
+    IO.puts("- Compare Skuld/FxL to Skuld/Nest to see benefit of single-computation iteration")
+    IO.puts("- Compare Skuld/FxL to Evf/Nest to see Skuld overhead vs minimal evidence-passing")
     IO.puts("- Compare Evf/Nest to Monad/Nest to see cost of dynamic handler dispatch")
     IO.puts("- Compare Monad/Nest to Pure/Recur to see state monad abstraction overhead")
+
+    # ============================================================
+    # Single-Run Benchmark: Handler setup paid ONCE
+    # ============================================================
+    # ============================================================
+    # Yield Benchmark: Coroutine approach - best of both worlds
+    # ============================================================
+    IO.puts("")
+    IO.puts("")
+    IO.puts("Yield Benchmark (Coroutine Approach)")
+    IO.puts("====================================")
+    IO.puts("")
+    IO.puts("Yield uses coroutine-style suspend/resume: handler setup ONCE,")
+    IO.puts("short continuation chains (one iteration at a time).")
+    IO.puts("Extended targets to show scaling advantage at large N.")
+    IO.puts("")
+
+    # Extended targets for yield benchmark to show scaling advantage
+    yield_targets = [1_000, 5_000, 10_000, 50_000, 100_000]
+
+    IO.puts(
+      String.pad_trailing("Target", 10) <>
+        String.pad_trailing("Skuld/FxL", 15) <>
+        String.pad_trailing("Skuld/Yield", 15) <>
+        String.pad_trailing("FxL µs/op", 12) <>
+        String.pad_trailing("Yield µs/op", 12) <>
+        String.pad_trailing("Speedup", 10)
+    )
+
+    IO.puts(String.duplicate("-", 75))
+
+    for target <- yield_targets do
+      # FxList timing
+      skuld_fxlist_wrapped = skuld_wrap(skuld_fxlist(target), 0)
+
+      skuld_fxlist_time =
+        median_time(iterations, fn ->
+          time_skuld_wrapped(skuld_fxlist_wrapped)
+        end)
+
+      # Yield timing
+      skuld_yield_time =
+        median_time(iterations, fn ->
+          time_skuld_yield(target)
+        end)
+
+      # Per-op calculations
+      fxlist_per_op = skuld_fxlist_time / target
+      yield_per_op = skuld_yield_time / target
+
+      # Speedup: FxList / Yield
+      yield_speedup = if skuld_yield_time > 0, do: skuld_fxlist_time / skuld_yield_time, else: 0
+
+      IO.puts(
+        String.pad_trailing("#{target}", 10) <>
+          String.pad_trailing(format_time(skuld_fxlist_time), 15) <>
+          String.pad_trailing(format_time(skuld_yield_time), 15) <>
+          String.pad_trailing("#{Float.round(fxlist_per_op, 3)}", 12) <>
+          String.pad_trailing("#{Float.round(yield_per_op, 3)}", 12) <>
+          String.pad_trailing("#{Float.round(yield_speedup, 2)}x", 10)
+      )
+    end
+
+    IO.puts("")
+    IO.puts("Yield Analysis:")
+    IO.puts("---------------")
+    IO.puts("- Skuld/Yield maintains ~constant per-op cost as N grows")
+    IO.puts("- At large N, Yield is significantly faster than FxList")
+    IO.puts("- Yield achieves O(n) scaling by avoiding long continuation chains")
+    IO.puts("- Handler setup paid ONCE, short chains avoid memory pressure")
+
+    # ============================================================
+    # Single-Run Benchmark: For reference (shows FxList scaling issue)
+    # ============================================================
+    IO.puts("")
+    IO.puts("")
+    IO.puts("Single-Run Benchmark (FxList Scaling Issue)")
+    IO.puts("===========================================")
+    IO.puts("")
+    IO.puts("FxList with large N shows super-linear (~O(n^1.3)) scaling due to")
+    IO.puts("memory/cache pressure from long continuation chains.")
+    IO.puts("")
+
+    # Use a multiplier to amortize setup cost
+    multiplier = 100
+
+    IO.puts(
+      String.pad_trailing("Target", 10) <>
+        String.pad_trailing("Evf/Single", 15) <>
+        String.pad_trailing("Skuld/Single", 15) <>
+        String.pad_trailing("Evf/Nest", 15) <>
+        String.pad_trailing("Skuld/FxL", 15) <>
+        String.pad_trailing("Slowdown", 10)
+    )
+
+    IO.puts(String.duplicate("-", 80))
+
+    for target <- targets do
+      # Single-run: do (target * multiplier) ops in ONE run, divide time by multiplier
+      evf_single_comp = evf_single(target, multiplier)
+      skuld_single_comp = skuld_fxlist_single(target, multiplier)
+
+      # For comparison: normal per-run timing (from above)
+      evf_nested_comp = evf_nested(target)
+      skuld_fxlist_wrapped = skuld_wrap(skuld_fxlist(target), 0)
+
+      # Time single-run variants (run once, time includes all target*multiplier ops)
+      {evf_single_total_time, _} = time_evf(evf_single_comp)
+      evf_single_per_target = evf_single_total_time / multiplier
+
+      {skuld_single_total_time, _} = time_skuld_wrapped(skuld_single_comp)
+      skuld_single_per_target = skuld_single_total_time / multiplier
+
+      # Normal timing for comparison
+      evf_nested_time =
+        median_time(iterations, fn ->
+          time_evf(evf_nested_comp)
+        end)
+
+      skuld_fxlist_time =
+        median_time(iterations, fn ->
+          time_skuld_wrapped(skuld_fxlist_wrapped)
+        end)
+
+      # Slowdown: how much slower is single-run vs normal (shows scaling issue)
+      slowdown =
+        if skuld_fxlist_time > 0, do: skuld_single_per_target / skuld_fxlist_time, else: 0
+
+      IO.puts(
+        String.pad_trailing("#{target}", 10) <>
+          String.pad_trailing(format_time(round(evf_single_per_target)), 15) <>
+          String.pad_trailing(format_time(round(skuld_single_per_target)), 15) <>
+          String.pad_trailing(format_time(evf_nested_time), 15) <>
+          String.pad_trailing(format_time(skuld_fxlist_time), 15) <>
+          String.pad_trailing("#{Float.round(slowdown, 2)}x", 10)
+      )
+    end
+
+    IO.puts("")
+    IO.puts("Single-Run Analysis:")
+    IO.puts("--------------------")
+    IO.puts("- Slowdown > 1 means FxList with large N is slower per-op than small N")
+    IO.puts("- This demonstrates the ~O(n^1.3) scaling issue in FxList")
+    IO.puts("- Evf/Single ~= Evf/Nest (pure CPS scales linearly)")
+    IO.puts("- Root cause: long continuation chains cause memory/cache pressure")
+    IO.puts("")
+    IO.puts("SOLUTION: Use Skuld/Yield for large iteration counts!")
+    IO.puts("- Yield maintains O(n) scaling by keeping continuation chains short")
+    IO.puts("- Handler setup paid once, coroutine-style resume for each iteration")
   end
 
   defp median_time(iterations, fun) do

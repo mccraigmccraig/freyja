@@ -2,7 +2,7 @@ defmodule Skuld.Effects.ReaderTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
+  alias Skuld.Comp.Env
   alias Skuld.Effects.Reader
 
   describe "ask" do
@@ -97,7 +97,6 @@ defmodule Skuld.Effects.ReaderTest do
     end
 
     test "nested scoped handlers work correctly" do
-
       comp =
         Comp.bind(Reader.ask(), fn l1 ->
           inner = Reader.ask() |> Reader.with_handler(:level2)
@@ -139,7 +138,6 @@ defmodule Skuld.Effects.ReaderTest do
     end
 
     test "handler removed after scope when no previous handler" do
-
       comp =
         Comp.bind(
           Reader.ask() |> Reader.with_handler(:config),
@@ -158,7 +156,6 @@ defmodule Skuld.Effects.ReaderTest do
     end
 
     test "local still works inside handle" do
-
       comp =
         Comp.bind(Reader.ask(), fn before_local ->
           Comp.bind(

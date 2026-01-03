@@ -2,7 +2,7 @@ defmodule Skuld.Effects.StateTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
+  alias Skuld.Comp.Env
   alias Skuld.Effects.State
 
   describe "get" do
@@ -105,7 +105,6 @@ defmodule Skuld.Effects.StateTest do
     end
 
     test "nested scoped handlers work correctly" do
-
       comp =
         Comp.bind(State.get(), fn level1 ->
           inner = State.get() |> State.with_handler(2)
@@ -151,7 +150,6 @@ defmodule Skuld.Effects.StateTest do
     end
 
     test "handler removed after scope when no previous handler" do
-
       comp =
         Comp.bind(
           State.get() |> State.with_handler(10),
@@ -170,7 +168,6 @@ defmodule Skuld.Effects.StateTest do
     end
 
     test "composable - pipe multiple scoped handlers" do
-
       comp =
         Comp.bind(State.get(), fn s ->
           Comp.bind(Skuld.Effects.Reader.ask(), fn r ->

@@ -11,7 +11,7 @@ defmodule Skuld.Effects.Writer do
   ## Example
 
       alias Skuld.Comp
-      alias Skuld.Env
+      alias Skuld.Comp.Env
       alias Skuld.Effects.Writer
 
       comp =
@@ -58,7 +58,7 @@ defmodule Skuld.Effects.Writer do
   import Skuld.Comp.DefOp
 
   alias Skuld.Comp
-  alias Skuld.Env
+  alias Skuld.Comp.Env
 
   @sig __MODULE__
   @state_key :writer_log

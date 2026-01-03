@@ -10,7 +10,7 @@ defmodule Skuld.Effects.State do
   import Skuld.Comp.DefOp
 
   alias Skuld.Comp
-  alias Skuld.Env
+  alias Skuld.Comp.Env
 
   @sig __MODULE__
 

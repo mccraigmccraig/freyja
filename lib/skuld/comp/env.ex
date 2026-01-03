@@ -1,4 +1,4 @@
-defmodule Skuld.Env do
+defmodule Skuld.Comp.Env do
   @moduledoc """
   Environment construction and manipulation.
 

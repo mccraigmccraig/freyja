@@ -42,7 +42,7 @@ defmodule Skuld.Effects.EffectLogger do
 
   alias Skuld.Comp
   alias Skuld.Comp.ISentinel
-  alias Skuld.Env
+  alias Skuld.Comp.Env
 
   alias __MODULE__.LogEntry
   alias LogEntry.Completed

@@ -2,7 +2,7 @@ defmodule Skuld.CompTest do
   use ExUnit.Case, async: true
 
   alias Skuld.Comp
-  alias Skuld.Env
+  alias Skuld.Comp.Env
 
   describe "pure" do
     test "returns value" do
@@ -337,7 +337,6 @@ defmodule Skuld.CompTest do
     end
 
     test "handler is removed after scope exits" do
-
       comp =
         Comp.bind(
           State.get()
@@ -386,7 +385,6 @@ defmodule Skuld.CompTest do
     end
 
     test "nested scoped handlers work correctly" do
-
       comp =
         Comp.bind(State.get(), fn level1 ->
           Comp.bind(

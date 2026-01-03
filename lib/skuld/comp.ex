@@ -35,7 +35,7 @@ defmodule Skuld.Comp do
   # - Skuld.Comp.Suspend (bypasses leave-scope)
   # - Skuld.Comp.Throw (error sentinel)
   alias Skuld.Comp.ISentinel
-  alias Skuld.Env
+  alias Skuld.Comp.Env
 
   #############################################################################
   ## Types

@@ -128,6 +128,9 @@ defmodule Skuld.Comp do
     end
   end
 
+  @doc "identity cntinuation - for initial continuation & default leave-scope"
+  def identity_k(val, env), do: {val, env}
+
   @doc """
   Run a computation to completion.
 
@@ -137,12 +140,10 @@ defmodule Skuld.Comp do
   """
   @spec run(computation(), env()) :: {result(), env()}
   def run(comp, env) do
-    env_with_leave_scope = Map.put_new(env, :leave_scope, fn r, e -> {r, e} end)
+    env_with_leave_scope = Map.put_new(env, :leave_scope, &identity_k/2)
 
     {result, final_env} =
-      call(comp, env_with_leave_scope, fn value, e ->
-        {value, e}
-      end)
+      call(comp, env_with_leave_scope, &identity_k/2)
 
     ISentinel.run(result, final_env)
   end

@@ -63,8 +63,7 @@ defmodule Skuld.Effects.State do
   Installs the State handler and initializes state for the duration of `comp`.
   Both the handler and state are restored/removed when `comp` completes or throws.
 
-  This is the composable alternative to `handler/2` - it operates on computations
-  rather than environments. The argument order is pipe-friendly.
+  The argument order is pipe-friendly.
 
   ## Example
 
@@ -108,14 +107,6 @@ defmodule Skuld.Effects.State do
       {modified, restore}
     end)
     |> Comp.with_handler(@sig, &__MODULE__.handle/3)
-  end
-
-  @doc "Install the State handler with an initial value (env-based, for top-level setup)"
-  @spec handler(Comp.env(), term()) :: Comp.env()
-  def handler(env, initial) do
-    env
-    |> Env.put_state(@sig, initial)
-    |> Env.with_handler(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Extract the final state from an env"

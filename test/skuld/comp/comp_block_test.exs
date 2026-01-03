@@ -38,12 +38,9 @@ defmodule Skuld.Comp.CompBlockTest do
           x <- State.get()
           return(x + 1)
         end
+        |> State.with_handler(10)
 
-      env =
-        Env.new()
-        |> State.handler(10)
-
-      assert Comp.run!(computation, env) == 11
+      assert Comp.run!(computation, Env.new()) == 11
     end
 
     test "multiple effect bindings" do
@@ -54,12 +51,9 @@ defmodule Skuld.Comp.CompBlockTest do
           y <- State.get()
           return({x, y})
         end
+        |> State.with_handler(5)
 
-      env =
-        Env.new()
-        |> State.handler(5)
-
-      assert Comp.run!(computation, env) == {5, 6}
+      assert Comp.run!(computation, Env.new()) == {5, 6}
     end
 
     test "mixed pure and effect bindings" do
@@ -71,12 +65,9 @@ defmodule Skuld.Comp.CompBlockTest do
           z <- State.get()
           return({x, y, z})
         end
+        |> State.with_handler(3)
 
-      env =
-        Env.new()
-        |> State.handler(3)
-
-      assert Comp.run!(computation, env) == {3, 6, 6}
+      assert Comp.run!(computation, Env.new()) == {3, 6, 6}
     end
 
     test "ignoring result with _" do
@@ -86,12 +77,9 @@ defmodule Skuld.Comp.CompBlockTest do
           x <- State.get()
           return(x)
         end
+        |> State.with_handler(0)
 
-      env =
-        Env.new()
-        |> State.handler(0)
-
-      assert Comp.run!(computation, env) == 100
+      assert Comp.run!(computation, Env.new()) == 100
     end
 
     test "with Reader effect" do
@@ -100,12 +88,9 @@ defmodule Skuld.Comp.CompBlockTest do
           ctx <- Reader.ask()
           return(ctx.value * 2)
         end
+        |> Reader.with_handler(%{value: 21})
 
-      env =
-        Env.new()
-        |> Reader.handler(%{value: 21})
-
-      assert Comp.run!(computation, env) == 42
+      assert Comp.run!(computation, Env.new()) == 42
     end
 
     test "combining multiple effects" do
@@ -117,13 +102,10 @@ defmodule Skuld.Comp.CompBlockTest do
           y <- State.get()
           return({x, y})
         end
+        |> Reader.with_handler(%{increment: 10})
+        |> State.with_handler(5)
 
-      env =
-        Env.new()
-        |> Reader.handler(%{increment: 10})
-        |> State.handler(5)
-
-      assert Comp.run!(computation, env) == {5, 15}
+      assert Comp.run!(computation, Env.new()) == {5, 15}
     end
 
     test "nested computations" do
@@ -139,12 +121,9 @@ defmodule Skuld.Comp.CompBlockTest do
           result <- inner
           return(result + 1)
         end
+        |> State.with_handler(0)
 
-      env =
-        Env.new()
-        |> State.handler(0)
-
-      assert Comp.run!(outer, env) == 21
+      assert Comp.run!(outer, Env.new()) == 21
     end
 
     test "pattern matching in binding" do
@@ -183,35 +162,19 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "defcomp with no args" do
-      env =
-        Env.new()
-        |> State.handler(42)
-
-      assert Comp.run!(simple_get(), env) == 42
+      assert Comp.run!(simple_get() |> State.with_handler(42), Env.new()) == 42
     end
 
     test "defcomp with effects" do
-      env =
-        Env.new()
-        |> State.handler(10)
-
-      assert Comp.run!(increment_and_get(), env) == {10, 11}
+      assert Comp.run!(increment_and_get() |> State.with_handler(10), Env.new()) == {10, 11}
     end
 
     test "defcomp with single arg" do
-      env =
-        Env.new()
-        |> State.handler(5)
-
-      assert Comp.run!(with_arg(3), env) == 15
+      assert Comp.run!(with_arg(3) |> State.with_handler(5), Env.new()) == 15
     end
 
     test "defcomp with multiple args" do
-      env =
-        Env.new()
-        |> State.handler(10)
-
-      assert Comp.run!(with_multiple_args(5, 3), env) == 18
+      assert Comp.run!(with_multiple_args(5, 3) |> State.with_handler(10), Env.new()) == 18
     end
   end
 
@@ -230,11 +193,7 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "defcompp defines private function usable internally" do
-      env =
-        Env.new()
-        |> State.handler(21)
-
-      assert Comp.run!(uses_private(), env) == 42
+      assert Comp.run!(uses_private() |> State.with_handler(21), Env.new()) == 42
     end
   end
 
@@ -251,11 +210,8 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "use Skuld.Syntax imports macros" do
-      env =
-        Env.new()
-        |> State.handler(10)
-
-      assert Comp.run!(UseSyntaxExample.get_doubled(), env) == 20
+      computation = UseSyntaxExample.get_doubled() |> State.with_handler(10)
+      assert Comp.run!(computation, Env.new()) == 20
     end
   end
 
@@ -299,9 +255,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :my_error -> return(:caught)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == :caught
+      assert Comp.run!(computation, Env.new()) == :caught
     end
 
     test "passes through normal completion" do
@@ -311,9 +267,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           _ -> return(:caught)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == 42
+      assert Comp.run!(computation, Env.new()) == 42
     end
 
     test "pattern matches on error value" do
@@ -325,9 +281,9 @@ defmodule Skuld.Comp.CompBlockTest do
           {:error, :not_found} -> return(:not_found_handled)
           {:error, reason} -> return({:other_error, reason})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == :not_found_handled
+      assert Comp.run!(computation, Env.new()) == :not_found_handled
     end
 
     test "unhandled error is re-thrown" do
@@ -338,9 +294,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :specific_error -> return(:handled)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      {result, _env} = Comp.run(computation, env)
+      {result, _env} = Comp.run(computation, Env.new())
       assert %Comp.Throw{error: :unhandled} = result
     end
 
@@ -352,9 +308,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           err -> return({:caught, err})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == {:caught, :any_error}
+      assert Comp.run!(computation, Env.new()) == {:caught, :any_error}
     end
 
     test "catch with state effects preserves state changes before throw" do
@@ -368,13 +324,10 @@ defmodule Skuld.Comp.CompBlockTest do
             x <- State.get()
             return({:recovered, x})
         end
+        |> State.with_handler(0)
+        |> Throw.with_handler()
 
-      env =
-        Env.new()
-        |> Throw.handler()
-        |> State.handler(0)
-
-      assert Comp.run!(computation, env) == {:recovered, 100}
+      assert Comp.run!(computation, Env.new()) == {:recovered, 100}
     end
 
     test "catch handler can use effects" do
@@ -387,13 +340,10 @@ defmodule Skuld.Comp.CompBlockTest do
             ctx <- Reader.ask()
             return({:recovered, ctx.default})
         end
+        |> Reader.with_handler(%{default: :fallback})
+        |> Throw.with_handler()
 
-      env =
-        Env.new()
-        |> Throw.handler()
-        |> Reader.handler(%{default: :fallback})
-
-      assert Comp.run!(computation, env) == {:recovered, :fallback}
+      assert Comp.run!(computation, Env.new()) == {:recovered, :fallback}
     end
 
     test "catch handler returning {:ok, value} is not incorrectly unwrapped" do
@@ -404,9 +354,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :error -> return({:ok, :recovered})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == {:ok, :recovered}
+      assert Comp.run!(computation, Env.new()) == {:ok, :recovered}
     end
 
     test "nested catch - inner catches first" do
@@ -425,9 +375,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           _ -> return(:outer_caught)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(outer, env) == {:outer_got, :inner_caught}
+      assert Comp.run!(outer, Env.new()) == {:outer_got, :inner_caught}
     end
 
     test "outer catch handles errors from inner when not caught" do
@@ -446,9 +396,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :uncaught_inner -> return(:outer_caught_inner_error)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(outer, env) == :outer_caught_inner_error
+      assert Comp.run!(outer, Env.new()) == :outer_caught_inner_error
     end
   end
 
@@ -468,18 +418,16 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "defcomp with catch handles error" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(safe_divide(10, 0), env) == :infinity
+      assert Comp.run!(safe_divide(10, 0) |> Throw.with_handler(), Env.new()) == :infinity
     end
 
     test "defcomp with catch passes through success" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(safe_divide(10, 2), env) == 5
+      assert Comp.run!(safe_divide(10, 2) |> Throw.with_handler(), Env.new()) == 5
     end
 
     test "defcomp with catch and args" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(fetch_with_default(:missing, :default_value), env) == :default_value
+      computation = fetch_with_default(:missing, :default_value) |> Throw.with_handler()
+      assert Comp.run!(computation, Env.new()) == :default_value
     end
   end
 
@@ -497,8 +445,8 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "defcompp with catch works" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(uses_private_risky(), env) == {:got, :privately_handled}
+      assert Comp.run!(uses_private_risky() |> Throw.with_handler(), Env.new()) ==
+               {:got, :privately_handled}
     end
   end
 
@@ -511,9 +459,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           {:error, reason} -> return({:failed, reason})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == {:failed, :not_found}
+      assert Comp.run!(computation, Env.new()) == {:failed, :not_found}
     end
 
     test "passes through successful match" do
@@ -524,9 +472,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           {:error, _} -> return(:failed)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == 42
+      assert Comp.run!(computation, Env.new()) == 42
     end
 
     test "handles multiple patterns in else" do
@@ -539,9 +487,9 @@ defmodule Skuld.Comp.CompBlockTest do
           {:error, _} -> return(:generic_error)
           other -> return({:unexpected, other})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == :specific_handled
+      assert Comp.run!(computation, Env.new()) == :specific_handled
     end
 
     test "unhandled match failure propagates as MatchFailed" do
@@ -552,9 +500,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           {:error, :specific} -> return(:handled)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      {result, _} = Comp.run(computation, env)
+      {result, _} = Comp.run(computation, Env.new())
       assert %Comp.Throw{error: %Comp.MatchFailed{value: {:error, :unhandled}}} = result
     end
 
@@ -566,9 +514,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           other -> return({:caught, other})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == {:caught, :something_else}
+      assert Comp.run!(computation, Env.new()) == {:caught, :something_else}
     end
 
     test "simple patterns don't trigger else" do
@@ -580,9 +528,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           _ -> return(:should_not_reach)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == 84
+      assert Comp.run!(computation, Env.new()) == 84
     end
 
     test "handles pattern match failure in = binding" do
@@ -594,9 +542,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           {:error, reason} -> return({:assignment_failed, reason})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == {:assignment_failed, :oops}
+      assert Comp.run!(computation, Env.new()) == {:assignment_failed, :oops}
     end
 
     test "else handler can use effects" do
@@ -609,9 +557,10 @@ defmodule Skuld.Comp.CompBlockTest do
             s <- State.get()
             return({:recovered_with_state, s})
         end
+        |> State.with_handler(100)
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler() |> State.handler(100)
-      assert Comp.run!(computation, env) == {:recovered_with_state, 100}
+      assert Comp.run!(computation, Env.new()) == {:recovered_with_state, 100}
     end
 
     test "multiple <- bindings with else" do
@@ -624,9 +573,9 @@ defmodule Skuld.Comp.CompBlockTest do
         else
           {:error, reason} -> return({:failed_at, reason})
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == {:failed_at, :third_failed}
+      assert Comp.run!(computation, Env.new()) == {:failed_at, :third_failed}
     end
   end
 
@@ -643,9 +592,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :else_threw -> return(:catch_got_else_throw)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == :catch_got_else_throw
+      assert Comp.run!(computation, Env.new()) == :catch_got_else_throw
     end
 
     test "else inside catch - throws from body pass through else to catch" do
@@ -659,9 +608,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :body_threw -> return(:catch_got_body_throw)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == :catch_got_body_throw
+      assert Comp.run!(computation, Env.new()) == :catch_got_body_throw
     end
 
     test "else handles match failure, catch handles throw" do
@@ -674,9 +623,9 @@ defmodule Skuld.Comp.CompBlockTest do
         catch
           :some_error -> return(:catch_handled_throw)
         end
+        |> Throw.with_handler()
 
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(computation, env) == :else_handled_match
+      assert Comp.run!(computation, Env.new()) == :else_handled_match
     end
 
     test "ordering validation - else must come before catch" do
@@ -707,10 +656,13 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "defcomp with else handles match failure" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(safe_unwrap({:ok, 42}), env) == 42
-      assert Comp.run!(safe_unwrap({:error, :oops}), env) == {:failed, :oops}
-      assert Comp.run!(safe_unwrap(:weird), env) == {:unexpected, :weird}
+      assert Comp.run!(safe_unwrap({:ok, 42}) |> Throw.with_handler(), Env.new()) == 42
+
+      assert Comp.run!(safe_unwrap({:error, :oops}) |> Throw.with_handler(), Env.new()) ==
+               {:failed, :oops}
+
+      assert Comp.run!(safe_unwrap(:weird) |> Throw.with_handler(), Env.new()) ==
+               {:unexpected, :weird}
     end
   end
 
@@ -726,18 +678,17 @@ defmodule Skuld.Comp.CompBlockTest do
     end
 
     test "defcomp with else and catch - match failure" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(complex_handler({:error, :bad}), env) == {:match_failed, :bad}
+      assert Comp.run!(complex_handler({:error, :bad}) |> Throw.with_handler(), Env.new()) ==
+               {:match_failed, :bad}
     end
 
     test "defcomp with else and catch - throw" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(complex_handler({:ok, -5}), env) == :was_negative
+      assert Comp.run!(complex_handler({:ok, -5}) |> Throw.with_handler(), Env.new()) ==
+               :was_negative
     end
 
     test "defcomp with else and catch - success" do
-      env = Env.new() |> Throw.handler()
-      assert Comp.run!(complex_handler({:ok, 10}), env) == 20
+      assert Comp.run!(complex_handler({:ok, 10}) |> Throw.with_handler(), Env.new()) == 20
     end
   end
 end

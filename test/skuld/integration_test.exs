@@ -15,11 +15,6 @@ defmodule Skuld.IntegrationTest do
 
   describe "State + Reader" do
     test "effects compose correctly" do
-      env =
-        Env.new()
-        |> State.handler(0)
-        |> Reader.handler(10)
-
       comp =
         Comp.bind(Reader.ask(), fn multiplier ->
           Comp.bind(State.get(), fn current ->
@@ -29,17 +24,19 @@ defmodule Skuld.IntegrationTest do
           end)
         end)
 
-      assert {10, _} = Comp.run(comp, env)
+      {result, _env} =
+        comp
+        |> State.with_handler(0)
+        |> Reader.with_handler(10)
+        |> Comp.run(Env.new())
+
+      assert result == 10
     end
   end
 
   describe "State + Throw" do
     test "state persists through catch" do
-      env =
-        Env.new()
-        |> State.handler(0)
-        |> Throw.handler()
-
+      # Return both the result and final state value in the computation
       comp =
         Comp.bind(State.put(1), fn _ ->
           Throw.catch_error(
@@ -52,43 +49,54 @@ defmodule Skuld.IntegrationTest do
             fn _error -> State.get() end
           )
         end)
+        |> Comp.bind(fn caught_state ->
+          Comp.bind(State.get(), fn final_state ->
+            Comp.pure({caught_state, final_state})
+          end)
+        end)
 
-      assert {2, final_env} = Comp.run(comp, env)
-      assert State.get_state(final_env) == 2
+      {{caught_state, final_state}, _env} =
+        comp
+        |> State.with_handler(0)
+        |> Throw.with_handler()
+        |> Comp.run(Env.new())
+
+      assert caught_state == 2
+      assert final_state == 2
     end
   end
 
   describe "Yield + State" do
     test "state preserved across suspension" do
-      env =
-        Env.new()
-        |> Yield.handler()
-        |> State.handler(0)
-
+      # Return both result and state from the computation
       comp =
         Comp.bind(State.put(10), fn _ ->
           Comp.bind(Yield.yield(:suspended), fn input ->
             Comp.bind(State.modify(&(&1 + input)), fn _ ->
-              State.get()
+              Comp.bind(State.get(), fn final_state ->
+                Comp.pure({final_state, final_state})
+              end)
             end)
           end)
         end)
 
-      {%Comp.Suspend{value: :suspended, resume: resume}, suspended_env} = Comp.run(comp, env)
-      assert State.get_state(suspended_env) == 10
+      {%Comp.Suspend{value: :suspended, resume: resume}, _suspended_env} =
+        comp
+        |> Yield.with_handler()
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
 
-      {15, final_env} = resume.(5)
-      assert State.get_state(final_env) == 15
+      # Note: State is inside the scoped handler, so we check via the result
+      # The suspend happens before completion, so state at suspend is 10
+      # After resume with 5, state becomes 15
+      {{result, final_state}, _final_env} = resume.(5)
+      assert result == 15
+      assert final_state == 15
     end
   end
 
   describe "Yield + Throw (Catch)" do
     test "error after resume is caught" do
-      env =
-        Env.new()
-        |> Yield.handler()
-        |> Throw.handler()
-
       comp =
         Throw.catch_error(
           Comp.bind(Yield.yield(:waiting), fn should_throw ->
@@ -101,7 +109,11 @@ defmodule Skuld.IntegrationTest do
           fn error -> Comp.pure({:caught, error}) end
         )
 
-      {%Comp.Suspend{value: :waiting, resume: resume}, _suspended_env} = Comp.run(comp, env)
+      {%Comp.Suspend{value: :waiting, resume: resume}, _suspended_env} =
+        comp
+        |> Yield.with_handler()
+        |> Throw.with_handler()
+        |> Comp.run(Env.new())
 
       # Resume with false - no error (no {:ok, ...} wrapper - value passes through unchanged)
       assert {:no_error, _} = resume.(false)
@@ -113,11 +125,6 @@ defmodule Skuld.IntegrationTest do
 
   describe "Reader.local + Throw" do
     test "local scope restored after throw" do
-      env =
-        Env.new()
-        |> Reader.handler(1)
-        |> Throw.handler()
-
       comp =
         Throw.catch_error(
           Reader.local(
@@ -135,18 +142,19 @@ defmodule Skuld.IntegrationTest do
           end
         )
 
+      {result, _env} =
+        comp
+        |> Reader.with_handler(1)
+        |> Throw.with_handler()
+        |> Comp.run(Env.new())
+
       # Error handler sees original reader value (1), not local value (100)
-      assert {{:caught, 100, 1}, _} = Comp.run(comp, env)
+      assert {:caught, 100, 1} = result
     end
   end
 
   describe "Reader.local + Yield" do
     test "local scope preserved across suspension" do
-      env =
-        Env.new()
-        |> Reader.handler(1)
-        |> Yield.handler()
-
       comp =
         Reader.local(
           fn _ -> 100 end,
@@ -159,7 +167,11 @@ defmodule Skuld.IntegrationTest do
           end)
         )
 
-      {%Comp.Suspend{resume: resume}, _} = Comp.run(comp, env)
+      {%Comp.Suspend{resume: resume}, _} =
+        comp
+        |> Reader.with_handler(1)
+        |> Yield.with_handler()
+        |> Comp.run(Env.new())
 
       # After resume, still inside local scope
       assert {{100, 100}, _} = resume.(:ignored)

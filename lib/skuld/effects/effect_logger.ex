@@ -5,8 +5,8 @@ defmodule Skuld.Effects.EffectLogger do
   ## Logging
 
   Wraps existing handlers to capture effect calls (requests and responses)
-  as serializable log entries. Requires handlers to already be installed
-  in the evidence.
+  as serializable log entries. Must be applied innermost (first in pipe chain)
+  so it can see handlers installed by outer `with_handler` calls.
 
   ## Replay
 
@@ -25,6 +25,19 @@ defmodule Skuld.Effects.EffectLogger do
   - `Finished` - Suspending effect completed after resume(s)
 
   See `Skuld.Effects.EffectLogger.LogEntry` for full documentation.
+
+  ## Example
+
+      # EffectLogger must be innermost to see handlers installed by outer with_handler
+      {result_with_log, env} =
+        my_comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Reader.with_handler(:config)
+        |> Comp.run(Env.new())
+
+      # result_with_log is {original_result, log}
+      {result, log} = result_with_log
   """
 
   alias Skuld.Comp
@@ -47,48 +60,74 @@ defmodule Skuld.Effects.EffectLogger do
   #############################################################################
 
   @doc """
-  Run a computation with effect logging enabled.
+  Wrap a computation with effect logging.
 
-  All effects with handlers in the evidence will be logged.
-  Returns `{{result, env}, log}` where log is a list of log entries (oldest first).
+  Returns a computation that, when run, logs all effect calls and returns
+  `{original_result, log}` as the result.
+
+  Must be applied innermost (first in the pipe chain) so it runs after
+  outer `with_handler` calls have installed their handlers.
 
   ## Options
 
   - `:effects` - list of effect signatures to log (default: all handlers in evidence)
   - `:timestamp_fn` - function to generate timestamps (default: `DateTime.utc_now/0`)
   - `:id_fn` - function to generate unique IDs (default: `make_ref/0`)
+
+  ## Example
+
+      {result_with_log, _env} =
+        my_comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
+
+      {result, log} = result_with_log
   """
-  @spec with_logging(Comp.computation(), Comp.env(), keyword()) ::
-          {{term(), Comp.env()}, [LogEntry.t()]}
-  def with_logging(comp, env, opts \\ []) do
-    effects_to_log = Keyword.get(opts, :effects, Map.keys(env.evidence))
-    timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
-    id_fn = Keyword.get(opts, :id_fn, &make_ref/0)
+  @spec with_logging(Comp.computation(), keyword()) :: Comp.computation()
+  def with_logging(comp, opts \\ []) do
+    fn env, k ->
+      effects_to_log = Keyword.get(opts, :effects, Map.keys(env.evidence))
+      timestamp_fn = Keyword.get(opts, :timestamp_fn, &DateTime.utc_now/0)
+      id_fn = Keyword.get(opts, :id_fn, &make_ref/0)
 
-    # Initialize log in env
-    env_with_log = Env.put_state(env, @log_key, [])
+      # Initialize log in env
+      env_with_log = Env.put_state(env, @log_key, [])
 
-    # Interpose logging on specified effects
-    logged_env =
-      Enum.reduce(effects_to_log, env_with_log, fn sig, acc_env ->
-        case acc_env.evidence[sig] do
-          nil ->
-            # No handler for this effect - skip
-            acc_env
+      # Interpose logging on specified effects
+      logged_env =
+        Enum.reduce(effects_to_log, env_with_log, fn sig, acc_env ->
+          case acc_env.evidence[sig] do
+            nil ->
+              # No handler for this effect - skip
+              acc_env
 
-          handler ->
-            logged_handler = make_logging_handler(sig, handler, timestamp_fn, id_fn)
-            Env.with_handler(acc_env, sig, logged_handler)
-        end
-      end)
+            handler ->
+              logged_handler = make_logging_handler(sig, handler, timestamp_fn, id_fn)
+              Env.with_handler(acc_env, sig, logged_handler)
+          end
+        end)
 
-    # Run computation
-    {result, final_env} = Comp.run(comp, logged_env)
+      # Inner k extracts the log and wraps the result
+      inner_k = fn result, final_env ->
+        log = Env.get_state(final_env, @log_key, [])
+        cleaned_env = clean_log_state(final_env)
+        k.({result, Enum.reverse(log)}, cleaned_env)
+      end
 
-    # Extract log from final env
-    {log, cleaned_outcome} = extract_log({result, final_env})
+      # Run inner computation with logged handlers
+      {result, result_env} = Comp.call(comp, logged_env, inner_k)
 
-    {cleaned_outcome, Enum.reverse(log)}
+      # If we got a sentinel that bypassed inner_k, extract the log here
+      if ISentinel.sentinel?(result) do
+        log = Env.get_state(result_env, @log_key, [])
+        cleaned_env = clean_log_state(result_env)
+        k.({result, Enum.reverse(log)}, cleaned_env)
+      else
+        # Normal return already went through inner_k
+        {result, result_env}
+      end
+    end
   end
 
   defp make_logging_handler(sig, original_handler, timestamp_fn, id_fn) do
@@ -236,12 +275,6 @@ defmodule Skuld.Effects.EffectLogger do
     %{env | state: Map.update!(env.state, @log_key, fn log -> [entry | log] end)}
   end
 
-  defp extract_log({result, env}) do
-    log = Env.get_state(env, @log_key, [])
-    cleaned_env = clean_log_state(env)
-    {log, {result, cleaned_env}}
-  end
-
   defp clean_log_state(env) do
     %{env | state: Map.delete(env.state, @log_key)}
   end
@@ -251,42 +284,56 @@ defmodule Skuld.Effects.EffectLogger do
   #############################################################################
 
   @doc """
-  Run a computation in replay mode using a previously captured log.
+  Wrap a computation for replay mode using a previously captured log.
 
   Effects are short-circuited with logged responses instead of executing
   real handlers. Pure computation segments run normally.
 
-  Returns `{result, env}` - the replayed outcome.
+  Must be applied innermost (first in the pipe chain) so it runs after
+  outer `with_handler` calls have installed their handlers.
 
   ## Options
 
   - `:on_missing` - what to do when an effect isn't in the log:
     - `:error` (default) - raise an error
     - `:execute` - fall through to real handler
+
+  ## Example
+
+      {result, _env} =
+        my_comp
+        |> EffectLogger.replay(log)
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
   """
-  @spec replay(Comp.computation(), Comp.env(), [LogEntry.t()], keyword()) :: {term(), Comp.env()}
-  def replay(comp, env, log, opts \\ []) do
-    on_missing = Keyword.get(opts, :on_missing, :error)
+  @spec replay(Comp.computation(), [LogEntry.t()], keyword()) :: Comp.computation()
+  def replay(comp, log, opts \\ []) do
+    fn env, k ->
+      on_missing = Keyword.get(opts, :on_missing, :error)
 
-    # Convert log to a queue for sequential consumption
-    log_queue = :queue.from_list(log)
-    env_with_replay = Env.put_state(env, @replay_key, log_queue)
+      # Convert log to a queue for sequential consumption
+      log_queue = :queue.from_list(log)
+      env_with_replay = Env.put_state(env, @replay_key, log_queue)
 
-    # Interpose replay handlers on all logged effects
-    logged_effects =
-      log
-      |> Enum.map(& &1.effect)
-      |> Enum.uniq()
+      # Interpose replay handlers on all logged effects
+      logged_effects =
+        log
+        |> Enum.map(& &1.effect)
+        |> Enum.uniq()
 
-    replay_env =
-      Enum.reduce(logged_effects, env_with_replay, fn sig, acc_env ->
-        original_handler = acc_env.evidence[sig]
-        replay_handler = make_replay_handler(sig, original_handler, on_missing)
-        Env.with_handler(acc_env, sig, replay_handler)
+      replay_env =
+        Enum.reduce(logged_effects, env_with_replay, fn sig, acc_env ->
+          original_handler = acc_env.evidence[sig]
+          replay_handler = make_replay_handler(sig, original_handler, on_missing)
+          Env.with_handler(acc_env, sig, replay_handler)
+        end)
+
+      # Run inner computation with replay handlers
+      Comp.call(comp, replay_env, fn result, final_env ->
+        cleaned_env = clean_replay_state(final_env)
+        k.(result, cleaned_env)
       end)
-
-    {result, final_env} = Comp.run(comp, replay_env)
-    clean_replay_state({result, final_env})
+    end
   end
 
   defp make_replay_handler(sig, original_handler, on_missing) do
@@ -417,7 +464,7 @@ defmodule Skuld.Effects.EffectLogger do
     Comp.call_handler(handler, args, env, k)
   end
 
-  defp clean_replay_state({result, env}) do
-    {result, %{env | state: Map.delete(env.state, @replay_key)}}
+  defp clean_replay_state(env) do
+    %{env | state: Map.delete(env.state, @replay_key)}
   end
 end

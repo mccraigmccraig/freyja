@@ -7,55 +7,48 @@ defmodule Skuld.Effects.StateTest do
 
   describe "get" do
     test "returns current state" do
-      env = Env.new() |> State.handler(42)
-
-      comp = State.get()
-      assert {42, _} = Comp.run(comp, env)
+      comp = State.get() |> State.with_handler(42)
+      assert {42, _} = Comp.run(comp, Env.new())
     end
   end
 
   describe "put" do
     test "updates state" do
-      env = Env.new() |> State.handler(0)
-
       comp =
         Comp.bind(State.put(100), fn _ ->
           State.get()
         end)
+        |> State.with_handler(0)
 
-      assert {100, final_env} = Comp.run(comp, env)
-      assert State.get_state(final_env) == 100
+      assert {100, final_env} = Comp.run(comp, Env.new())
+      # Note: State is scoped, so it's removed after with_handler exits
+      assert State.get_state(final_env) == nil
     end
   end
 
   describe "modify" do
     test "transforms state and returns old value" do
-      env = Env.new() |> State.handler(10)
-
       comp =
         Comp.bind(State.modify(&(&1 + 5)), fn old ->
           Comp.bind(State.get(), fn new ->
             Comp.pure({old, new})
           end)
         end)
+        |> State.with_handler(10)
 
-      assert {{10, 15}, _} = Comp.run(comp, env)
+      assert {{10, 15}, _} = Comp.run(comp, Env.new())
     end
   end
 
   describe "gets" do
     test "applies function to state" do
-      env = Env.new() |> State.handler(%{count: 42, name: "test"})
-
-      comp = State.gets(& &1.count)
-      assert {42, _} = Comp.run(comp, env)
+      comp = State.gets(& &1.count) |> State.with_handler(%{count: 42, name: "test"})
+      assert {42, _} = Comp.run(comp, Env.new())
     end
   end
 
   describe "state threading" do
     test "threads state through computation" do
-      env = Env.new() |> State.handler(0)
-
       comp =
         Comp.bind(State.modify(&(&1 + 1)), fn _ ->
           Comp.bind(State.modify(&(&1 + 1)), fn _ ->
@@ -64,8 +57,9 @@ defmodule Skuld.Effects.StateTest do
             end)
           end)
         end)
+        |> State.with_handler(0)
 
-      assert {3, _} = Comp.run(comp, env)
+      assert {3, _} = Comp.run(comp, Env.new())
     end
   end
 
@@ -87,8 +81,6 @@ defmodule Skuld.Effects.StateTest do
     end
 
     test "shadows outer handler and restores it" do
-      env = Env.new() |> State.handler(100)
-
       comp =
         Comp.bind(State.get(), fn outer_before ->
           inner_comp =
@@ -105,8 +97,9 @@ defmodule Skuld.Effects.StateTest do
             end)
           end)
         end)
+        |> State.with_handler(100)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       # outer: 100, inner: 0->1, outer still 100
       assert {100, 1, 100} = result
@@ -135,8 +128,6 @@ defmodule Skuld.Effects.StateTest do
     test "cleanup on throw" do
       alias Skuld.Effects.Throw
 
-      env = Env.new() |> State.handler(100) |> Throw.handler()
-
       comp =
         Throw.catch_error(
           Comp.bind(
@@ -152,8 +143,10 @@ defmodule Skuld.Effects.StateTest do
             end)
           end
         )
+        |> State.with_handler(100)
+        |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       # Outer state (100) preserved despite inner throw
       assert {:caught, 100} = result

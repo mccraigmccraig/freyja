@@ -18,7 +18,6 @@ defmodule Skuld.Effects.Yield do
   import Skuld.Comp.DefOp
 
   alias Skuld.Comp
-  alias Skuld.Env
 
   @sig __MODULE__
 
@@ -75,17 +74,6 @@ defmodule Skuld.Effects.Yield do
   @spec with_handler(Comp.computation()) :: Comp.computation()
   def with_handler(comp) do
     Comp.with_handler(comp, @sig, &__MODULE__.handle/3)
-  end
-
-  @doc """
-  Install the default Yield handler (env-based, for top-level setup).
-
-  The default handler suspends execution, returning `%Suspend{}` with
-  a resume function that captures the env and invokes leave_scope on completion.
-  """
-  @spec handler(Comp.env()) :: Comp.env()
-  def handler(env) do
-    Env.with_handler(env, @sig, &__MODULE__.handle/3)
   end
 
   #############################################################################

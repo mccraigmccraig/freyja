@@ -12,8 +12,6 @@ defmodule Skuld.Effects.EffectLoggerTest do
 
   describe "logging simple effects" do
     test "logs State.get and State.put" do
-      env = Env.new() |> State.handler(0)
-
       comp =
         Comp.bind(State.get(), fn x ->
           Comp.bind(State.put(x + 1), fn _ ->
@@ -23,9 +21,13 @@ defmodule Skuld.Effects.EffectLoggerTest do
           end)
         end)
 
-      {outcome, log} = EffectLogger.with_logging(comp, env)
+      {{result, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
 
-      assert {1, _env} = outcome
+      assert result == 1
       assert length(log) == 3
 
       [get1, put1, get2] = log
@@ -35,13 +37,15 @@ defmodule Skuld.Effects.EffectLoggerTest do
     end
 
     test "logs Reader.ask" do
-      env = Env.new() |> Reader.handler(%{name: "test"})
-
       comp = Reader.asks(& &1.name)
 
-      {outcome, log} = EffectLogger.with_logging(comp, env)
+      {{result, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> Reader.with_handler(%{name: "test"})
+        |> Comp.run(Env.new())
 
-      assert {"test", _} = outcome
+      assert result == "test"
       assert length(log) == 1
 
       [ask_entry] = log
@@ -49,11 +53,6 @@ defmodule Skuld.Effects.EffectLoggerTest do
     end
 
     test "logs multiple effects" do
-      env =
-        Env.new()
-        |> State.handler(10)
-        |> Reader.handler(:config)
-
       comp =
         Comp.bind(Reader.ask(), fn cfg ->
           Comp.bind(State.get(), fn s ->
@@ -63,9 +62,14 @@ defmodule Skuld.Effects.EffectLoggerTest do
           end)
         end)
 
-      {outcome, log} = EffectLogger.with_logging(comp, env)
+      {{result, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(10)
+        |> Reader.with_handler(:config)
+        |> Comp.run(Env.new())
 
-      assert {{:config, 10}, _} = outcome
+      assert result == {:config, 10}
       assert length(log) == 3
 
       effects = Enum.map(log, & &1.effect)
@@ -73,11 +77,6 @@ defmodule Skuld.Effects.EffectLoggerTest do
     end
 
     test "can filter which effects to log" do
-      env =
-        Env.new()
-        |> State.handler(0)
-        |> Reader.handler(:config)
-
       comp =
         Comp.bind(Reader.ask(), fn _ ->
           Comp.bind(State.get(), fn x ->
@@ -86,9 +85,14 @@ defmodule Skuld.Effects.EffectLoggerTest do
         end)
 
       # Only log State, not Reader
-      {outcome, log} = EffectLogger.with_logging(comp, env, effects: [State])
+      {{result, log}, _env} =
+        comp
+        |> EffectLogger.with_logging(effects: [State])
+        |> State.with_handler(0)
+        |> Reader.with_handler(:config)
+        |> Comp.run(Env.new())
 
-      assert {0, _} = outcome
+      assert result == 0
       assert length(log) == 1
       assert hd(log).effect == State
     end
@@ -96,13 +100,15 @@ defmodule Skuld.Effects.EffectLoggerTest do
 
   describe "logging control effects" do
     test "logs Throw" do
-      env = Env.new() |> Throw.handler()
-
       comp = Throw.throw(:my_error)
 
-      {outcome, log} = EffectLogger.with_logging(comp, env)
+      {{result, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> Throw.with_handler()
+        |> Comp.run(Env.new())
 
-      assert {%Comp.Throw{error: :my_error}, _} = outcome
+      assert %Comp.Throw{error: :my_error} = result
       assert length(log) == 1
 
       [throw_entry] = log
@@ -115,11 +121,6 @@ defmodule Skuld.Effects.EffectLoggerTest do
     end
 
     test "logs effects before throw" do
-      env =
-        Env.new()
-        |> State.handler(0)
-        |> Throw.handler()
-
       comp =
         Comp.bind(State.put(42), fn _ ->
           Comp.bind(State.get(), fn x ->
@@ -130,9 +131,14 @@ defmodule Skuld.Effects.EffectLoggerTest do
           end)
         end)
 
-      {outcome, log} = EffectLogger.with_logging(comp, env)
+      {{result, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Throw.with_handler()
+        |> Comp.run(Env.new())
 
-      assert {%Comp.Throw{error: {:error, 42}}, _} = outcome
+      assert %Comp.Throw{error: {:error, 42}} = result
       assert length(log) == 3
 
       effects = Enum.map(log, & &1.effect)
@@ -142,8 +148,6 @@ defmodule Skuld.Effects.EffectLoggerTest do
 
   describe "replay simple effects" do
     test "replays State effects from log" do
-      env = Env.new() |> State.handler(0)
-
       comp =
         Comp.bind(State.get(), fn x ->
           Comp.bind(State.put(x + 1), fn _ ->
@@ -154,43 +158,60 @@ defmodule Skuld.Effects.EffectLoggerTest do
         end)
 
       # First run - capture log
-      {outcome1, log} = EffectLogger.with_logging(comp, env)
-      assert {{0, 1}, _} = outcome1
+      {{result1, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
+
+      assert result1 == {0, 1}
 
       # Replay - should get same result without real State operations
-      # Use a fresh env with different initial state to prove replay works
-      replay_env = Env.new() |> State.handler(999)
-      outcome2 = EffectLogger.replay(comp, replay_env, log)
+      # Use different initial state to prove replay works
+      {result2, _env} =
+        comp
+        |> EffectLogger.replay(log)
+        |> State.with_handler(999)
+        |> Comp.run(Env.new())
 
       # Result should match original, not the 999 initial state
-      assert {{0, 1}, _} = outcome2
+      assert result2 == {0, 1}
     end
 
     test "replays Reader effects from log" do
-      env = Env.new() |> Reader.handler(%{value: 42})
-
       comp = Reader.asks(& &1.value)
 
-      {outcome1, log} = EffectLogger.with_logging(comp, env)
-      assert {42, _} = outcome1
+      # First run - capture log
+      {{result1, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> Reader.with_handler(%{value: 42})
+        |> Comp.run(Env.new())
+
+      assert result1 == 42
 
       # Replay with different reader value
-      replay_env = Env.new() |> Reader.handler(%{value: 999})
-      outcome2 = EffectLogger.replay(comp, replay_env, log)
+      {result2, _env} =
+        comp
+        |> EffectLogger.replay(log)
+        |> Reader.with_handler(%{value: 999})
+        |> Comp.run(Env.new())
 
       # Should get original logged value
-      assert {42, _} = outcome2
+      assert result2 == 42
     end
 
     test "replay detects divergence" do
-      env = Env.new() |> State.handler(0)
-
       comp1 =
         Comp.bind(State.get(), fn _ ->
           Comp.pure(:done)
         end)
 
-      {_outcome, log} = EffectLogger.with_logging(comp1, env)
+      {{_result, log}, _env} =
+        comp1
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
 
       # Different computation that does State.put instead of State.get
       comp2 =
@@ -199,18 +220,27 @@ defmodule Skuld.Effects.EffectLoggerTest do
         end)
 
       # Divergence raises RuntimeError which is converted to a Throw
-      {result, _env} = EffectLogger.replay(comp2, env, log)
-      assert %Skuld.Comp.Throw{error: error} = result
+      {result, _env} =
+        comp2
+        |> EffectLogger.replay(log)
+        |> State.with_handler(0)
+        |> Throw.with_handler()
+        |> Comp.run(Env.new())
+
+      assert %Comp.Throw{error: error} = result
       assert error.kind == :error
       assert %RuntimeError{message: msg} = error.payload
       assert msg =~ "Replay divergence"
     end
 
     test "replay with :execute falls through on missing" do
-      env = Env.new() |> State.handler(0)
-
       comp1 = State.get()
-      {_outcome, log} = EffectLogger.with_logging(comp1, env)
+
+      {{_result, log}, _env} =
+        comp1
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
 
       # Computation with extra effect not in log
       comp2 =
@@ -221,18 +251,18 @@ defmodule Skuld.Effects.EffectLoggerTest do
         end)
 
       # With :execute, extra effects run normally
-      outcome = EffectLogger.replay(comp2, env, log, on_missing: :execute)
-      assert {100, _} = outcome
+      {result, _env} =
+        comp2
+        |> EffectLogger.replay(log, on_missing: :execute)
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
+
+      assert result == 100
     end
   end
 
   describe "logging and replay round-trip" do
     test "complex computation round-trips correctly" do
-      env =
-        Env.new()
-        |> State.handler(0)
-        |> Reader.handler(%{multiplier: 10})
-
       comp =
         Comp.bind(Reader.ask(), fn %{multiplier: mult} ->
           Comp.bind(State.get(), fn x ->
@@ -249,27 +279,36 @@ defmodule Skuld.Effects.EffectLoggerTest do
         end)
 
       # Original run
-      {outcome1, log} = EffectLogger.with_logging(comp, env)
-      assert {{0, 1, 10}, _} = outcome1
+      {{result1, log}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(0)
+        |> Reader.with_handler(%{multiplier: 10})
+        |> Comp.run(Env.new())
+
+      assert result1 == {0, 1, 10}
 
       # Replay with completely different initial state
-      replay_env =
-        Env.new()
-        |> State.handler(999)
-        |> Reader.handler(%{multiplier: 1})
+      {result2, _env} =
+        comp
+        |> EffectLogger.replay(log)
+        |> State.with_handler(999)
+        |> Reader.with_handler(%{multiplier: 1})
+        |> Comp.run(Env.new())
 
-      outcome2 = EffectLogger.replay(comp, replay_env, log)
-      assert {{0, 1, 10}, _} = outcome2
+      assert result2 == {0, 1, 10}
     end
   end
 
   describe "log format" do
     test "log entries are Completed structs with expected fields" do
-      env = Env.new() |> State.handler(42)
-
       comp = State.get()
 
-      {_outcome, [entry]} = EffectLogger.with_logging(comp, env)
+      {{_result, [entry]}, _env} =
+        comp
+        |> EffectLogger.with_logging()
+        |> State.with_handler(42)
+        |> Comp.run(Env.new())
 
       assert %Completed{
                id: id,
@@ -284,22 +323,26 @@ defmodule Skuld.Effects.EffectLoggerTest do
     end
 
     test "custom timestamp function" do
-      env = Env.new() |> State.handler(0)
       comp = State.get()
-
       fixed_time = ~U[2024-01-01 12:00:00Z]
 
-      {_outcome, [entry]} =
-        EffectLogger.with_logging(comp, env, timestamp_fn: fn -> fixed_time end)
+      {{_result, [entry]}, _env} =
+        comp
+        |> EffectLogger.with_logging(timestamp_fn: fn -> fixed_time end)
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
 
       assert entry.timestamp == fixed_time
     end
 
     test "custom id function" do
-      env = Env.new() |> State.handler(0)
       comp = State.get()
 
-      {_outcome, [entry]} = EffectLogger.with_logging(comp, env, id_fn: fn -> "custom-id" end)
+      {{_result, [entry]}, _env} =
+        comp
+        |> EffectLogger.with_logging(id_fn: fn -> "custom-id" end)
+        |> State.with_handler(0)
+        |> Comp.run(Env.new())
 
       assert entry.id == "custom-id"
     end

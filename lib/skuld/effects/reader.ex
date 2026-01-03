@@ -57,8 +57,7 @@ defmodule Skuld.Effects.Reader do
   Installs the Reader handler and context for the duration of `comp`.
   Both the handler and context are restored/removed when `comp` completes or throws.
 
-  This is the composable alternative to `handler/2` - it operates on computations
-  rather than environments. The argument order is pipe-friendly.
+  The argument order is pipe-friendly.
 
   ## Example
 
@@ -100,14 +99,6 @@ defmodule Skuld.Effects.Reader do
       {modified, restore}
     end)
     |> Comp.with_handler(@sig, &__MODULE__.handle/3)
-  end
-
-  @doc "Install the Reader handler with an initial value (env-based, for top-level setup)"
-  @spec handler(Comp.env(), term()) :: Comp.env()
-  def handler(env, value) do
-    env
-    |> Env.put_state(@sig, value)
-    |> Env.with_handler(@sig, &__MODULE__.handle/3)
   end
 
   #############################################################################

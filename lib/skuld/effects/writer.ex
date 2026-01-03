@@ -10,19 +10,26 @@ defmodule Skuld.Effects.Writer do
 
   ## Example
 
-      import Skuld
+      alias Skuld.Comp
+      alias Skuld.Env
       alias Skuld.Effects.Writer
 
-      comp = bind(Writer.tell("step 1"), fn _ ->
-        bind(Writer.tell("step 2"), fn _ ->
-          pure(:done)
+      comp =
+        Comp.bind(Writer.tell("step 1"), fn _ ->
+          Comp.bind(Writer.tell("step 2"), fn _ ->
+            Comp.bind(Writer.peek(), fn log ->
+              Comp.pure({:done, log})
+            end)
+          end)
         end)
-      end)
 
-      env = Env.new() |> Writer.handler()
-      {result, final_env} = run(comp, env)
+      {{result, log}, _env} =
+        comp
+        |> Writer.with_handler()
+        |> Comp.run(Env.new())
+
       # result = :done
-      # Writer.get_log(final_env) = ["step 2", "step 1"] (reverse chronological)
+      # log = ["step 2", "step 1"] (reverse chronological)
 
   ## Listen Example
 
@@ -193,22 +200,6 @@ defmodule Skuld.Effects.Writer do
       {modified, restore}
     end)
     |> Comp.with_handler(@sig, &__MODULE__.handle/3)
-  end
-
-  @doc """
-  Install the Writer handler into an environment (env-based, for top-level setup).
-
-  ## Options
-
-  - `:initial` - initial log entries (default: [])
-  """
-  @spec handler(Comp.env(), keyword()) :: Comp.env()
-  def handler(env, opts \\ []) do
-    initial = Keyword.get(opts, :initial, [])
-
-    env
-    |> Env.put_state(@state_key, initial)
-    |> Env.with_handler(@sig, &__MODULE__.handle/3)
   end
 
   @doc "Get the accumulated log from the environment"

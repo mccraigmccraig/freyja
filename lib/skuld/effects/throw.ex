@@ -162,16 +162,6 @@ defmodule Skuld.Effects.Throw do
     Comp.with_handler(comp, @sig, &__MODULE__.handle/3)
   end
 
-  @doc """
-  Install the default Throw handler (env-based, for top-level setup).
-
-  The default handler returns a `%Skuld.Comp.Throw{}` struct as the result.
-  """
-  @spec handler(Comp.env()) :: Comp.env()
-  def handler(env) do
-    Env.with_handler(env, @sig, &__MODULE__.handle/3)
-  end
-
   #############################################################################
   ## IHandler Implementation
   #############################################################################

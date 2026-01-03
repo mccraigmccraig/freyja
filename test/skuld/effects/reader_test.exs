@@ -7,26 +7,20 @@ defmodule Skuld.Effects.ReaderTest do
 
   describe "ask" do
     test "reads environment value" do
-      env = Env.new() |> Reader.handler(:config_value)
-
-      comp = Reader.ask()
-      assert {:config_value, _} = Comp.run(comp, env)
+      comp = Reader.ask() |> Reader.with_handler(:config_value)
+      assert {:config_value, _} = Comp.run(comp, Env.new())
     end
   end
 
   describe "asks" do
     test "applies function to environment" do
-      env = Env.new() |> Reader.handler(%{name: "test", count: 42})
-
-      comp = Reader.asks(& &1.count)
-      assert {42, _} = Comp.run(comp, env)
+      comp = Reader.asks(& &1.count) |> Reader.with_handler(%{name: "test", count: 42})
+      assert {42, _} = Comp.run(comp, Env.new())
     end
   end
 
   describe "local" do
     test "modifies environment for sub-computation" do
-      env = Env.new() |> Reader.handler(10)
-
       comp =
         Comp.bind(Reader.ask(), fn before ->
           Reader.local(
@@ -39,14 +33,13 @@ defmodule Skuld.Effects.ReaderTest do
             end)
           )
         end)
+        |> Reader.with_handler(10)
 
       # Note: after_local is INSIDE the local, so it sees modified value
-      assert {{10, 20, 20}, _} = Comp.run(comp, env)
+      assert {{10, 20, 20}, _} = Comp.run(comp, Env.new())
     end
 
     test "restores environment after scope exits" do
-      env = Env.new() |> Reader.handler(10)
-
       inner = Reader.local(&(&1 * 2), Reader.ask())
 
       comp =
@@ -54,13 +47,12 @@ defmodule Skuld.Effects.ReaderTest do
           # After local completes
           Reader.ask()
         end)
+        |> Reader.with_handler(10)
 
-      assert {10, _} = Comp.run(comp, env)
+      assert {10, _} = Comp.run(comp, Env.new())
     end
 
     test "nested local scopes" do
-      env = Env.new() |> Reader.handler(1)
-
       comp =
         Reader.local(
           &(&1 * 10),
@@ -69,9 +61,10 @@ defmodule Skuld.Effects.ReaderTest do
             Reader.ask()
           )
         )
+        |> Reader.with_handler(1)
 
       # 1 * 10 = 10, then 10 + 5 = 15
-      assert {15, _} = Comp.run(comp, env)
+      assert {15, _} = Comp.run(comp, Env.new())
     end
   end
 
@@ -87,8 +80,6 @@ defmodule Skuld.Effects.ReaderTest do
     end
 
     test "shadows outer handler and restores it" do
-      env = Env.new() |> Reader.handler(:outer)
-
       comp =
         Comp.bind(Reader.ask(), fn outer_before ->
           inner = Reader.ask() |> Reader.with_handler(:inner)
@@ -99,8 +90,9 @@ defmodule Skuld.Effects.ReaderTest do
             end)
           end)
         end)
+        |> Reader.with_handler(:outer)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:outer, :inner, :outer} = result
     end
@@ -128,8 +120,6 @@ defmodule Skuld.Effects.ReaderTest do
     test "cleanup on throw" do
       alias Skuld.Effects.Throw
 
-      env = Env.new() |> Reader.handler(:outer) |> Throw.handler()
-
       comp =
         Throw.catch_error(
           Comp.bind(
@@ -142,8 +132,10 @@ defmodule Skuld.Effects.ReaderTest do
             end)
           end
         )
+        |> Reader.with_handler(:outer)
+        |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:caught, :outer} = result
     end

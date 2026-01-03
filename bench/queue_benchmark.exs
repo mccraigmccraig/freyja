@@ -423,8 +423,9 @@ defmodule QueueBenchmark do
 
   def time_skuld(computation) do
     :timer.tc(fn ->
-      env = Skuld.Env.new() |> SkuldState.handler(0)
-      Skuld.run(computation, env)
+      computation
+      |> SkuldState.with_handler(0)
+      |> Skuld.Comp.run(Skuld.Env.new())
     end)
   end
 

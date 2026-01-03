@@ -198,9 +198,9 @@ defmodule Skuld.CompTest do
             Comp.pure({:caught, error.kind, error.payload.message})
           end
         )
+        |> Throw.with_handler()
 
-      env = Throw.handler(Env.new())
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:caught, :error, "caught me"} = result
     end
@@ -213,9 +213,9 @@ defmodule Skuld.CompTest do
             Comp.pure({:caught, error.kind, error.payload})
           end
         )
+        |> Throw.with_handler()
 
-      env = Throw.handler(Env.new())
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:caught, :throw, :thrown_value} = result
     end
@@ -227,10 +227,11 @@ defmodule Skuld.CompTest do
           fn _error -> Comp.pure(:recovered) end
         )
 
-      comp = Comp.bind(inner, fn value -> Comp.pure({:continued, value}) end)
+      comp =
+        Comp.bind(inner, fn value -> Comp.pure({:continued, value}) end)
+        |> Throw.with_handler()
 
-      env = Throw.handler(Env.new())
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:continued, :recovered} = result
     end
@@ -249,9 +250,9 @@ defmodule Skuld.CompTest do
             Comp.pure({:outer_caught, error.payload.message})
           end
         )
+        |> Throw.with_handler()
 
-      env = Throw.handler(Env.new())
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:outer_caught, "in recovery"} = result
     end
@@ -276,15 +277,13 @@ defmodule Skuld.CompTest do
         raise "handler exploded"
       end
 
-      env =
-        Env.new()
-        |> Env.with_handler(:test_effect, raising_handler)
-        |> Throw.handler()
+      # Use low-level Env.with_handler for testing custom handlers
+      comp =
+        Comp.effect(:test_effect, :some_args)
+        |> Comp.with_handler(:test_effect, raising_handler)
+        |> Throw.with_handler()
 
-      # Use Comp.effect to invoke the handler
-      comp = Comp.effect(:test_effect, :some_args)
-
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert %ThrowStruct{error: error} = result
       assert error.kind == :error
@@ -296,24 +295,21 @@ defmodule Skuld.CompTest do
         raise "handler error"
       end
 
-      env =
-        Env.new()
-        |> Env.with_handler(:test_effect, raising_handler)
-        |> Throw.handler()
-
       comp =
         Throw.catch_error(
           Comp.effect(:test_effect, :args),
           fn error -> Comp.pure({:caught_handler_error, error.payload.message}) end
         )
+        |> Comp.with_handler(:test_effect, raising_handler)
+        |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       assert {:caught_handler_error, "handler error"} = result
     end
   end
 
-  describe "handle/3 scoped handlers" do
+  describe "with_handler/3 scoped handlers" do
     alias Skuld.Effects.State
 
     # Helper to create a state-scoping setup function
@@ -364,9 +360,7 @@ defmodule Skuld.CompTest do
     end
 
     test "shadows outer handler and restores it" do
-      # Outer State handler with initial state 100
-      env = Env.new() |> State.handler(100)
-
+      # Use with_handler for outer State
       comp =
         Comp.bind(State.get(), fn outer_before ->
           Comp.bind(
@@ -385,8 +379,9 @@ defmodule Skuld.CompTest do
             end
           )
         end)
+        |> State.with_handler(100)
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       # outer_before: 100, inner did 0 -> 1, outer_after: still 100
       assert {100, 1, 100} = result
@@ -420,8 +415,6 @@ defmodule Skuld.CompTest do
     test "scoped handler cleanup on throw" do
       alias Skuld.Effects.Throw
 
-      env = Env.new() |> State.handler(100) |> Throw.handler()
-
       comp =
         Throw.catch_error(
           Comp.bind(State.get(), fn _outer_before ->
@@ -445,8 +438,10 @@ defmodule Skuld.CompTest do
             end)
           end
         )
+        |> State.with_handler(100)
+        |> Throw.with_handler()
 
-      {result, _env} = Comp.run(comp, env)
+      {result, _env} = Comp.run(comp, Env.new())
 
       # Outer state (100) should be preserved despite inner throw
       assert {:caught, 100} = result

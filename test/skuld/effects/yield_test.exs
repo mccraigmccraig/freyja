@@ -7,28 +7,32 @@ defmodule Skuld.Effects.YieldTest do
 
   describe "yield" do
     test "suspends computation" do
-      env = Env.new() |> Yield.handler()
-
       comp = Yield.yield(:hello)
-      assert {%Comp.Suspend{value: :hello, resume: resume}, _env} = Comp.run(comp, env)
+
+      {result, _env} =
+        comp
+        |> Yield.with_handler()
+        |> Comp.run(Env.new())
+
+      assert %Comp.Suspend{value: :hello, resume: resume} = result
       assert is_function(resume, 1)
     end
 
     test "resume continues computation" do
-      env = Env.new() |> Yield.handler()
-
       comp =
         Comp.bind(Yield.yield(:first), fn x ->
           Comp.pure({:got, x})
         end)
 
-      {%Comp.Suspend{value: :first, resume: resume}, _suspended_env} = Comp.run(comp, env)
+      {%Comp.Suspend{value: :first, resume: resume}, _suspended_env} =
+        comp
+        |> Yield.with_handler()
+        |> Comp.run(Env.new())
+
       assert {{:got, :input_value}, _} = resume.(:input_value)
     end
 
     test "multiple yields" do
-      env = Env.new() |> Yield.handler()
-
       comp =
         Comp.bind(Yield.yield(1), fn a ->
           Comp.bind(Yield.yield(2), fn b ->
@@ -38,7 +42,11 @@ defmodule Skuld.Effects.YieldTest do
           end)
         end)
 
-      {%Comp.Suspend{value: 1, resume: r1}, _e1} = Comp.run(comp, env)
+      {%Comp.Suspend{value: 1, resume: r1}, _e1} =
+        comp
+        |> Yield.with_handler()
+        |> Comp.run(Env.new())
+
       {%Comp.Suspend{value: 2, resume: r2}, _e2} = r1.(10)
       {%Comp.Suspend{value: 3, resume: r3}, _e3} = r2.(20)
       # 10 + 20 + 30
@@ -48,8 +56,6 @@ defmodule Skuld.Effects.YieldTest do
 
   describe "collect" do
     test "gathers all yields" do
-      env = Env.new() |> Yield.handler()
-
       comp =
         Comp.bind(Yield.yield(:a), fn _ ->
           Comp.bind(Yield.yield(:b), fn _ ->
@@ -58,28 +64,26 @@ defmodule Skuld.Effects.YieldTest do
             end)
           end)
         end)
+        |> Yield.with_handler()
 
-      assert {:done, :done, [:a, :b, :c], _} = Yield.collect(comp, env)
+      assert {:done, :done, [:a, :b, :c], _} = Yield.collect(comp, Env.new())
     end
   end
 
   describe "feed" do
     test "provides inputs to yields" do
-      env = Env.new() |> Yield.handler()
-
       comp =
         Comp.bind(Yield.yield(:want_x), fn x ->
           Comp.bind(Yield.yield(:want_y), fn y ->
             Comp.pure(x * y)
           end)
         end)
+        |> Yield.with_handler()
 
-      assert {:done, 12, [:want_x, :want_y], _} = Yield.feed(comp, env, [3, 4])
+      assert {:done, 12, [:want_x, :want_y], _} = Yield.feed(comp, Env.new(), [3, 4])
     end
 
     test "stops when inputs exhausted" do
-      env = Env.new() |> Yield.handler()
-
       comp =
         Comp.bind(Yield.yield(1), fn _ ->
           Comp.bind(Yield.yield(2), fn _ ->
@@ -88,8 +92,9 @@ defmodule Skuld.Effects.YieldTest do
             end)
           end)
         end)
+        |> Yield.with_handler()
 
-      {:suspended, 2, _resume, [1], _env} = Yield.feed(comp, env, [:a])
+      {:suspended, 2, _resume, [1], _env} = Yield.feed(comp, Env.new(), [:a])
     end
   end
 end

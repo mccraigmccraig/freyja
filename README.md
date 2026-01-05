@@ -4,6 +4,18 @@
 
 # Freyja
 
+> **Note: Future Development in Skuld**
+>
+> Active development has moved to [Skuld](https://github.com/mccraigmccraig/skuld),
+> a new algebraic effects library that takes a different approach:
+>
+> - **Simpler**: Single computation type (no Freer/Hefty split)
+> - **Faster**: CPS + evidence-passing architecture performs 2-5x better in benchmarks
+> - **Cleaner**: `comp` macro instead of separate `con`/`hefty` macros
+>
+> Freyja remains available and functional, but new features and optimizations
+> will be developed in Skuld.
+
 ## Table of Contents
 
 - [Installation](#installation)
@@ -1085,7 +1097,7 @@ orchestrates this loop.
 
 ## 6. Performance
 
-Freyja's continuation-based architecture is designed for clarity and correctness. Benchmarking shows that for typical usage patterns, performance is excellent.
+Freyja's continuation-based architecture is designed for clarity and correctness. Benchmarking shows that for typical usage patterns, performance is moderate.
 
 **Key findings:**
 
@@ -1093,7 +1105,11 @@ Freyja's continuation-based architecture is designed for clarity and correctness
 - With realistic effect workloads, queue overhead is negligible - actual effect interpretation dominates
 - Pathological cases (10,000+ explicitly chained binds with trivial work) can exhibit O(n²) behavior, but such patterns are rare in practice and lose access to intermediate values
 
-**Recommendation:** Don't worry about performance for typical usage. If you're building very deep computation chains, consider restructuring as batched operations.
+**CPS + Evidence-Passing Performs Better:**
+
+Benchmarking suggests that a CPS (continuation-passing style) combined with evidence-passing architecture, as implemented in [Skuld](https://github.com/mccraigmccraig/skuld), achieves 2-5x better performance than Freyja's Freer monad approach. Future performance-focused work continues in the Skuld repository.
+
+**Recommendation:** use [Skuld](https://github.com/mccraigmccraig/skuld) instead - the API is simpler, and it performs better
 
 For detailed benchmarks and analysis, see [PERFORMANCE.md](https://github.com/mccraigmccraig/freyja/blob/main/PERFORMANCE.md).
 
